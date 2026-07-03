@@ -17,15 +17,16 @@ import (
 // Config holds pixkb runtime settings. Resolution order: built-in defaults <
 // pixkb.yaml < environment variables (PIXKB_*). A --dsn flag overrides DSN.
 type Config struct {
-	DSN       string     `yaml:"dsn"`
-	BundleDir string     `yaml:"bundle_dir"`
-	IngestDir string     `yaml:"ingest_dir"`
-	Embedder  string     `yaml:"embedder"`
-	PDFs      []string   `yaml:"pdfs"`       // PDF files to ingest as ManualSection concepts
-	Markdown  []string   `yaml:"markdown"`   // curated Markdown reference docs (H2 → Reference concepts)
-	MirrorDir string     `yaml:"mirror_dir"` // dir holding pre-staged repo mirrors
-	Repos     []RepoConf `yaml:"repos"`      // git repos (mirror under MirrorDir/<name>)
-	APIDocs   []string   `yaml:"api_docs"`   // local API-DICT HTML files
+	DSN           string     `yaml:"dsn"`
+	BundleDir     string     `yaml:"bundle_dir"`
+	IngestDir     string     `yaml:"ingest_dir"`
+	Embedder      string     `yaml:"embedder"`
+	PDFs          []string   `yaml:"pdfs"`            // PDF files to ingest as ManualSection concepts
+	Markdown      []string   `yaml:"markdown"`        // curated Markdown reference docs (H2 → Reference concepts)
+	MirrorDir     string     `yaml:"mirror_dir"`      // dir holding pre-staged repo mirrors
+	Repos         []RepoConf `yaml:"repos"`           // git repos (mirror under MirrorDir/<name>)
+	APIDocs       []string   `yaml:"api_docs"`        // local API-DICT HTML files
+	ScoutCrawlDir string     `yaml:"scout_crawl_dir"` // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
 }
 
 // RepoConf names a repository whose staged mirror is ingested.
@@ -65,6 +66,7 @@ func loadConfig() Config {
 			cfg.Markdown = fromFile.Markdown
 			cfg.Repos = fromFile.Repos
 			cfg.APIDocs = fromFile.APIDocs
+			cfg.ScoutCrawlDir = fromFile.ScoutCrawlDir
 		}
 	}
 	// Environment overrides file + defaults.

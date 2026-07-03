@@ -88,3 +88,19 @@ func TestNewEmbedder_HashingSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadConfig_ScoutCrawlDir(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	yaml := "scout_crawl_dir: mirrors/bcb/knowledge/pages\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pixkb.yaml"), []byte(yaml), 0o644))
+
+	cfg := loadConfig()
+	assert.Equal(t, "mirrors/bcb/knowledge/pages", cfg.ScoutCrawlDir)
+}
+
+func TestLoadConfig_ScoutCrawlDir_DefaultsEmpty(t *testing.T) {
+	t.Chdir(t.TempDir())
+	cfg := loadConfig()
+	assert.Empty(t, cfg.ScoutCrawlDir)
+}
