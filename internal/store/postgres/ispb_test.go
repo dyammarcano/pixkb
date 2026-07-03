@@ -88,6 +88,24 @@ func TestUpsertPix_NameUsedUntilSTRSyncs(t *testing.T) {
 	assert.True(t, got.STRSyncedAt.IsZero())
 }
 
+func TestUpsertPix_SecondSyncUpdatesNameBeforeSTR(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateISPB(t, s)
+
+	require.NoError(t, s.UpsertPix(ctx, ispb.PixRecord{ISPB: "00000208", Name: "FIRST PIX NAME", SyncedAt: time.Now()}))
+	require.NoError(t, s.UpsertPix(ctx, ispb.PixRecord{ISPB: "00000208", Name: "SECOND PIX NAME", SyncedAt: time.Now()}))
+
+	got, err := s.GetISPB(ctx, "00000208")
+	require.NoError(t, err)
+	assert.Equal(t, "SECOND PIX NAME", got.Name, "WHEN branch: name must update on repeat Pix sync before any STR sync")
+	assert.True(t, got.STRSyncedAt.IsZero())
+}
+
 func TestGetISPB_NotFound(t *testing.T) {
 	dsn := testDSN(t)
 	ctx := context.Background()
