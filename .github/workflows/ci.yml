@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go build ./...
+
+  vet:
+    name: vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go vet ./...
+
+  test:
+    name: test (short)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      # -short skips pg/pdf integration tests; no DB needed here.
+      - run: go test -short -race ./...
+
+  lint:
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  # Optional integration job: runs the full suite against a real pgvector
+  # instance. Gated on the PIXKB_TEST_DSN repo/environment variable being set,
+  # so forks and the default push path stay DB-free (-short only, above).
+  integration:
+    name: integration (pgvector)
+    runs-on: ubuntu-latest
+    if: ${{ vars.PIXKB_TEST_DSN != '' }}
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: pixkb
+          POSTGRES_PASSWORD: pixkb
+          POSTGRES_DB: pixkb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pixkb -d pixkb"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PIXKB_TEST_DSN: ${{ vars.PIXKB_TEST_DSN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      # pgvector ships the extension in the image; a superuser still has to
+      # CREATE EXTENSION before the migrations/tests run.
+      - name: Enable pgvector + btree_gist
+        run: |
+          psql "$PIXKB_TEST_DSN" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          psql "$PIXKB_TEST_DSN" -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+        env:
+          PGPASSWORD: pixkb
+      # -p 1: integration tests share one Postgres DB (see Taskfile test:full).
+      - run: go test -p 1 ./...

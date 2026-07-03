@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "case_id": { "type": "string" },
+    "query": { "type": "string" },
+    "top_hit": { "type": "string", "description": "concept id of the best result" },
+    "relevance": { "type": "integer", "description": "0-5: do results match the intent" },
+    "precision": { "type": "integer", "description": "0-5: are top results free of noise" },
+    "verdict": { "type": "string", "enum": ["pass", "weak", "fail"] },
+    "critique": { "type": "string", "description": "what is good/bad about the results" },
+    "enhancements": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "concrete KB improvements: titling, enrichment, cross-linking, ranking"
+    }
+  },
+  "required": ["case_id", "query", "top_hit", "relevance", "precision", "verdict", "critique", "enhancements"]
+}

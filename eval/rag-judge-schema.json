@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["case_id","question","answered","relevance","faithfulness","citation_accuracy","correct_refusal","verdict","critique"],
+  "properties": {
+    "case_id":           {"type": "string"},
+    "question":          {"type": "string"},
+    "answered":          {"type": "boolean", "description": "true if the system gave an answer, false if it refused"},
+    "relevance":         {"type": "integer", "minimum": 0, "maximum": 5, "description": "does the answer address the question"},
+    "faithfulness":      {"type": "integer", "minimum": 0, "maximum": 5, "description": "every claim supported by the cited concept(s); 5 = fully grounded, 0 = fabricated"},
+    "citation_accuracy": {"type": "integer", "minimum": 0, "maximum": 5, "description": "cited concept ids actually support the claims they back"},
+    "correct_refusal":   {"type": "boolean", "description": "for OOD/unanswerable cases: true if the system correctly refused"},
+    "verdict":           {"type": "string", "enum": ["pass","weak","fail"]},
+    "critique":          {"type": "string"}
+  }
+}

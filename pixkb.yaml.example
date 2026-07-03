@@ -1,0 +1,24 @@
+# pixkb configuration example. Copy to pixkb.yaml and edit.
+# Resolution order: built-in defaults < this file < PIXKB_* env vars < --dsn flag.
+
+# Postgres DSN (a superuser must have run CREATE EXTENSION vector + btree_gist).
+dsn: "postgres://pixkb:pixkb@localhost:5432/pixkb?sslmode=disable"
+
+# Canonical OKF bundle directory (the source of truth, git-versioned).
+bundle_dir: "kb"
+
+# Drop-dir watched by `pixkb watch` for newly staged artifacts.
+ingest_dir: "ingest"
+
+# Embedder: "hashing" (pure-Go default) or "onnx" (needs `-tags onnx` + a model).
+embedder: "hashing"
+
+# Extra PDFs to ingest as ManualSection concepts (e.g. BCB manuals).
+pdfs:
+  - "C:/Users/you/Downloads/II_ManualdePadroesparaIniciacaodoPix.pdf"
+
+# Pre-staged git repo mirrors under mirror_dir/<name> (air-gap: cloned ahead).
+mirror_dir: "mirrors"
+repos:
+  - { owner: "bacen", name: "pix-api" }
+  - { owner: "bacen", name: "pix-dict-api" }

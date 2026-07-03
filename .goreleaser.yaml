@@ -1,0 +1,46 @@
+# GoReleaser config for pixkb. The build is pure-Go (CGO_ENABLED=0) so it
+# cross-compiles cleanly for air-gap targets. Embeddings stay pure-Go (hashing
+# default); the air-gap rule is subscription agents only, no metered API and no
+# native model runtime.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: pixkb
+    main: ./cmd/pixkb
+    binary: pixkb
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X pixkb/internal/build.version={{.Version}}
+
+archives:
+  - id: pixkb
+    formats: [tar.gz]
+    files:
+      - README.md
+      - LICENSE
+      - pixkb.yaml.example
+      - deploy/docker-compose.yml
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# Air-gap deployment notes
+# ------------------------
+# A release archive contains only the pixkb binary + docs + the compose file.
+# To run fully offline you ALSO need the pgvector image staged on the host:
+#   docker pull pgvector/pgvector:pg17
+#   docker save pgvector/pgvector:pg17 -o pgvector-pg17.tar      # on a connected host
+#   docker load -i pgvector-pg17.tar                             # on the air-gapped host
+#   docker compose -f deploy/docker-compose.yml up -d
+#   pixkb db up && pixkb ingest
+# The OKF bundle (kb/) and any PDFs/repo mirrors are staged the same way.

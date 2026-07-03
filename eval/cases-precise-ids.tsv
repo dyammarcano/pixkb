@@ -1,0 +1,30 @@
+# PRECISE queries (title/terminology wording) -> expected concept id(s).
+# Deterministic guard set (eval/tophit.sh): a recall-query change must NOT regress
+# these. Drawn from eval/cases.tsv where the expected concept has a clean id.
+# query<TAB>id1[,id2,...]
+criar cobrança imediata	api/openapi/post-cob.md
+consultar cobrança por txid	api/openapi/get-cob-txid.md
+revisar cobrança imediata existente	api/openapi/patch-cob-txid.md
+criar cobrança com vencimento	api/openapi/put-cobv-txid.md
+devolução de pix recebido	api/openapi/put-pix-e2eid-devolucao-id.md,api/openapi/get-pix-e2eid-devolucao-id.md
+configurar webhook pix	api/openapi/put-webhook-chave.md
+consultar chave dict	api/openapi/get-entries-key.md
+verificar reivindicação de chave dict claim	api/openapi/get-claims.md
+pix automático recorrência	api/openapi/get-rec-recurlaccesstoken.md,api/openapi/post-rec.md
+credit transfer interbank settlement	messages/pacs.008.md
+payment return reversal pacs	messages/pacs.004.md
+account statement camt notification	messages/camt.054.md
+requisitos de segurança mtls certificado	reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md
+liquidação no spi reservas	reference/spi/liquidacao-spi.md
+consultar devoluções refunds	api/openapi/get-refunds.md
+qr code dinâmico location	api/openapi/post-loc.md
+consultar pix recebido por e2eid	api/openapi/get-pix-e2eid.md
+listar pix recebidos	api/openapi/get-pix.md
+lote de cobranças com vencimento	api/openapi/get-lotecobv.md,api/openapi/put-lotecobv-id.md
+criar recorrência pix automático	api/openapi/post-rec.md
+consultar cobrança imediata	api/openapi/get-cob.md,api/openapi/get-cob-txid.md
+consultar cobrança com vencimento por txid	api/openapi/get-cobv-txid.md
+consultar webhook por chave	api/openapi/get-webhook-chave.md
+remover webhook por chave	api/openapi/delete-webhook-chave.md
+reentrega de notificação webhook	reference/bacen-pix-concepts/04-reentrega-de-notifica-o-webhook-pix.md
+tipos de chave pix cpf cnpj email telefone	reference/bacen-pix-concepts/01-tipos-de-chave-pix-cpf-cnpj-e-mail-telefone-evp.md

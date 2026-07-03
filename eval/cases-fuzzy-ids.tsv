@@ -1,0 +1,21 @@
+# Fuzzy queries -> acceptable expected concept id(s). Deterministic top-hit set
+# (eval/tophit.sh). Mirrors eval/cases-fuzzy.tsv but with machine-checkable ids,
+# so the intent_terms / OR-recall effect is measured variance-free.
+# query<TAB>id1[,id2,...]
+como estornar um pix que recebi por engano	api/openapi/put-pix-e2eid-devolucao-id.md,api/openapi/get-pix-e2eid-devolucao-id.md
+listar os estornos já feitos pela api do diretório	api/openapi/get-refunds.md
+receber aviso automático no meu sistema quando cair um pix	api/openapi/put-webhook-chave.md
+o que acontece quando o aviso de pix não é entregue na primeira	reference/bacen-pix-concepts/04-reentrega-de-notifica-o-webhook-pix.md
+descobrir qual banco é dono de uma chave pix	api/openapi/get-entries-key.md
+aquela chave pix de letras e números aleatórios que o banco gera	reference/bacen-pix-concepts/01-tipos-de-chave-pix-cpf-cnpj-e-mail-telefone-evp.md
+contestar a posse de uma chave que dizem ser minha	api/openapi/get-claims.md
+mensagem de ordem de pagamento de crédito entre dois bancos	messages/pacs.008.md
+mensagem usada para devolver um pagamento entre instituições	messages/pacs.004.md
+aviso de lançamento ou extrato de movimentação da conta	messages/camt.054.md
+mensagem que confirma se o pagamento foi aceito ou rejeitado	messages/pacs.002.md
+onde o dinheiro efetivamente troca de mãos entre os bancos	reference/spi/liquidacao-spi.md
+preciso de certificado digital para conectar minha aplicação ao pix	reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md
+pagamento que se repete sozinho todo mês	api/openapi/get-rec-recurlaccesstoken.md
+código de pagamento que já vem com o valor preenchido pela loja	api/openapi/post-loc.md
+ver os dados de uma cobrança pelo identificador da transação	api/openapi/get-cob-txid.md
+cobrança com data de vencimento, juros e multa	api/openapi/put-cobv-txid.md

@@ -1,0 +1,29 @@
+# pixkb — ignore scratch, build, data, and ingest mirrors
+.env
+.env.*
+.scripts/
+/bin/
+/dist/
+/mirrors/
+/ingest/
+/kb-data/
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite-*
+*.db
+# vendored air-gap blobs (shipped via release, not git)
+/models/
+/third_party/onnxruntime/
+
+# local runtime config (absolute paths / secrets)
+pixkb.yaml
+
+# baked bundle staged for image build (not committed)
+deploy/kb-data/*
+!deploy/kb-data/.gitkeep
+
+# codex judge run artifacts (per-iteration outputs + reports are scratch)
+eval/out/
+eval/out-iter*/
+eval/report*.md

@@ -1,0 +1,59 @@
+# pixkb FUZZY judge cases — id<TAB>query<TAB>intent<TAB>expected-good-result
+# Authored by Claude; executed + judged by Codex (CASES=eval/cases-fuzzy.tsv bash eval/run-judge.sh).
+#
+# PURPOSE: measure the RECALL lift from intent_terms. Every query here is a
+# layperson / synonym / sigla-expanded / cross-language paraphrase that
+# DELIBERATELY AVOIDS the concept's title keywords — so a precise-FTS-only KB
+# misses it and only an intent_terms-enriched KB resolves it. Each case reuses
+# a VERIFIED expected concept from eval/cases.tsv, so the ONLY variable is the
+# phrasing. Run before and after a `pixkb curate --enrich` rollout: the delta is
+# the recall win. (The precise eval/cases.tsv cannot measure this — its queries
+# already contain the title words.)
+
+# --- refund / devolução: "estorno", "por engano" (no "devolução") ---
+f-estorno	como estornar um pix que recebi por engano	Refund/return a received Pix, phrased as estorno	a devolução endpoint (PUT /pix/{e2eid}/devolucao) or manual
+f-refund-list	listar os estornos já feitos pela api do diretório	List refunds via DICT api, no "devolução"/"refunds"	a refunds endpoint (pix-dict-api)
+
+# --- webhook: "aviso automático", "notificação" (no "webhook") ---
+f-aviso	receber aviso automático no meu sistema quando cair um pix	Register a webhook, phrased without the word webhook	PUT /webhook endpoint
+f-reentrega	o que acontece quando o aviso de pix não é entregue na primeira	Webhook redelivery/retry, phrased as "aviso não entregue"	webhook endpoint or manual on notification retry
+
+# --- DICT key lookup: "descobrir o banco dono" (no "DICT"/"consultar chave") ---
+f-dono-chave	descobrir qual banco é dono de uma chave pix	Resolve a Pix key in DICT, layperson phrasing	a DICT lookup endpoint (pix-dict-api)
+f-chave-aleatoria	aquela chave pix de letras e números aleatórios que o banco gera	EVP random key, phrased without "EVP"/"aleatória" title term	manual/DICT content on key types (chave aleatória / EVP)
+f-contestar-chave	contestar a posse de uma chave que dizem ser minha	DICT claim/reivindicação, phrased as "contestar posse"	a claims/cid endpoint or manual on reivindicação
+
+# --- ISO 20022 by meaning, not pacs id ---
+f-ordem-pagamento	mensagem de ordem de pagamento de crédito entre dois bancos	pacs.008 by meaning, no "pacs"/"credit transfer"	messages/pacs.008.md
+f-devolver-interbancario	mensagem usada para devolver um pagamento entre instituições	pacs.004 payment return by meaning	messages/pacs.004.md
+f-extrato-conta	aviso de lançamento ou extrato de movimentação da conta	camt statement/notification by meaning	a camt.* message concept
+f-confirmacao-status	mensagem que confirma se o pagamento foi aceito ou rejeitado	pacs.002 status report by meaning	messages/pacs.002.md
+
+# --- settlement: "onde o dinheiro troca de mãos" (no "liquidação"/"SPI") ---
+f-troca-dinheiro	onde o dinheiro efetivamente troca de mãos entre os bancos	Settlement in the SPI/reserves, layperson	manual/message content on settlement (SPI)
+
+# --- security: "certificado digital pra conectar" (no "mTLS"/"segurança") ---
+f-certificado	preciso de certificado digital para conectar minha aplicação ao pix	Security/mTLS requirements, phrased as certificate	a manual section on security requirements
+
+# --- deadlines: "até quando os bancos têm que" (no "prazos"/"implementação") ---
+f-ate-quando	até quando as instituições têm que entregar cada funcionalidade	Implementation deadlines, layperson	manual PRAZOS PARA IMPLEMENTAÇÃO section
+
+# --- recurrence: "pagamento que se repete todo mês" (no "automático"/"recorrência") ---
+f-repete-mes	pagamento que se repete sozinho todo mês	Pix Automático / recurrence by meaning	a rec/recorrência endpoint or manual section
+
+# --- QR by behaviour, not "estático/dinâmico" ---
+f-qr-fixo	código de pagamento impresso que não muda e não traz valor	Static QR by behaviour	manual section on static QR (EMV/BR Code)
+f-qr-com-valor	código de pagamento que já vem com o valor preenchido pela loja	Dynamic QR by behaviour	a /loc endpoint or QR manual section
+
+# --- charge lookup: txid expanded to "identificador da transação" ---
+f-ver-cobranca	ver os dados de uma cobrança pelo identificador da transação	GET /cob/{txid}, txid expanded	GET /cob/{txid}
+f-cobranca-vencimento	cobrança com data de vencimento, juros e multa	cobv due-dated charge by attributes	POST /cobv or PUT /cobv/{txid}
+
+# --- error: "quando mando dados errados" (no "400"/"Problem") ---
+f-dados-errados	o que a api responde quando eu mando dados errados na requisição	Problem/400 error schema, layperson	an endpoint response documenting the Problem schema / 400
+
+# --- e2eid: "identificador único de 32 caracteres" ---
+f-id-transacao	o identificador único de 32 caracteres de uma transação pix	EndToEndId / E2EID by description	manual/concept on EndToEndId (E2EID) identifier format
+
+# --- Out-of-domain control (unchanged: KB should NOT surface a relevant hit) ---
+f-ood	receita de bolo de cenoura com cobertura de chocolate	Out-of-domain cooking query unrelated to Pix	NO strongly relevant result; low relevance is the CORRECT outcome

@@ -1,0 +1,111 @@
+package query
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"pixkb/internal/embed"
+	"pixkb/internal/store/postgres"
+)
+
+type fakeSearcher struct {
+	fts []postgres.Hit
+	vec []postgres.Hit
+}
+
+func (f *fakeSearcher) FTS(_ context.Context, _ string, _ postgres.Filter) ([]postgres.Hit, error) {
+	return f.fts, nil
+}
+func (f *fakeSearcher) Vector(_ context.Context, _ []float32, _ postgres.Filter) ([]postgres.Hit, error) {
+	return f.vec, nil
+}
+
+func TestHybrid_FusesAndHydrates(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: []postgres.Hit{{ID: "a", Title: "Alpha"}, {ID: "b", Title: "Bravo"}},
+		vec: []postgres.Hit{{ID: "b", Title: "Bravo", Score: 0.9}, {ID: "c", Title: "Charlie", Score: 0.8}},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "q", postgres.Filter{})
+	require.NoError(t, err)
+
+	// b appears in both arms (rank 0+1) -> highest fused score -> first.
+	require.NotEmpty(t, got)
+	assert.Equal(t, "b", got[0].ID)
+	assert.Equal(t, "Bravo", got[0].Title)
+	assert.Equal(t, 1, got[0].Rank)
+
+	ids := map[string]bool{}
+	for _, h := range got {
+		ids[h.ID] = true
+	}
+	assert.True(t, ids["a"] && ids["b"] && ids["c"], "all three ids present")
+}
+
+// TestHybrid_TitleBoostWinsOverNoisyFragment: two concepts tie on RRF rank, but
+// one's title covers the query tokens and the other's is an unrelated OCR sample
+// name. The title-intent match must rank first.
+func TestHybrid_TitleBoostWinsOverNoisyFragment(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		// noisy fragment first in FTS (higher term-frequency), canonical second.
+		fts: []postgres.Hit{
+			{ID: "secao-73", Title: "FULANO DE TAL EIRELI", Type: "ManualSection"},
+			{ID: "qr", Title: "QR Code Estático Pix (BR Code / EMV MPM)", Type: "Reference"},
+		},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "QR code estático BR EMV", postgres.Filter{})
+	require.NoError(t, err)
+	require.NotEmpty(t, got)
+	assert.Equal(t, "qr", got[0].ID, "title-intent match must outrank the noisy fragment")
+}
+
+func TestTitleBoost(t *testing.T) {
+	t.Parallel()
+	// full coverage -> max boost; zero coverage -> none; accents/stopwords folded.
+	assert.InDelta(t, 1.5, titleBoost("QR code estático", "QR Code Estático Pix"), 1e-9)
+	assert.InDelta(t, 1.0, titleBoost("QR code estático", "FULANO DE TAL EIRELI"), 1e-9)
+	assert.InDelta(t, 1.25, titleBoost("liquidação reservas", "Liquidação no SPI"), 1e-9) // 1 of 2 tokens
+}
+
+func TestHybrid_RespectsLimit(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: []postgres.Hit{{ID: "a"}, {ID: "b"}, {ID: "c"}},
+		vec: []postgres.Hit{{ID: "d", Score: 0.9}},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "q", postgres.Filter{Limit: 2})
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
+}
+
+// TestHybrid_VectorFloorDropsOOD: an out-of-domain query yields no FTS hits and
+// only near-zero-cosine vector hits; the floor must drop them so the result is
+// empty (no unrelated-concept noise).
+func TestHybrid_VectorFloorDropsOOD(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: nil,
+		vec: []postgres.Hit{{ID: "x", Score: 0.01}, {ID: "y", Score: 0.0}},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "previsão do tempo", postgres.Filter{})
+	require.NoError(t, err)
+	assert.Empty(t, got, "sub-floor vector-only hits dropped -> empty result")
+}
+
+// TestHybrid_VectorFloorKeepsRealHit: a real vector hit above the floor survives
+// even with no FTS hits (in-domain conceptual query).
+func TestHybrid_VectorFloorKeepsRealHit(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: nil,
+		vec: []postgres.Hit{{ID: "good", Title: "Good", Score: 0.42}, {ID: "noise", Score: 0.02}},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "q", postgres.Filter{})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "good", got[0].ID)
+}

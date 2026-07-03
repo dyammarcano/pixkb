@@ -1,0 +1,23 @@
+# Pre-staged pgvector image: docker save pgvector/pgvector:pg17 -o pgvector-pg17.tar
+# then docker load -i pgvector-pg17.tar on the air-gap host. pgvector ships
+# inside the image, so no on-host extension build is required.
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=pixkb
+      - POSTGRES_PASSWORD=pixkb
+      - POSTGRES_DB=pixkb
+    volumes:
+      - pixkb_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pixkb -d pixkb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pixkb_pgdata:

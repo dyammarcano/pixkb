@@ -1,0 +1,51 @@
+# pixkb KB judge cases — id<TAB>query<TAB>intent<TAB>expected-good-result
+# Authored by Claude; executed + judged by Codex (eval/run-judge.sh).
+# Broad coverage: API endpoints, ISO 20022 messages, manual concepts, DICT,
+# security/compliance, recurrence, QR, settlement, errors, and an OOD control.
+
+# --- API: cobrança lifecycle ---
+criar-cobranca	criar cobrança imediata	Create an immediate Pix charge via the API	POST /cob endpoint (api/openapi/post-cob.md)
+consultar-cob	consultar cobrança por txid	Look up a charge by its txid	GET /cob/{txid}
+revisar-cob	revisar cobrança imediata existente	Update/patch an existing immediate charge	PATCH /cob/{txid}
+cobv-vencimento	criar cobrança com vencimento	Create a due-dated charge	POST /cobv or PUT /cobv/{txid}
+lote-cobv	lote de cobranças com vencimento	Batch of due-dated charges	POST /lotecobv or PUT /lotecobv/{id}
+
+# --- API: location / QR ---
+qrcode-dinamico	qr code dinâmico location	Dynamic QR code / payload location	a /loc endpoint or QR manual section
+qr-estatico	qr code estático pix	Static QR code payload	manual section on static QR (EMV/BR Code)
+
+# --- API: devolução / refund ---
+devolucao	devolução de pix recebido	Refund / return a received Pix	a devolução endpoint (PUT /pix/{e2eid}/devolucao) or manual
+refunds-dict	consultar devoluções refunds	List/inspect refunds	a refunds endpoint (pix-dict-api)
+
+# --- API: webhook ---
+webhook	configurar webhook pix	Register a webhook for Pix notifications	PUT /webhook endpoint
+webhook-retry	reentrega de notificação webhook	Webhook redelivery / retry semantics	webhook endpoint or manual on notification retry
+
+# --- API/DICT: keys ---
+chave-dict	consultar chave dict	Resolve a Pix key in DICT	a DICT lookup endpoint (pix-dict-api)
+chave-tipos	tipos de chave pix cpf cnpj email telefone evp	Pix key types	manual/DICT content on key types
+validar-chave	verificar reivindicação de chave dict claim	DICT key claim / verification flow	a claims/cid endpoint or manual on reivindicação
+
+# --- API: recurrence (Pix Automático) ---
+recorrencia	pix automático recorrência	Recurring Pix (Pix Automático)	a rec/recorrência endpoint or manual section
+
+# --- ISO 20022 messages ---
+credit-transfer	credit transfer interbank settlement	ISO 20022 interbank credit transfer message	messages/pacs.008.md
+payment-return	payment return reversal pacs	ISO 20022 payment return message	messages/pacs.004.md
+camt-statement	account statement camt notification	ISO 20022 camt statement/notification	a camt.* message concept
+
+# --- Manual: compliance / ops ---
+seguranca	requisitos de segurança mtls certificado	Security requirements (mTLS / certificates)	a manual section on security requirements
+prazos	prazos de implementação das funcionalidades	Implementation deadlines for features	manual PRAZOS PARA IMPLEMENTAÇÃO section
+status-cobranca	cobrança rejeitada pelo psp	Charge rejected status semantics	manual section on COBR REJEITADA
+liquidacao-spi	liquidação no spi reservas	Settlement in the SPI / reserves	manual/message content on settlement (SPI)
+
+# --- Errors ---
+erro-400	erro requisição inválida problema	Error handling / Problem (RFC7807) schema	an endpoint response documenting the Problem schema / 400
+
+# --- Graph ---
+related-cob	graph neighbours of POST /cob	Cross-link quality around the cob family	pixkb related api/openapi/post-cob.md lists the /cob endpoint family
+
+# --- Out-of-domain control (KB should NOT surface a strongly-relevant hit) ---
+ood-control	previsão do tempo para amanhã em são paulo	Out-of-domain weather query unrelated to Pix	NO strongly relevant result; low relevance is the CORRECT outcome

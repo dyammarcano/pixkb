@@ -1,0 +1,9 @@
+# OKF bundle slot — baked into the air-gap image at /kb.
+#
+# Stage your knowledge bundle here (one OKF concept per markdown file) BEFORE
+# running deploy/build-image.sh, e.g.:
+#
+#   cp -r kb/* deploy/kb-data/
+#
+# Leaving this slot empty produces a valid image with an empty /kb; populate it
+# at runtime by mounting a bundle or running `pixkb ingest` instead.

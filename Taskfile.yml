@@ -1,0 +1,47 @@
+version: "3"
+
+vars:
+  BIN: pixkb
+  PKG: ./...
+  MIGRATIONS: internal/store/postgres/schema
+  DSN: '{{.PIXKB_DSN | default "postgres://pixkb:pixkb@localhost:5432/pixkb?sslmode=disable"}}'
+
+tasks:
+  build:
+    desc: Build the pixkb binary (pure-Go, hashing embedder)
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -o bin/{{.BIN}} ./cmd/pixkb
+
+  test:
+    desc: Fast unit tests (skips pg/onnx/pdf integration)
+    cmds:
+      - go test -short -race {{.PKG}}
+
+  test:full:
+    desc: Full suite including integration tests (needs PIXKB_TEST_DSN)
+    cmds:
+      # -p 1 runs packages serially: integration tests share one Postgres DB
+      # and would truncate each other under parallel package execution.
+      - go test -p 1 {{.PKG}}
+
+  testdb:up:
+    desc: Start a local throwaway pgvector container for integration tests (:5433)
+    cmds:
+      - bash deploy/local-testdb.sh up
+
+  testdb:down:
+    desc: Remove the local integration-test pgvector container
+    cmds:
+      - bash deploy/local-testdb.sh down
+
+  lint:
+    desc: Run golangci-lint with autofix
+    cmds:
+      - golangci-lint run --fix {{.PKG}} --timeout=5m
+
+  migrate:
+    desc: Apply pg migrations up via the pixkb db command
+    cmds:
+      - go run ./cmd/pixkb db up --dsn "{{.DSN}}"

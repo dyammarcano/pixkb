@@ -1,0 +1,24 @@
+# pixkb RAG judge cases — id<TAB>question<TAB>expectation
+# Authored by Claude; executed (pixkb ask --json) + judged by Codex against the
+# RAG rubric (eval/run-rag-judge.sh, schema eval/rag-judge-schema.json).
+# expectation is one of:
+#   answer:<concept-id>   the answer SHOULD be grounded and cite this concept
+#   refuse                the system SHOULD refuse (out-of-domain / not in the KB)
+# The rubric scores relevance, FAITHFULNESS (claims supported by citations),
+# citation accuracy, and correct-refusal. Faithfulness is the whole game: a wrong
+# fact about a normative arrangement is worse than a refusal.
+
+# --- answerable: core Pix flows ---
+rag-devolucao	como funciona a devolução de um Pix recebido?	answer:api/openapi/put-pix-e2eid-devolucao-id.md
+rag-webhook	como registro um webhook para ser notificado de Pix recebidos?	answer:api/openapi/put-webhook-chave.md
+rag-chave-tipos	quais são os tipos de chave Pix?	answer:reference/bacen-pix-concepts/01-tipos-de-chave-pix-cpf-cnpj-e-mail-telefone-evp.md
+rag-cobranca	como crio uma cobrança imediata?	answer:api/openapi/post-cob.md
+rag-pacs008	qual mensagem ISO 20022 carrega a ordem de pagamento de crédito interbancária?	answer:messages/pacs.008.md
+rag-seguranca	quais os requisitos de segurança para conectar ao Pix?	answer:reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md
+rag-recorrencia	como funciona o Pix Automático (pagamento recorrente)?	answer:api/openapi/get-rec-recurlaccesstoken.md
+rag-liquidacao	onde acontece a liquidação interbancária do Pix?	answer:reference/spi/liquidacao-spi.md
+
+# --- must REFUSE: out of domain / not in the KB ---
+rag-ood-weather	qual a previsão do tempo para amanhã em São Paulo?	refuse
+rag-ood-recipe	me dê uma receita de bolo de cenoura	refuse
+rag-unanswerable	qual o número de telefone do presidente do Banco Central?	refuse
