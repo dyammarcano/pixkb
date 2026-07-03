@@ -1,0 +1,96 @@
+package ispb
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// pixFixture uses Windows-1252 bytes: \xE3 = ã, \xC9 = É.
+var pixFixture = []byte(
+	"Lista de participantes em ades\xE3o ao Pix\n" +
+		";ISPB;Nome Reduzido;CNPJ;Autorizada pelo BCB\n" +
+		"1;00000000;BCO DO BRASIL S.A.;00000000000191;Sim\n" +
+		"2;00204963;COOPERATIVA CR\xC9DITO;00204963000110;Sim\n" +
+		"3;38166;BACEN;38166000105;Nao\n" +
+		"4;;SEM ISPB;12345678000100;Sim\n")
+
+func TestParsePix(t *testing.T) {
+	synced := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
+	records, err := ParsePix(pixFixture, DefaultPixConfig(), synced)
+	require.NoError(t, err)
+	require.Len(t, records, 3, "4 data rows minus 1 skipped empty-ISPB row")
+
+	brasil := records[0]
+	assert.Equal(t, "00000000", brasil.ISPB)
+	assert.Equal(t, "BCO DO BRASIL S.A.", brasil.Name)
+	assert.Equal(t, "00000000000191", brasil.CNPJ)
+	assert.True(t, brasil.Authorized)
+	assert.Equal(t, synced, brasil.SyncedAt)
+
+	coop := records[1]
+	assert.Equal(t, "COOPERATIVA CRÉDITO", coop.Name, "Windows-1252 0xC9 decodes to É")
+
+	bacen := records[2]
+	assert.Equal(t, "00038166", bacen.ISPB, "short code zero-padded to 8 digits")
+	assert.False(t, bacen.Authorized, "Nao is not in AuthorizedValues")
+}
+
+func TestParsePix_NoDataRows(t *testing.T) {
+	_, err := ParsePix([]byte(";ISPB;Nome Reduzido\n"), DefaultPixConfig(), time.Now())
+	assert.Error(t, err)
+}
+
+func TestDownloadPix_ProbesDatesBackward(t *testing.T) {
+	today := time.Now()
+	validDate := today.AddDate(0, 0, -2).Format("20060102")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/pix-"+validDate+".csv" {
+			w.WriteHeader(http.StatusOK)
+			if r.Method == http.MethodGet {
+				_, _ = w.Write(pixFixture)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	cfg := PixConfig{
+		BaseURL:          srv.URL + "/pix-%s.csv",
+		HTTPTimeout:      5 * time.Second,
+		MaxDaysBack:      10,
+		CSVDelimiter:     ';',
+		ColumnISPB:       "ISPB",
+		ColumnName:       "Nome Reduzido",
+		ColumnCNPJ:       "CNPJ",
+		ColumnAuthorized: "Autorizada pelo BCB",
+		AuthorizedValues: []string{"sim"},
+	}
+	data, url, err := DownloadPix(context.Background(), cfg, nil)
+	require.NoError(t, err)
+	assert.Equal(t, pixFixture, data)
+	assert.Equal(t, fmt.Sprintf("%s/pix-%s.csv", srv.URL, validDate), url)
+}
+
+func TestDownloadPix_ExhaustsMaxDaysBack(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	cfg := DefaultPixConfig()
+	cfg.BaseURL = srv.URL + "/pix-%s.csv"
+	cfg.MaxDaysBack = 2
+	cfg.HTTPTimeout = 5 * time.Second
+
+	_, _, err := DownloadPix(context.Background(), cfg, nil)
+	assert.Error(t, err)
+}
