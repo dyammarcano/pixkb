@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:046 -->
+<!-- rev:047 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -257,25 +257,40 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
   mirrors). Standard going forward: canonical concept bodies should be
-  English. Two surfaces need it:
-  (a) **Agent-written/rewritten content** — the `enrich` roster agent
-  (intent_terms) and `curate`'s fix agents (hygiene, deviation, research —
-  `internal/curate`) currently read/write concept bodies in whatever language
-  the source was; they should translate to English as part of their fix/write
-  step, gated the same way hygiene fixes already are (agent proposes →
-  re-scanned by the same detector → rejected if it still trips an error).
-  (b) **New ingestion** — every `ingest.Source` (PDF, Markdown, git-mirror/
-  OpenAPI, scout-crawl) currently stores extracted text as-is; a translation
-  pass (agent-driven, since this project has no offline MT model and adding
-  one would violate the air-gap/no-native-runtime rule) needs to run before
-  a new concept is written, not after, so nothing PT-only ever lands in the
-  canonical bundle.
+  English. Three surfaces, one now done:
+  - ~~**Agent SYSTEM PROMPTS audited/translated to English**~~ DONE
+    (2026-07-04, `agents: add English-commentary language note to
+    content-producing prompts`, `pkg/agents/roster.go`). Audited every
+    roster agent's `System` prompt string for Portuguese instructional
+    text — none was found; all were already English prose wrapping
+    verbatim BACEN normative terms. Added one explicit line to each of the
+    four content-producing agents (enrich, hygiene, deviation, research):
+    their own commentary/notes/critique must be written in English, but
+    canonical BACEN/Pix concept body, title, and domain vocabulary must
+    never be force-translated out of their source language. This closes
+    only the *instructional-prompt* surface — it does not translate what
+    those agents read or write. (a), (b), and the existing corpus below
+    remain open.
+  (a) **Agent-written/rewritten content — still open.** The `enrich` roster
+  agent (intent_terms) and `curate`'s fix agents (hygiene, deviation,
+  research — `internal/curate`) currently read/write concept bodies in
+  whatever language the source was; they should translate to English as
+  part of their fix/write step, gated the same way hygiene fixes already
+  are (agent proposes → re-scanned by the same detector → rejected if it
+  still trips an error).
+  (b) **New ingestion — still open.** Every `ingest.Source` (PDF, Markdown,
+  git-mirror/OpenAPI, scout-crawl) currently stores extracted text as-is; a
+  translation pass (agent-driven, since this project has no offline MT
+  model and adding one would violate the air-gap/no-native-runtime rule)
+  needs to run before a new concept is written, not after, so nothing
+  PT-only ever lands in the canonical bundle.
   **Open questions to resolve at brainstorm time before planning this** (do
   not build directly from this backlog line):
-  - **Existing 200+ concept corpus is PT.** Is this a one-time bulk
-    re-translation batch (like the `intent_terms` enrichment rollout —
-    `curate --enrich`-style loop) or translate-on-touch (only when an agent
-    already needs to rewrite that concept for another reason)?
+  - **Existing ~255 concept corpus is PT (bodies + titles) — still open,
+    future work.** Is this a one-time bulk re-translation batch (like the
+    `intent_terms` enrichment rollout — `curate --enrich`-style loop) or
+    translate-on-touch (only when an agent already needs to rewrite that
+    concept for another reason)?
   - **FTS is tuned for Portuguese today** — migration 0003's `pixpt` config
     (simple tokenizer + PT stopwords, no stemmer) exists specifically because
     the corpus and queries are PT. Translating bodies to English without
