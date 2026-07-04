@@ -23,7 +23,7 @@ import (
 func newAskCmd() *cobra.Command {
 	var dsn, provider, typ string
 	var topK, expandSeeds int
-	var expand, asJSON, multi, diversify, noPIIFilter bool
+	var expand, asJSON, multi, diversify, noPIIFilter, noCache bool
 	var minScore float64
 	cmd := &cobra.Command{
 		Use:   "ask <question>",
@@ -40,6 +40,14 @@ func newAskCmd() *cobra.Command {
 				return err
 			}
 			defer st.Close()
+			stats, err := st.Stats(ctx)
+			if err != nil {
+				return err
+			}
+			var cache rag.AnswerCache
+			if !noCache {
+				cache = rag.NewLRUCache(128)
+			}
 			emb, err := newEmbedder(cfg)
 			if err != nil {
 				return err
@@ -67,6 +75,8 @@ func newAskCmd() *cobra.Command {
 					ExpandSeeds:   expandSeeds,
 					MinScore:      minScore,
 					NoPIIFilter:   noPIIFilter,
+					Cache:         cache,
+					Epoch:         stats.LatestEpoch,
 				},
 			)
 			if err != nil {
@@ -86,6 +96,7 @@ func newAskCmd() *cobra.Command {
 	cmd.Flags().IntVar(&expandSeeds, "expand-seeds", 0, "graph-neighbour seed hits to expand when --expand is set (0 = default 1)")
 	cmd.Flags().Float64Var(&minScore, "min-score", 0, "refuse when the top retrieved hit's score is below this (0 = disabled)")
 	cmd.Flags().BoolVar(&noPIIFilter, "no-pii-filter", false, "disable the deterministic PII/LGPD redaction post-filter (debugging only — do not use for output shown to end users)")
+	cmd.Flags().BoolVar(&noCache, "no-cache", false, "disable the in-memory answer cache (debugging / force a fresh agent turn)")
 	return cmd
 }
 

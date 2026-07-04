@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:048 -->
+<!-- rev:049 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -7,13 +7,11 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 ## P1
 - _(none open — the RAG layer shipped; see Shipped. Promote a P2 item here when
   scheduled.)_
-- **RAG follow-ups (optional polish).** The core RAG layer is shipped; these are
-  nice-to-haves, not blockers: (a) wire the now-shipped `query.MultiHybrid`
-  (below) into `rag.Retriever`/`HybridRetriever` for grounding diversity on
-  broad questions — the primitive exists, RAG just doesn't call it yet; (b) an
-  answer cache keyed by (question-hash, KB-epoch) to avoid re-spending a turn on a
-  repeated question; (c) a deterministic PII/LGPD post-filter on the answer (today
-  it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
+- **RAG follow-up (optional polish).** The core RAG layer is shipped; this is a
+  nice-to-have, not a blocker: wire the now-shipped `query.MultiHybrid` (below)
+  into `rag.Retriever`/`HybridRetriever` for grounding diversity on broad
+  questions — the primitive exists, RAG just doesn't call it yet. Gate any
+  change on `eval/run-rag-judge.sh`.
 
 ## P2
 - **Search evaluation expansion follow-ups (Feature 6 of
@@ -410,7 +408,14 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   RAG eval rubric: `eval/cases-rag.tsv` (11 cases incl. 3 OOD-refuse) +
   `rag-judge-schema.json` (relevance/faithfulness/citation/correct-refusal) +
   `run-rag-judge.sh`. DB-free unit tests for grounding, citation validation, and
-  refusal paths (`7276aac`, `544473d`, `69fad4a`, `cabc7b4`).
+  refusal paths (`7276aac`, `544473d`, `69fad4a`, `cabc7b4`). Two guardrails ship
+  on top of `rag.Ask`: a deterministic PII/LGPD post-filter (`internal/rag/pii.go`,
+  regex redaction of CPF/CNPJ/phone/email in `Answer.Text`) and an in-memory
+  answer cache keyed by (question-hash, KB-epoch) (`internal/rag/cache.go`,
+  `container/list`-backed LRU, epoch sourced from `postgres.Store.Stats()` so a
+  KB update invalidates every prior entry by construction) — both default-on,
+  with `--no-pii-filter`/`--no-cache` (CLI) and `no_pii_filter`/`no_cache` (MCP)
+  escape hatches.
 - **`curate --reenrich` — re-tune existing intent_terms.** The enrich loop only
   flagged EMPTY intent_terms; `--reenrich` routes ALL concepts so the 207
   already-filled ones can be regenerated (e.g. after the embed-text change). Shared

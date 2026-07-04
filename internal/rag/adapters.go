@@ -90,22 +90,36 @@ func (a AgentGenerator) Generate(ctx context.Context, prompt string) (string, er
 
 // Ask is the end-to-end RAG entry point: retrieve + augment, then synthesize. It
 // returns the Grounding alongside the Answer so a surface can resolve each cited
-// concept id back to its source_uri for display. Answer.Text is redacted for
-// PII/LGPD (CPF/CNPJ/phone/email) before it is returned, unless
-// Options.NoPIIFilter is set — a code-enforced backstop behind the answerer's
-// prompt-level instruction to avoid personal data, since a prompt instruction is
-// not a guarantee.
+// concept id back to its source_uri for display. When Options.Cache is set, a
+// hit for CacheKey(q, Options.Epoch) short-circuits Synthesize entirely — the
+// whole point being to skip a real subscription-agent turn on a repeated
+// question. Answer.Text is redacted for PII/LGPD before being cached, so a
+// cache hit and a cache miss return identically-redacted text. Grounding is
+// always rebuilt (retrieval is local and cheap, never the agent), even on a
+// cache hit, so citation source_uri resolution keeps working.
 func Ask(ctx context.Context, r Retriever, cs ConceptSource, gen Generator, q string, opts Options) (Answer, Grounding, error) {
 	g, err := BuildGrounding(ctx, r, cs, q, opts)
 	if err != nil {
 		return Answer{}, Grounding{}, err
 	}
+
+	var key string
+	if opts.Cache != nil {
+		key = CacheKey(q, opts.Epoch)
+		if a, ok := opts.Cache.Get(key); ok {
+			return a, g, nil
+		}
+	}
+
 	a, err := Synthesize(ctx, gen, g)
 	if err != nil {
 		return Answer{}, g, err
 	}
 	if !opts.NoPIIFilter {
 		a.Text = RedactPII(a.Text)
+	}
+	if opts.Cache != nil {
+		opts.Cache.Put(key, a)
 	}
 	return a, g, nil
 }

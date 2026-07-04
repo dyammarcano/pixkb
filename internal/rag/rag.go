@@ -70,14 +70,16 @@ type Grounding struct {
 
 // Options tune retrieval + assembly. The zero value is usable (defaults applied).
 type Options struct {
-	TopK          int     // hybrid hits to take (default defaultTopK)
-	ExpandRelated bool    // also pull the graph neighbours of the seed hit(s)
-	MaxChars      int     // grounding char budget, ~4 chars/token (default defaultMaxChars)
-	MultiQuery    bool    // use the Retriever's MultiRetriever (multi-query expansion) when it implements one; silently falls back to single-query Retrieve otherwise
-	Diversify     bool    // prefer the first hit of each concept Type before filling remaining slots by rank
-	ExpandSeeds   int     // how many top hits' graph neighbours to pull when ExpandRelated (default 1, preserves the pre-upgrade single-seed behavior)
-	MinScore      float64 // refuse (empty Grounding, no agent turn spent) when the top hit's score is below this (0 = disabled)
-	NoPIIFilter   bool    // skip the deterministic PII/LGPD redaction pass over Answer.Text (default false = filter ON; debugging escape hatch only)
+	TopK          int         // hybrid hits to take (default defaultTopK)
+	ExpandRelated bool        // also pull the graph neighbours of the seed hit(s)
+	MaxChars      int         // grounding char budget, ~4 chars/token (default defaultMaxChars)
+	MultiQuery    bool        // use the Retriever's MultiRetriever (multi-query expansion) when it implements one; silently falls back to single-query Retrieve otherwise
+	Diversify     bool        // prefer the first hit of each concept Type before filling remaining slots by rank
+	ExpandSeeds   int         // how many top hits' graph neighbours to pull when ExpandRelated (default 1, preserves the pre-upgrade single-seed behavior)
+	MinScore      float64     // refuse (empty Grounding, no agent turn spent) when the top hit's score is below this (0 = disabled)
+	NoPIIFilter   bool        // skip the deterministic PII/LGPD redaction pass over Answer.Text (default false = filter ON; debugging escape hatch only)
+	Cache         AnswerCache // when set, Ask checks/populates it keyed by CacheKey(q, Epoch) to skip re-spending an agent turn on a repeated question (nil = no caching, the pre-change default)
+	Epoch         int         // the KB epoch this question is being answered against (see postgres.Store.Stats().LatestEpoch); only consulted when Cache is set
 }
 
 const (

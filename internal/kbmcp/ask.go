@@ -20,6 +20,7 @@ type askIn struct {
 	ExpandSeeds int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
 	MinScore    float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
 	NoPIIFilter bool    `json:"no_pii_filter,omitempty" jsonschema:"disable the deterministic PII/LGPD redaction post-filter (debugging only)"`
+	NoCache     bool    `json:"no_cache,omitempty" jsonschema:"bypass the answer cache and force a fresh agent turn"`
 }
 
 type askCitationOut struct {
@@ -32,6 +33,12 @@ type askOut struct {
 	Citations []askCitationOut `json:"citations"`
 }
 
+// askCache is shared across every kb_ask call for this server's lifetime — the
+// CLI gets a fresh cache per invocation (no reuse possible there), but the MCP
+// server is long-running, so this is the path that actually skips repeated
+// agent turns in practice.
+var askCache = rag.NewLRUCache(256)
+
 // registerAsk wires the RAG answer verb: retrieve + augment + a grounded, cited
 // answer synthesized by the answerer agent. Registered only when an Agency is
 // present (generation needs the subscription fleet). Refuses (refused=true) when
@@ -41,6 +48,14 @@ func registerAsk(s *mcp.Server, d Deps) {
 		Name:        "kb_ask",
 		Description: "Answer a question from the Pix/SPB KB — grounded, citation-backed, refuses when unsupported (RAG).",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in askIn) (*mcp.CallToolResult, askOut, error) {
+		stats, err := d.Store.Stats(ctx)
+		if err != nil {
+			return nil, askOut{}, err
+		}
+		cache := rag.AnswerCache(askCache)
+		if in.NoCache {
+			cache = nil
+		}
 		ans, g, err := rag.Ask(ctx,
 			rag.HybridRetriever{Store: d.Store, Emb: d.Emb, Filter: postgres.Filter{Type: in.Type}},
 			rag.BundleSource{Dir: d.Bundle},
@@ -54,6 +69,8 @@ func registerAsk(s *mcp.Server, d Deps) {
 				ExpandSeeds:   in.ExpandSeeds,
 				MinScore:      in.MinScore,
 				NoPIIFilter:   in.NoPIIFilter,
+				Cache:         cache,
+				Epoch:         stats.LatestEpoch,
 			},
 		)
 		if err != nil {
