@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:033 -->
+<!-- rev:034 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -14,6 +14,45 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **KB standardized in English — translate agent-written content + ingested
+  sources.** The KB is currently mostly Portuguese (BACEN source material is
+  PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
+  mirrors). Standard going forward: canonical concept bodies should be
+  English. Two surfaces need it:
+  (a) **Agent-written/rewritten content** — the `enrich` roster agent
+  (intent_terms) and `curate`'s fix agents (hygiene, deviation, research —
+  `internal/curate`) currently read/write concept bodies in whatever language
+  the source was; they should translate to English as part of their fix/write
+  step, gated the same way hygiene fixes already are (agent proposes →
+  re-scanned by the same detector → rejected if it still trips an error).
+  (b) **New ingestion** — every `ingest.Source` (PDF, Markdown, git-mirror/
+  OpenAPI, scout-crawl) currently stores extracted text as-is; a translation
+  pass (agent-driven, since this project has no offline MT model and adding
+  one would violate the air-gap/no-native-runtime rule) needs to run before
+  a new concept is written, not after, so nothing PT-only ever lands in the
+  canonical bundle.
+  **Open questions to resolve at brainstorm time before planning this** (do
+  not build directly from this backlog line):
+  - **Existing 200+ concept corpus is PT.** Is this a one-time bulk
+    re-translation batch (like the `intent_terms` enrichment rollout —
+    `curate --enrich`-style loop) or translate-on-touch (only when an agent
+    already needs to rewrite that concept for another reason)?
+  - **FTS is tuned for Portuguese today** — migration 0003's `pixpt` config
+    (simple tokenizer + PT stopwords, no stemmer) exists specifically because
+    the corpus and queries are PT. Translating bodies to English without
+    retuning FTS/search would break the exact recall mechanism ADR 0001/0002
+    measured and shipped. This needs its own before/after eval run on
+    `eval/tophit.sh`, not just a content change.
+  - **Users query in Portuguese** (all of `eval/cases-*.tsv` are PT queries —
+    this is a Brazilian-financial/BACEN domain KB). If bodies become English,
+    does `intent_terms` become the PT recall bridge deliberately (bilingual by
+    design: EN body + PT intent_terms), or does everything become bilingual?
+    This is the same tension ADR 0002 already found for pacs/camt (EN message
+    concepts vs PT queries) — decide it as one policy, not per-concept.
+  - Scope this as its own brainstorm → spec → plan → SDD pipeline (same as the
+    ISPB mapper and multi-query retrieval work) once the questions above have
+    answers; it touches ingest, curate, enrich, and search ranking, so it is
+    NOT a small task.
 - **CLI output formats — markdown, YAML, JSON.** Commands that currently print
   fixed plain-text tables (`ispb lookup`, `stats`, `search`, `related`, etc.)
   should accept a shared `--format` flag (`text` default, `md`, `yaml`,
