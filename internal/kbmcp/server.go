@@ -17,6 +17,7 @@ import (
 	"pixkb/internal/epoch"
 	"pixkb/internal/okf"
 	"pixkb/internal/query"
+	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
 	"pixkb/pkg/agents"
 )
@@ -41,6 +42,7 @@ func NewServer(d Deps) *mcp.Server {
 
 	registerSearch(s, d)
 	registerRelated(s, d)
+	registerSimilar(s, d)
 	registerStats(s, d)
 	registerConceptGet(s, d)
 	registerHygieneScan(s, d)
@@ -124,6 +126,62 @@ func registerRelated(s *mcp.Server, d Deps) {
 			return nil, relOut{}, err
 		}
 		return textResult(fmt.Sprintf("%d neighbours of %s", len(rel), in.ID)), relOut{Related: rel}, nil
+	})
+}
+
+type similarIn struct {
+	ID           string `json:"id" jsonschema:"concept id (bundle-relative path) to find similar concepts for"`
+	Mode         string `json:"mode,omitempty" jsonschema:"semantic|graph|hybrid (default)|more-like-this"`
+	Type         string `json:"type,omitempty" jsonschema:"optional concept-type filter on results"`
+	Limit        int    `json:"limit,omitempty" jsonschema:"max hits (default 20)"`
+	// ExcludeGraph, not IncludeGraph: plain JSON bools can't distinguish
+	// "omitted" from "explicitly false", so the field is named/phrased so its
+	// zero value (false, or omitted entirely) IS the desired default — hybrid
+	// mode includes graph neighbours unless a caller explicitly opts out.
+	ExcludeGraph bool `json:"exclude_graph,omitempty" jsonschema:"hybrid mode: set true to exclude direct graph neighbours (default: graph included)"`
+}
+type similarHitOut struct {
+	ID    string   `json:"id"`
+	Title string   `json:"title"`
+	Type  string   `json:"type"`
+	Score float64  `json:"score"`
+	Rank  int      `json:"rank"`
+	Why   []string `json:"why"`
+}
+type similarOut struct {
+	Hits []similarHitOut `json:"hits"`
+}
+
+// registerSimilar exposes concept-to-concept similarity: given a known
+// concept id, ranked nearby concepts tagged with why each one matched
+// (semantic/lexical/graph/domain). Mirrors registerSearch's shape.
+func registerSimilar(s *mcp.Server, d Deps) {
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "similar",
+		Description: "Find concepts similar to a known concept id, tagged with why each result matched (semantic, lexical, graph, domain). Modes: semantic, graph, hybrid (default), more-like-this.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in similarIn) (*mcp.CallToolResult, similarOut, error) {
+		mode := in.Mode
+		if mode == "" {
+			mode = "hybrid"
+		}
+		limit := in.Limit
+		if limit <= 0 {
+			limit = 20
+		}
+		opts := similar.Options{
+			Mode:         mode,
+			IncludeGraph: !in.ExcludeGraph,
+			Filter:       postgres.Filter{Type: in.Type, Limit: limit},
+		}
+		hits, err := similar.Similar(ctx, d.Store, d.Emb, d.Bundle, in.ID, opts)
+		if err != nil {
+			return nil, similarOut{}, err
+		}
+		out := similarOut{Hits: make([]similarHitOut, 0, len(hits))}
+		for _, h := range hits {
+			out.Hits = append(out.Hits, similarHitOut{ID: h.ID, Title: h.Title, Type: h.Type, Score: h.Score, Rank: h.Rank, Why: h.Why})
+		}
+		return textResult(fmt.Sprintf("%d concepts similar to %s", len(out.Hits), in.ID)), out, nil
 	})
 }
 
