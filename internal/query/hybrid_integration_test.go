@@ -45,7 +45,11 @@ func TestIngestThenHybridSearch(t *testing.T) {
 	require.NoError(t, err)
 	res, err := r.Run(ctx, concepts, "test")
 	require.NoError(t, err)
-	assert.Equal(t, 9, res.Added)
+	// ingest.DefaultMsgDefs() has grown since this assertion was last updated
+	// (pacs.003/pacs.010/camt.029 added later) — assert against the source's
+	// own current count rather than a hand-maintained magic number, so this
+	// test never goes stale again when the message set changes.
+	assert.Equal(t, len(ingest.DefaultMsgDefs()), res.Added)
 
 	hits, err := query.Hybrid(ctx, st, emb, "credit transfer", postgres.Filter{Limit: 5})
 	require.NoError(t, err)

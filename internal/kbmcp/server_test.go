@@ -260,15 +260,37 @@ func TestServerSimilar_HybridMode(t *testing.T) {
 	}
 	defer func() { _ = cs.Close() }()
 
-	// Search first to get a real concept id to query similarity against.
+	// Search first to get a real concept id to query similarity against —
+	// PIXKB_TEST_DSN may point at a freshly-migrated, EMPTY throwaway
+	// database (no fixture data), unlike PIXKB_DSN's populated live KB, so a
+	// hardcoded id here would only work by coincidence of which DSN was
+	// active. Skip (not fail) if the search itself comes back empty: this
+	// test needs a live KB with actual content to check similarity against,
+	// per its own doc comment.
 	sres, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "search", Arguments: map[string]any{"query": "criar cobrança imediata", "limit": 1}})
 	if err != nil || sres.IsError {
 		t.Fatalf("search call: err=%v isErr=%v", err, sres.IsError)
 	}
+	raw, err := json.Marshal(sres.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal structured: %v", err)
+	}
+	var searchOut struct {
+		Hits []struct {
+			ID string `json:"id"`
+		} `json:"hits"`
+	}
+	if err := json.Unmarshal(raw, &searchOut); err != nil {
+		t.Fatalf("decode hits: %v", err)
+	}
+	if len(searchOut.Hits) == 0 {
+		t.Skip("search returned no hits — DSN points at an empty KB, nothing to check similarity against")
+	}
+	conceptID := searchOut.Hits[0].ID
 
 	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "similar",
-		Arguments: map[string]any{"id": "api/openapi/post-cob.md", "mode": "hybrid", "limit": 5},
+		Arguments: map[string]any{"id": conceptID, "mode": "hybrid", "limit": 5},
 	})
 	if err != nil || res.IsError {
 		t.Fatalf("similar call: err=%v isErr=%v", err, res.IsError)
