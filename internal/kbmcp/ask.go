@@ -11,10 +11,14 @@ import (
 )
 
 type askIn struct {
-	Question string `json:"question" jsonschema:"natural-language question to answer from the KB"`
-	Type     string `json:"type,omitempty" jsonschema:"optional concept-type filter for retrieval"`
-	TopK     int    `json:"top_k,omitempty" jsonschema:"concepts to ground on (default 6)"`
-	Expand   bool   `json:"expand,omitempty" jsonschema:"also ground on the top hit's graph neighbours"`
+	Question    string  `json:"question" jsonschema:"natural-language question to answer from the KB"`
+	Type        string  `json:"type,omitempty" jsonschema:"optional concept-type filter for retrieval"`
+	TopK        int     `json:"top_k,omitempty" jsonschema:"concepts to ground on (default 6)"`
+	Expand      bool    `json:"expand,omitempty" jsonschema:"also ground on the seed hit(s)' graph neighbours"`
+	Multi       bool    `json:"multi,omitempty" jsonschema:"expand the question into multiple subqueries before retrieving"`
+	Diversify   bool    `json:"diversify,omitempty" jsonschema:"prefer one concept per type before filling remaining grounding slots by rank"`
+	ExpandSeeds int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
+	MinScore    float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
 }
 
 type askCitationOut struct {
@@ -41,7 +45,14 @@ func registerAsk(s *mcp.Server, d Deps) {
 			rag.BundleSource{Dir: d.Bundle},
 			rag.AgentGenerator{Agency: d.Agency},
 			in.Question,
-			rag.Options{TopK: in.TopK, ExpandRelated: in.Expand},
+			rag.Options{
+				TopK:          in.TopK,
+				ExpandRelated: in.Expand,
+				MultiQuery:    in.Multi,
+				Diversify:     in.Diversify,
+				ExpandSeeds:   in.ExpandSeeds,
+				MinScore:      in.MinScore,
+			},
 		)
 		if err != nil {
 			return nil, askOut{}, err

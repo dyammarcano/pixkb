@@ -22,8 +22,9 @@ import (
 // arrangement is worse than no answer.
 func newAskCmd() *cobra.Command {
 	var dsn, provider, typ string
-	var topK int
-	var expand, asJSON bool
+	var topK, expandSeeds int
+	var expand, asJSON, multi, diversify bool
+	var minScore float64
 	cmd := &cobra.Command{
 		Use:   "ask <question>",
 		Short: "Ask the KB a question — grounded, cited answer (RAG)",
@@ -58,7 +59,14 @@ func newAskCmd() *cobra.Command {
 				rag.BundleSource{Dir: cfg.BundleDir},
 				rag.AgentGenerator{Agency: ag},
 				strings.Join(args, " "),
-				rag.Options{TopK: topK, ExpandRelated: expand},
+				rag.Options{
+					TopK:          topK,
+					ExpandRelated: expand,
+					MultiQuery:    multi,
+					Diversify:     diversify,
+					ExpandSeeds:   expandSeeds,
+					MinScore:      minScore,
+				},
 			)
 			if err != nil {
 				return err
@@ -72,6 +80,10 @@ func newAskCmd() *cobra.Command {
 	cmd.Flags().IntVar(&topK, "top-k", 0, "concepts to ground on (0 = default 6)")
 	cmd.Flags().BoolVar(&expand, "expand", false, "also ground on the top hit's graph neighbours")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit answer + citations as JSON")
+	cmd.Flags().BoolVar(&multi, "multi", false, "expand the question into multiple subqueries before retrieving (query.MultiHybrid)")
+	cmd.Flags().BoolVar(&diversify, "diversify", false, "prefer one concept per type before filling remaining grounding slots by rank")
+	cmd.Flags().IntVar(&expandSeeds, "expand-seeds", 0, "graph-neighbour seed hits to expand when --expand is set (0 = default 1)")
+	cmd.Flags().Float64Var(&minScore, "min-score", 0, "refuse when the top retrieved hit's score is below this (0 = disabled)")
 	return cmd
 }
 
