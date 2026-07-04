@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/inovacc/selo"
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
@@ -186,7 +187,13 @@ func ParsePix(data []byte, cfg PixConfig, syncedAt time.Time) ([]PixRecord, erro
 		}
 		cnpj := ""
 		if colCNPJ >= 0 && colCNPJ < len(row) {
-			cnpj = digitsOnly(row[colCNPJ])
+			candidate := digitsOnly(row[colCNPJ])
+			if selo.NewCNPJ().Validate(candidate) {
+				cnpj = candidate
+			}
+			// Invalid check digits (corrupted source data) -> leave cnpj "" rather
+			// than persist a bad value; the ISPB code + name are the record's
+			// identity, CNPJ is supplementary metadata.
 		}
 		authorized := true
 		if colAuth >= 0 && colAuth < len(row) {

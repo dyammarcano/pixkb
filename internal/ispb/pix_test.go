@@ -68,6 +68,22 @@ func TestParsePix_StopsAtSecondEmbeddedTable(t *testing.T) {
 	assert.Equal(t, "24313102", records[0].ISPB)
 }
 
+// TestParsePix_InvalidCNPJStoredEmpty confirms a CNPJ that fails check-digit
+// validation (e.g. corrupted source data) is dropped to "" rather than stored
+// as garbage — the ISPB code + name are still the record's identity, CNPJ is
+// supplementary metadata that must not silently persist a bad value.
+func TestParsePix_InvalidCNPJStoredEmpty(t *testing.T) {
+	fixture := []byte("Lista de participantes ativos do Pix\n" +
+		" ;Nome Reduzido;ISPB;CNPJ;Tipo de Instituição;Autorizada pelo BCB\n" +
+		"1;BAD CNPJ BANK;11111111;11.111.111/1111-11;Banco;Sim\n")
+
+	records, err := ParsePix(fixture, DefaultPixConfig(), time.Now())
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Empty(t, records[0].CNPJ, "invalid check digits must not be stored")
+	assert.Equal(t, "11111111", records[0].ISPB, "the record itself is still kept")
+}
+
 // TestParsePix_NormalizesFormattedCNPJ covers BACEN's real live Pix CSV,
 // which formats CNPJ with punctuation (e.g. "24.313.102/0001-25", 18 chars) —
 // discovered when a real sync failed against the `cnpj VARCHAR(14)` column.
