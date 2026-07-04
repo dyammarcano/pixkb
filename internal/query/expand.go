@@ -1,7 +1,3 @@
-// Package query: deterministic query expansion for multi-query retrieval
-// (docs/SEARCH-CAPABILITY-SPEC.md Feature 1). No agent/LLM call — this is
-// the spec's mandatory non-agent fallback; an agent-generated rewrite layer
-// is explicitly optional per spec and is not built here.
 package query
 
 import "strings"
@@ -28,9 +24,9 @@ var entityTriggers = []struct {
 	{[]string{"webhook", "notific", "avis"}, "webhook notificação pix"},
 	{[]string{"chave", "dict", "evp"}, "chave DICT pix"},
 	{[]string{"endpoint", "api"}, "endpoint API"},
-	{[]string{"pacs", "camt", "mensagem"}, "mensagem ISO 20022 pacs camt"},
+	{[]string{"pacs", "camt"}, "mensagem ISO 20022 pacs camt"},
 	{[]string{"certific", "mtls", "icp"}, "certificado mTLS ICP-Brasil"},
-	{[]string{"qr", "qrcode"}, "QR Code Pix BR Code"},
+	{[]string{"qr"}, "QR Code Pix BR Code"},
 	{[]string{"liquida", "settlement", "spi"}, "liquidação SPI settlement"},
 }
 
