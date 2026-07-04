@@ -1,0 +1,20 @@
+# Multi-intent coverage cases (eval/evalkit RunMultiCoverage, `pixkb eval multi`).
+# Format: query<TAB>id1,id2,...   — ALL listed ids are required (coverage, not
+# best-rank — see eval/cases-precise-ids.tsv / eval/tophit.sh for that).
+# Each case combines two of Feature 1's named entity triggers (see
+# internal/query/expand.go's entityTriggers) in one query, so MultiHybrid's
+# per-entity subqueries both fire. Verified live at limit=20 on 2026-07-04:
+# full coverage (2/2) for the three cases below.
+consultar chave dict e verificar requisitos de certificado mtls para conexão	reference/bacen-flows/03-dict-key-resolution.md,reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md
+gerar qr code dinâmico para cobrança com vencimento	reference/bacen-pix-concepts/02-qr-code-est-tico-pix-br-code-emv-mpm.md,api/openapi/get-cobv-txid.md
+liquidação no spi e requisitos de certificado mtls	reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md,reference/spi/liquidacao-spi.md
+
+# Known partial-coverage case (documented baseline, not a target to force to
+# 2/2 by re-tuning ranking — ADR 0002 forbids that). At limit=20 only the
+# webhook intent is covered; the refund intent's own subquery ranks its
+# concepts well in isolation (verified: `pixkb search "devolução pix refund"`
+# puts api/openapi/put-pix-e2eid-devolucao-id.md at rank 4) but the RRF fusion
+# across all 4 subqueries pushes it to rank 21 (verified at limit=50). A
+# coverage regression BELOW today's 1/2 on this case is real signal; getting
+# it to 2/2 needs fusion-weighting work, backlogged (see Task 6's backlog).
+como estornar um pix recebido por engano e configurar webhook para notificação	api/openapi/put-webhook-chave.md,api/openapi/put-pix-e2eid-devolucao-id.md
