@@ -79,20 +79,31 @@ entries:
       eval/cases-precise-ids.tsv "liquidação no spi reservas" ->
       reference/spi/liquidacao-spi.md.
 
-  - stems: ["txid"]
+  - stems: ["txid", "transac"]
     subquery: "consultar cobrança por txid"
     enabled: true
     reason: >
       Feature 7 new mapping: spec's "txid, identificador da transação ->
-      cobrança lookup endpoints". Verified live 2026-07-04: the subquery
-      alone ranks api/openapi/get-cobr-txid.md, api/openapi/get-cob-txid.md,
-      and api/openapi/get-cobv-txid.md at ranks 1-3 (a natural-language
-      baseline like "buscar pagamento pelo identificador da transação" does
-      NOT surface these unaided — this mapping is what fixes that via
-      MultiHybrid's fusion). Eval case: eval/cases-vocab-ids.tsv. Stem is
-      deliberately just "txid" (not a looser stem like "transac") to
-      minimize false-positive risk, matching this table's conservative-stem
-      convention.
+      cobrança lookup endpoints". The subquery alone ranks
+      api/openapi/get-cobr-txid.md, api/openapi/get-cob-txid.md, and
+      api/openapi/get-cobv-txid.md at ranks 1-3, verified live 2026-07-04.
+      Two stems, not one: "txid" alone does NOT match the natural-language
+      circumlocution the spec names ("identificador da transação" folds to
+      tokens identificador/da/transacao — none start with "txid"), so
+      "transac" is required to cover that half of the spec's mapping.
+      Checked "transac" against every eval/cases-precise-ids.tsv and
+      eval/cases-fuzzy-ids.tsv query before adding it: it appears in exactly
+      one, eval/cases-fuzzy-ids.tsv's "ver os dados de uma cobrança pelo
+      identificador da transação" -> api/openapi/get-cob-txid.md. Full-
+      pipeline measurement (2026-07-04, `pixkb search "<that exact fuzzy
+      query>" --mode multi --limit 20`): get-cob-txid.md went from ABSENT
+      in the top 20 (before this entry) to rank 17 (after) — a real but
+      modest improvement, not a top@5 win. No precise/fuzzy regression
+      measured (eval/tophit.sh precise stayed at 96% top@5; tophit.sh's
+      default-hybrid-mode fuzzy number is unaffected since it never invokes
+      --mode multi at all). See eval/cases-vocab-ids.tsv for the standalone
+      subquery-ranking case; the full-pipeline rank-17 result is not itself
+      re-testable by tophit.sh (mode-limited) and is recorded here instead.
 
   - stems: ["e2eid", "endtoend"]
     subquery: "pix e2eid endToEndId identificador fim a fim"
@@ -101,9 +112,14 @@ entries:
       Feature 7 new mapping: spec's "e2eid, endToEndId, identificador fim a
       fim -> payment/refund lifecycle". Verified live 2026-07-04: the
       subquery alone ranks api/openapi/get-pix-e2eid.md and
-      api/openapi/put-pix-e2eid-devolucao-id.md at ranks 1-2 (same
-      unaided-baseline gap as the txid entry above). Eval case:
-      eval/cases-vocab-ids.tsv.
+      api/openapi/put-pix-e2eid-devolucao-id.md at ranks 1-2. Eval case:
+      eval/cases-vocab-ids.tsv. KNOWN GAP (unlike the txid entry above): this
+      only fires on the literal jargon ("e2eid"/"endToEndId" mentioned
+      verbatim), not on the natural-language circumlocution "identificador
+      fim a fim" the spec also names — a "fim" stem would match it, but
+      "fim" (Portuguese for "end") is too common a word to add safely
+      without a precise/fuzzy regression check this plan didn't run; see
+      docs/BACKLOG.md.
 
   - stems: ["pacs"]
     subquery: "pacs.008 customer credit transfer ordem de crédito"
