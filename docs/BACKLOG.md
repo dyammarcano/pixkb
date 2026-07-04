@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:041 -->
+<!-- rev:042 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -47,14 +47,47 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     unanswerable-as-phrased rather than as the intended broad-but-answerable
     Pix flow questions) or lower `min-types` explicitly — do not treat this
     silently as a passing case.
-  - Feature 7 (Domain-Aware Query Understanding) and Feature 8 (Search
-    Quality Operations) remain unimplemented from
-    `docs/SEARCH-CAPABILITY-SPEC.md` — each needs its own scoped plan.
+  - Feature 8 (Search Quality Operations) remains unimplemented from
+    `docs/SEARCH-CAPABILITY-SPEC.md` — needs its own scoped plan.
   - **`pixkb eval`'s six subcommands report numbers but never fail the
     process** (`os.Exit(1)` on a bad number) — intentional per the plan's
     Global Constraints (these are measurement tools, like `eval/tophit.sh`,
     not CI gates), but a future CI-gating use case would need a
     `--fail-under`-style flag; not built here.
+- **Domain-aware query understanding follow-ups (Feature 7 of
+  `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately
+  deferred).** `internal/query/domain_vocabulary.yaml` + `vocab.go` replace
+  the old hardcoded `entityTriggers` table with a versioned, auditable
+  12-entry vocabulary (9 enabled, 3 disabled-with-reason); `ExpandQuery`
+  matches only enabled entries; `PIXKB_DISABLE_DOMAIN_VOCAB` and
+  `pixkb vocab [--reasons]` cover the spec's inspect/disable acceptance
+  criterion. All 7 migrated mappings verified byte-identical to the old
+  table (every pre-existing `expand_test.go` test passes unmodified);
+  precise top@5 unchanged at 96%. Remaining, explicitly out of scope for
+  that plan:
+  - **The `e2eid` entry's natural-language form doesn't trigger.** Its
+    stems (`e2eid`, `endtoend`) only match the literal jargon, not the
+    spec's own alias "identificador fim a fim" — a `fim` stem would catch
+    it, but `fim` (Portuguese for "end") is too common to add without a
+    dedicated precise/fuzzy regression check, which this plan didn't run.
+    Needs: add `fim` (or a longer, safer multi-word variant) and re-measure
+    `eval/tophit.sh` on both suites before enabling.
+  - **The `txid` entry's real-world lift is modest, not dramatic.** Full-
+    pipeline measurement (2026-07-04): the fuzzy case "ver os dados de uma
+    cobrança pelo identificador da transação" went from api/openapi/get-
+    cob-txid.md being ABSENT in `--mode multi --limit 20` to rank 17 — a
+    real improvement, but not a top@5 win. `eval/cases-vocab-ids.tsv` only
+    measures the standalone subquery's own ranking (rank 1), not this
+    full-pipeline fusion result, because `eval/tophit.sh` doesn't exercise
+    `--mode multi`. If multi-query coverage ever gets its own deterministic
+    harness beyond `pixkb eval multi`'s hand-curated cases, this is a good
+    regression case to add.
+  - The `pacs`/`camt` disabled entries' stem ambiguity (a bare `pacs` stem
+    can't distinguish pacs.008 from any other pacs.NNN message) — a future
+    re-attempt at this class of mapping needs per-message-code
+    disambiguation, not a bare family-name stem.
+  - `endpoint`/`api` stem entry was migrated as-is without re-evaluating
+    whether it still earns its place — not evaluated in this plan.
 - **Concept similarity search follow-ups (Feature 2 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
   `internal/similar`'s `Similar()` (semantic/graph/hybrid/more-like-this modes)

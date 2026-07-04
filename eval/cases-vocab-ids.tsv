@@ -1,0 +1,16 @@
+# Domain-vocabulary new-entry eval cases (Feature 7 of
+# docs/SEARCH-CAPABILITY-SPEC.md). Format matches eval/tophit.sh /
+# eval/cases-precise-ids.tsv: query<TAB>id1[,id2,...]. These are the
+# STANDALONE subquery texts from internal/query/domain_vocabulary.yaml's
+# txid and e2eid entries. Verified live 2026-07-04:
+# Run: bash eval/tophit.sh eval/cases-vocab-ids.tsv
+consultar cobrança por txid	api/openapi/get-cob-txid.md,api/openapi/get-cobr-txid.md,api/openapi/get-cobv-txid.md
+pix e2eid endToEndId identificador fim a fim	api/openapi/get-pix-e2eid.md,api/openapi/put-pix-e2eid-devolucao-id.md
+
+# Full-pipeline case: this natural-language phrasing does NOT contain the
+# literal "txid" jargon, so it only gets helped once the txid entry's
+# "transac" stem fires via --mode multi. Run against the live binary:
+# `pixkb search "ver os dados de uma cobrança pelo identificador da
+# transação" --mode multi` (this exact query already exists, currently
+# failing, in eval/cases-fuzzy-ids.tsv — tophit.sh only exercises default
+# hybrid mode, so it won't show this fix; check --mode multi manually).
