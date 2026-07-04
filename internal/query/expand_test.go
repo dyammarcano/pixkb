@@ -49,9 +49,9 @@ func TestExpandQuery_MatchesWebhookEntity(t *testing.T) {
 
 func TestExpandQuery_CapsAtMaxSubqueries(t *testing.T) {
 	t.Parallel()
-	// Hits many entity stems at once (estorno, webhook, chave, api, pacs,
+	// Hits many entity stems at once (estorno, webhook, chave, api, endpoint,
 	// certificado, qr, liquidacao) -> must still cap at maxSubqueries.
-	out := ExpandQuery("estorno webhook chave api pacs certificado qr liquidacao")
+	out := ExpandQuery("estorno webhook chave api endpoint certificado qr liquidacao")
 	if len(out) > maxSubqueries {
 		t.Fatalf("expected at most %d subqueries, got %d: %v", maxSubqueries, len(out), out)
 	}

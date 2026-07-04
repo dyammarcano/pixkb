@@ -105,6 +105,7 @@ func MultiHybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, 
 		}
 		h := hitByID[id]
 		h.Rank = i + 1
+		h.Score = scores[id]
 		out = append(out, MultiHit{Hit: h, Subqueries: provenance[id]})
 	}
 	return out, nil

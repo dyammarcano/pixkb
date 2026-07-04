@@ -41,6 +41,8 @@ func TestMultiHybrid_HitFoundByMultipleSubqueriesRanksHigher(t *testing.T) {
 
 	assert.Equal(t, "x", got[0].ID, "hit surfaced by both subqueries must rank first")
 	assert.GreaterOrEqual(t, len(got[0].Subqueries), 2, "x's provenance must list both subqueries")
+	assert.Greater(t, got[0].Score, 0.0, "fused score must be populated")
+	assert.GreaterOrEqual(t, got[0].Score, got[1].Score, "score must be monotonically non-increasing with rank")
 
 	ids := map[string]bool{}
 	for _, h := range got {
