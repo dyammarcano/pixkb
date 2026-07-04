@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:044 -->
+<!-- rev:045 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -100,14 +100,30 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   noisy titles, 123 sparse-graph concepts, 255/255 DB concepts embedded
   (single model/dim, consistent), 10/43 precise+fuzzy eval cases regressed
   (no acceptable hit). Remaining, explicitly out of scope for that plan:
-  - **Bundle vs. DB concept-count mismatch found by this very run**: the
-    bundle (`okf.ReadBundle`) reports 252 concepts; the live Postgres
-    `concept` table reports 255 (per `EmbeddingCoverage.TotalConcepts`).
-    `search-health` doesn't itself flag this drift (it reads the two counts
-    for different purposes and never diffs them) — worth adding as a
-    dedicated signal, and worth investigating **why** 3 concepts exist in
-    the index but not the current bundle (stale rows from a since-removed
-    source? a reindex vs. re-ingest gap?) before building the signal.
+  - ~~**Bundle vs. DB concept-count mismatch found by this very run**~~
+    RESOLVED (2026-07-04, `/steps:next` item 2). Root cause: two concepts
+    (`reference/api/lote-cobv.md`, `reference/spi/liquidacao-spi.md`) were
+    upserted straight to Postgres at some point (`first_epoch=0`,
+    `last_epoch=0` — never went through a real `pixkb ingest` epoch), and a
+    third (a real scraped WebPage, "Banco Central do Brasil" homepage) had
+    its id `web/index.md` collide with OKF's reserved
+    auto-generated-navigation filename (`internal/okf/bundle.go`'s
+    `isNonConcept`), so `ReadBundle` silently skipped it on every read —
+    permanently invisible to the bundle regardless of any write attempt
+    under that id. All three were DB-only orphans that a `pixkb reindex`
+    would have silently deleted (the bundle is supposed to be the source of
+    truth). Fixed: wrote the first two back to the bundle verbatim; renamed
+    the third to `web/portal-index.md` (no edges referenced the old id) and
+    migrated its DB rows + embedding under the new id; regenerated
+    `okf.WriteIndexes` nav files (this also restored `web/index.md` itself,
+    which the fix's first pass accidentally deleted — it turned out to
+    double as the real per-directory nav index, not just a colliding
+    concept id). Committed in `kb-data`'s own git history (bundle is a
+    separate repo from `pixkb`'s source). `pixkb search-health` now reports
+    255/255 bundle-vs-DB consistent. Still worth doing as a follow-up:
+    `search-health` should diff bundle-vs-DB concept counts itself as a
+    dedicated signal, so a future drift is caught automatically instead of
+    requiring a manual investigation like this one.
   - **"Missing intent_terms" only detects absence, not staleness** — the
     spec's own wording is "missing OR stale". `okf.Concept` has no
     last-enriched timestamp to compare against `updated_at`/content
