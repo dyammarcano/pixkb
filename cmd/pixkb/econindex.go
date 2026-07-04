@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ func newEconIndexCmd() *cobra.Command {
 		Use:   "econindex",
 		Short: "Fetch and look up BACEN economic-indicator series (SELIC, USD/BRL PTAX)",
 	}
-	cmd.AddCommand(newEconIndexFetchCmd(), newEconIndexLoadCmd(), newEconIndexSyncCmd())
+	cmd.AddCommand(newEconIndexFetchCmd(), newEconIndexLoadCmd(), newEconIndexSyncCmd(), newEconIndexLookupCmd())
 	return cmd
 }
 
@@ -211,4 +212,56 @@ func newEconIndexSyncCmd() *cobra.Command {
 	cmd.Flags().StringVar(&to, "to", "", "range end, YYYY-MM-DD (requires --from)")
 	cmd.Flags().BoolVar(&all, "all", false, "sync every known series instead of a single --series")
 	return cmd
+}
+
+func newEconIndexLookupCmd() *cobra.Command {
+	var date string
+	cmd := &cobra.Command{
+		Use:   "lookup <series>",
+		Short: "Look up a stored BACEN SGS series point (latest, or a specific date)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := econindex.FindSeriesConfig(args[0])
+			if err != nil {
+				return err
+			}
+			cliCfg := loadConfig()
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cliCfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+
+			out := cmd.OutOrStdout()
+			if date == "" {
+				p, err := st.GetLatestSeriesPoint(ctx, cfg.Code)
+				if err != nil {
+					return err
+				}
+				return printEconIndexPoint(out, cfg, p)
+			}
+
+			d, err := parseEconIndexDate(date)
+			if err != nil {
+				return err
+			}
+			points, err := st.GetSeriesRange(ctx, cfg.Code, d, d)
+			if err != nil {
+				return err
+			}
+			if len(points) == 0 {
+				return fmt.Errorf("no stored point for series %s on %s", cfg.Name, date)
+			}
+			return printEconIndexPoint(out, cfg, points[0])
+		},
+	}
+	cmd.Flags().StringVar(&date, "date", "", "exact date to look up, YYYY-MM-DD (default: latest stored point)")
+	return cmd
+}
+
+func printEconIndexPoint(out io.Writer, cfg econindex.SeriesConfig, p econindex.SeriesPoint) error {
+	_, err := fmt.Fprintf(out, "Series:   %s (%s, code %s)\nDate:     %s\nValue:    %s\nSynced:   %s\n",
+		cfg.Name, cfg.Description, cfg.Code, p.Date.Format("2006-01-02"), p.Value, p.SyncedAt.Format(time.RFC3339))
+	return err
 }

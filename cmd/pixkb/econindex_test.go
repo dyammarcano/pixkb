@@ -59,9 +59,51 @@ func TestEconIndexFetch_MissingSeries(t *testing.T) {
 // established by ispb_test.go's TestISPBLookup_NoDSN.
 func TestEconIndexSync_NoDSN(t *testing.T) {
 	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	root := NewRootCmd()
 	root.SetArgs([]string{"econindex", "sync"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no database DSN")
+}
+
+func TestNewEconIndexCmd_LookupWired(t *testing.T) {
+	t.Parallel()
+	root := newEconIndexCmd()
+	_, _, err := root.Find([]string{"lookup"})
+	require.NoError(t, err)
+}
+
+func TestEconIndexLookup_UnknownSeries(t *testing.T) {
+	t.Parallel()
+	root := NewRootCmd()
+	root.SetArgs([]string{"econindex", "lookup", "not-a-series"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown econindex series")
+}
+
+func TestEconIndexLookup_NoDSN(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
+	t.Setenv("PIXKB_DSN", "")
+	root := NewRootCmd()
+	root.SetArgs([]string{"econindex", "lookup", "selic-diaria"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no database DSN")
+}
+
+// TestEconIndexLookup_BadDateFlag documents that the series resolves and the
+// store-open is attempted before --date is parsed, so an unset DSN still
+// surfaces first here — same ordering as TestEconIndexLookup_NoDSN.
+func TestEconIndexLookup_BadDateFlag(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
+	t.Setenv("PIXKB_DSN", "")
+	root := NewRootCmd()
+	root.SetArgs([]string{"econindex", "lookup", "selic-diaria", "--date", "07-04-2026"})
 	err := root.Execute()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no database DSN")
