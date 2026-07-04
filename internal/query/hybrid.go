@@ -163,6 +163,13 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 	return hits, err
 }
 
+// HybridExplain runs the same fused search as Hybrid but also returns the
+// parallel []Explain slice of per-hit ranking components, for callers that
+// opt into search explanation (CLI --explain, MCP explain: true).
+func HybridExplain(ctx context.Context, s Searcher, emb embed.Embedder, q string, f postgres.Filter) ([]postgres.Hit, []Explain, error) {
+	return hybridCore(ctx, s, emb, q, f)
+}
+
 // hybridCore is the shared implementation behind Hybrid and HybridExplain. It
 // returns the fused hits AND a parallel []Explain slice — built in the same
 // final loop, so index i in both slices always refers to the same hit — from

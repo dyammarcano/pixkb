@@ -110,6 +110,39 @@ func TestHybrid_VectorFloorKeepsRealHit(t *testing.T) {
 	assert.Equal(t, "good", got[0].ID)
 }
 
+func TestHybridExplain_ParallelToHits(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: []postgres.Hit{{ID: "a", Title: "Alpha"}, {ID: "b", Title: "Bravo"}},
+		vec: []postgres.Hit{{ID: "b", Title: "Bravo", Score: 0.9}, {ID: "c", Title: "Charlie", Score: 0.8}},
+	}
+	hits, explains, err := HybridExplain(context.Background(), s, embed.NewHashing(8), "q", postgres.Filter{})
+	require.NoError(t, err)
+	require.Len(t, hits, 3)
+	require.Len(t, explains, len(hits))
+
+	for i := range hits {
+		assert.Equal(t, hits[i].Arm, explains[i].Arm, "explains[%d].Arm must match hits[%d].Arm", i, i)
+		assert.Equal(t, hits[i].Score, explains[i].FinalScore, "explains[%d].FinalScore must equal hits[%d].Score", i, i)
+	}
+
+	byID := map[string]int{}
+	for i, h := range hits {
+		byID[h.ID] = i
+	}
+	// b is in both arms -> both ranks populated (nonzero).
+	bIdx := byID["b"]
+	assert.Equal(t, "both", hits[bIdx].Arm)
+	assert.Positive(t, explains[bIdx].FTSRank, "both-arm hit must have a nonzero FTS rank")
+	assert.Positive(t, explains[bIdx].VecRank, "both-arm hit must have a nonzero vector rank")
+
+	// a is FTS-only -> vector rank is the "not present" sentinel (0).
+	aIdx := byID["a"]
+	assert.Equal(t, "fts", hits[aIdx].Arm)
+	assert.Positive(t, explains[aIdx].FTSRank, "fts-only hit must have a nonzero FTS rank")
+	assert.Equal(t, 0, explains[aIdx].VecRank, "fts-only hit must have vector rank sentinel 0")
+}
+
 func TestHybrid_SetsScoreAndArm(t *testing.T) {
 	t.Parallel()
 	s := &fakeSearcher{
