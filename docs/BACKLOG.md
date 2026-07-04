@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:049 -->
+<!-- rev:050 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -317,20 +317,17 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   rendered doc (md). Likely a small shared `internal/output` helper each
   command's print step routes through, rather than each command hand-rolling
   its own formatter.
-- **SELIC and Dólar (USD/BRL) mappers — current + historical series.** Same
-  pattern as the ISPB mapper (`internal/ispb`): a new `internal/econindex` (or
-  similar) package sourcing BACEN's public SGS time-series API
-  (`https://api.bcb.gov.br/dados/serie/bcdata.sgs.<codigo>/dados`), no auth.
-  Needs, per indicator: (a) the "real" (latest/current) value — a lightweight
-  single-point fetch — and (b) full history — the same endpoint with
-  `dataInicial`/`dataFinal` params, paginated for long ranges. Known series
-  codes to verify at brainstorm time: Selic (daily rate, series 11; target/meta
-  rate, series 432) and Dólar comercial (PTAX venda, series 1) — BCB's Olinda
-  OData API (`olinda.bcb.gov.br/olinda/servico/PTAX`) may be a better fit
-  specifically for PTAX's official daily quote vs. the SGS series. New table(s)
-  + migration, `pixkb` CLI subcommands (`fetch`/`load`/`sync`/`lookup` or
-  similar, matching the air-gap online/offline split), following the exact
-  brainstorm → spec → plan → SDD pipeline used for ISPB.
+- ~~**SELIC and Dólar (USD/BRL) mappers — current + historical series.**~~
+  SHIPPED (2026-07-04). `internal/econindex` (SGS API client + parser,
+  `DownloadLatest`/`DownloadRange`/`FetchHistory` with 10-year-window paging)
+  + `econindex_series_point` table (migration `0006`) + `pixkb econindex
+  {fetch,load,sync,lookup}` cover all three known series (`selic-diaria`
+  code 11, `selic-meta` code 432, `usd-ptax-venda` code 1) via the same
+  air-gap fetch/load/sync split used by `internal/ispb`. Deliberately out of
+  scope, tracked as a future follow-up if ever needed: the Olinda PTAX OData
+  API (`olinda.bcb.gov.br/olinda/servico/PTAX`) for compra/abertura/fechamento
+  quotes beyond the SGS venda series; no MCP tool / concept-store integration
+  yet (same deferral as ISPB's own v1).
 - **Scraper wired to a headless renderer.** Render the JS-rendered BACEN SPA
   pages into BACEN-canonical concepts via the scraper agent. BLOCKED on two
   prerequisites: (1) Scout MCP browser must be connected (it was down this run),
