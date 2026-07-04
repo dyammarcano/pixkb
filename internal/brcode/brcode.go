@@ -172,11 +172,44 @@ func Parse(code string) (Payload, error) {
 	return p, nil
 }
 
+// asciiFields lists the Payload fields carrying EMVCo "ans" (alphanumeric
+// special) TLV values, in the order Validate checks them.
+var asciiFields = [...]struct {
+	name string
+	get  func(Payload) string
+}{
+	{"key", func(p Payload) string { return p.Key }},
+	{"url", func(p Payload) string { return p.URL }},
+	{"description", func(p Payload) string { return p.Description }},
+	{"merchant_name", func(p Payload) string { return p.MerchantName }},
+	{"city", func(p Payload) string { return p.City }},
+	{"txid", func(p Payload) string { return p.TxID }},
+}
+
+// isPrintableASCII reports whether every byte of s is in the printable ASCII
+// range 0x20 ("space") to 0x7E ("~") — the character set EMVCo's "ans" data
+// objects allow. Bytes outside it are either control characters or the
+// leading/continuation bytes of a multi-byte UTF-8 sequence (accents,
+// emoji, ...), both of which real Pix QR scanners routinely choke on.
+func isPrintableASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7E {
+			return false
+		}
+	}
+	return true
+}
+
 // Validate checks the payload's fields against the Pix BR Code requirements —
 // key/url exclusivity, required merchant fields, the name (25) and city (15)
-// length caps, and the amount format — without building the code. Encode
-// calls this first, so it also doubles as a standalone check for a payload
-// filled from JSON before serializing.
+// length caps, the amount format, and that every "ans" field is plain
+// printable ASCII (no accents, no control characters) — without building the
+// code. Encode calls this first, so it also doubles as a standalone check for
+// a payload filled from JSON before serializing.
+//
+// Case is NOT restricted: BACEN's manual recommends uppercase for merchant
+// name/city, but that's a recommendation, not a wire-format rule — real
+// generators (e.g. Mercado Livre's) emit mixed case and it scans fine.
 func (p Payload) Validate() error {
 	if strings.TrimSpace(p.Key) == "" && strings.TrimSpace(p.URL) == "" {
 		return fmt.Errorf("brcode: a Pix key or a payload URL is required")
@@ -196,6 +229,11 @@ func (p Payload) Validate() error {
 	if p.Amount != "" {
 		if err := validAmount(p.Amount); err != nil {
 			return err
+		}
+	}
+	for _, f := range asciiFields {
+		if v := f.get(p); v != "" && !isPrintableASCII(v) {
+			return fmt.Errorf("brcode: %s contains non-ASCII or control characters (accents not allowed): %q", f.name, v)
 		}
 	}
 	return nil

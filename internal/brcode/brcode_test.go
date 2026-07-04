@@ -192,6 +192,15 @@ func TestPayloadValidate_SameChecksAsEncode(t *testing.T) {
 		{"missing name", Payload{Key: "k", City: "B"}, false},
 		{"name too long", Payload{Key: "k", MerchantName: strings.Repeat("X", 26), City: "B"}, false},
 		{"bad amount", Payload{Key: "k", MerchantName: "A", City: "B", Amount: "10.000"}, false},
+		{"mixed case ASCII ok", Payload{Key: "k", MerchantName: "@3044881947", City: "Sao Paulo"}, true},
+		{"accented merchant name", Payload{Key: "k", MerchantName: "ITAÚ", City: "B"}, false},
+		{"accented city", Payload{Key: "k", MerchantName: "A", City: "SÃO PAULO"}, false},
+		{"accented key", Payload{Key: "fulanoção@x.com", MerchantName: "A", City: "B"}, false},
+		{"accented description", Payload{Key: "k", MerchantName: "A", City: "B", Description: "café"}, false},
+		{"accented txid", Payload{Key: "k", MerchantName: "A", City: "B", TxID: "pedido-café"}, false},
+		{"accented url", Payload{URL: "pix.example.com/café", MerchantName: "A", City: "B"}, false},
+		{"control char in name", Payload{Key: "k", MerchantName: "A\tB", City: "B"}, false},
+		{"emoji in name", Payload{Key: "k", MerchantName: "ACME 🚀", City: "B"}, false},
 	}
 	for _, c := range cases {
 		err := c.p.Validate()
@@ -201,6 +210,13 @@ func TestPayloadValidate_SameChecksAsEncode(t *testing.T) {
 		if !c.ok && err == nil {
 			t.Errorf("%s: expected error", c.name)
 		}
+	}
+}
+
+func TestPayloadValidate_ASCIIErrorNamesTheField(t *testing.T) {
+	err := Payload{Key: "k", MerchantName: "ITAÚ", City: "B"}.Validate()
+	if err == nil || !strings.Contains(err.Error(), "merchant_name") {
+		t.Fatalf("expected error naming merchant_name, got %v", err)
 	}
 }
 
