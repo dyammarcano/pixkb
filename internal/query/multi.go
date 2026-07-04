@@ -41,6 +41,17 @@ func Hits(mh []MultiHit) []postgres.Hit {
 // it. The caller's Filter.Limit still governs the final, fused output size.
 const multiSubqueryLimit = 20
 
+// multiRRFK is MultiHybrid's OWN reciprocal-rank-fusion constant, deliberately
+// decoupled from Hybrid's shared rrfK (hybrid.go) — ADR 0002 forbids
+// re-tuning Hybrid's own ranking, but this second fusion pass over
+// subqueries' ranks is MultiHybrid-only territory. A smaller K than the
+// standard rrfK=60 sharpens the curve: a hit ranked well by ONE subquery
+// (e.g. an entity-trigger subquery nailing an intent) scores closer to a hit
+// that's merely mediocre-ranked across several subqueries, instead of being
+// swamped by the sum of several weak ranks. See docs/BACKLOG.md's
+// multi-intent partial-coverage case for the motivating example.
+const multiRRFK = 5
+
 // MultiHybrid expands q (via ExpandQuery) into a small deterministic set of
 // subqueries, runs the existing, unmodified Hybrid search for each one, and
 // fuses the per-subquery ranked lists with a second reciprocal-rank-fusion
@@ -68,7 +79,7 @@ func MultiHybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, 
 			return nil, err
 		}
 		for _, h := range hits {
-			scores[h.ID] += 1.0 / float64(rrfK+h.Rank)
+			scores[h.ID] += 1.0 / float64(multiRRFK+h.Rank)
 			if _, ok := hitByID[h.ID]; !ok {
 				hitByID[h.ID] = h
 			}

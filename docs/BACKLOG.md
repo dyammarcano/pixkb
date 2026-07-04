@@ -25,10 +25,15 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `query.HybridExplain`, `rag.Ask`) — no new ranking math, no CI-failing exit
   codes, per this feature's own plan. Remaining, explicitly out of scope for
   that plan:
-  - **`eval multi`'s known partial-coverage case** (refund+webhook query,
+  - ~~**`eval multi`'s known partial-coverage case** (refund+webhook query,
     1/2 today per `eval/cases-multi-ids.tsv`'s documented baseline) —
     fusion-weighting work to improve cross-subquery coverage without
-    regressing precise top@5, deferred per ADR 0002's re-tuning caution.
+    regressing precise top@5, deferred per ADR 0002's re-tuning caution.~~
+    **Resolved**: `multiRRFK = 5` (`internal/query/multi.go`), a fusion
+    constant scoped to `MultiHybrid` only (Hybrid's own `rrfK=60` untouched,
+    per ADR 0002) sharpens RRF so one subquery's strong rank outweighs two
+    subqueries' mediocre ranks. `pixkb eval multi` coverage 7/8 (88%) → 8/8
+    (100%); precise/fuzzy/multi tophit guards unchanged.
   - **`eval rag-diversity`'s first live run (2026-07-04, `--provider claude`,
     against the live KB) came back BELOW MIN for both cases** —
     `diversity-devolucao-fluxo` and `diversity-cobranca-fluxo` both reported
