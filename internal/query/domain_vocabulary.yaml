@@ -1,0 +1,140 @@
+# Domain vocabulary — Feature 7 of docs/SEARCH-CAPABILITY-SPEC.md ("Domain-
+# Aware Query Understanding"). Curated, deterministic, auditable: each entry
+# maps a set of word-stems (folded via internal/query's foldTokens —
+# lowercase, diacritics stripped, tokenized on non-alnum) to a canonical
+# subquery internal/query.ExpandQuery adds when a query mentions that domain
+# entity. `enabled: false` entries are kept, not deleted, so this file stays
+# a complete audit trail of what was tried and why it isn't live — satisfying
+# the spec's "Each mapping has at least one eval case or documented reason to
+# exist" acceptance criterion even for entries that didn't pass their own
+# bar.
+#
+# Versioned with the repo (this file); loaded once via go:embed in vocab.go.
+# Order is fixed (top to bottom) — ExpandQuery iterates entries in this order
+# and stops once maxSubqueries is reached, same as the entityTriggers table
+# this file replaces (see git history: internal/query/expand.go before this
+# plan).
+
+entries:
+  - stems: ["estorn", "devolu", "refund"]
+    subquery: "devolução pix refund"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger, covers the spec's "estorno,
+      devolução, refund -> Pix refund concepts and refund endpoints"
+      mapping. Eval case: eval/cases-fuzzy-ids.tsv "como estornar um pix que
+      recebi por engano" -> api/openapi/put-pix-e2eid-devolucao-id.md.
+
+  - stems: ["webhook", "notific", "avis"]
+    subquery: "webhook notificação pix"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger, covers the spec's "webhook,
+      notificação, aviso automático -> Pix webhook concepts" mapping. Eval
+      case: internal/query/expand_test.go's
+      TestExpandQuery_MatchesWebhookEntity; live query "notificar via
+      webhook pix" surfaces api/openapi/put-webhook-chave.md.
+
+  - stems: ["chave", "dict", "evp"]
+    subquery: "chave DICT pix"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger, covers the spec's "chave
+      aleatória, EVP -> DICT key type concepts" mapping. Eval case:
+      eval/cases-precise-ids.tsv "consultar chave dict" ->
+      api/openapi/get-entries-key.md.
+
+  - stems: ["endpoint", "api"]
+    subquery: "endpoint API"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger — a generic API-surface steer, not
+      one of Feature 7's ten named spec mappings. Kept as-is; re-evaluating
+      or removing it is out of scope for this plan.
+
+  - stems: ["certific", "mtls", "icp"]
+    subquery: "certificado mTLS ICP-Brasil"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger, covers the spec's "certificado,
+      mTLS, ICP-Brasil -> security/connectivity concepts" mapping. Eval
+      case: eval/cases-precise-ids.tsv "requisitos de segurança mtls
+      certificado" ->
+      reference/bacen-pix-concepts/03-requisitos-de-seguran-a-pix-mtls-e-certificados.md.
+
+  - stems: ["qr"]
+    subquery: "QR Code Pix BR Code"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger. Eval case:
+      eval/cases-precise-ids.tsv "qr code dinâmico location" ->
+      api/openapi/post-loc.md.
+
+  - stems: ["liquida", "spi"]
+    subquery: "liquidação SPI settlement"
+    enabled: true
+    reason: >
+      Feature 1's original entity trigger, covers the spec's "liquidação,
+      reservas, SPI -> settlement concepts" mapping. Eval case:
+      eval/cases-precise-ids.tsv "liquidação no spi reservas" ->
+      reference/spi/liquidacao-spi.md.
+
+  - stems: ["txid"]
+    subquery: "consultar cobrança por txid"
+    enabled: true
+    reason: >
+      Feature 7 new mapping: spec's "txid, identificador da transação ->
+      cobrança lookup endpoints". Verified live 2026-07-04: the subquery
+      alone ranks api/openapi/get-cobr-txid.md, api/openapi/get-cob-txid.md,
+      and api/openapi/get-cobv-txid.md at ranks 1-3 (a natural-language
+      baseline like "buscar pagamento pelo identificador da transação" does
+      NOT surface these unaided — this mapping is what fixes that via
+      MultiHybrid's fusion). Eval case: eval/cases-vocab-ids.tsv. Stem is
+      deliberately just "txid" (not a looser stem like "transac") to
+      minimize false-positive risk, matching this table's conservative-stem
+      convention.
+
+  - stems: ["e2eid", "endtoend"]
+    subquery: "pix e2eid endToEndId identificador fim a fim"
+    enabled: true
+    reason: >
+      Feature 7 new mapping: spec's "e2eid, endToEndId, identificador fim a
+      fim -> payment/refund lifecycle". Verified live 2026-07-04: the
+      subquery alone ranks api/openapi/get-pix-e2eid.md and
+      api/openapi/put-pix-e2eid-devolucao-id.md at ranks 1-2 (same
+      unaided-baseline gap as the txid entry above). Eval case:
+      eval/cases-vocab-ids.tsv.
+
+  - stems: ["pacs"]
+    subquery: "pacs.008 customer credit transfer ordem de crédito"
+    enabled: false
+    reason: >
+      Spec candidate mapping ("pacs.008, ordem de crédito -> customer
+      credit transfer message") — ALREADY TRIED as part of Feature 1's
+      original pacs/camt entity triggers and REVERTED in commit 2e3b722
+      (see docs/superpowers/plans/2026-07-04-multi-query-retrieval.md
+      Task 6): it regressed precise top@5 96%->88% by diluting
+      already-precise queries with zero fuzzy-recall benefit — these
+      ISO-message queries are already precise, and the base Hybrid search
+      handles them via direct lexical/semantic match without help. Kept
+      here, disabled, as the documented reason this mapping is not live.
+      Note: the stem "pacs" alone cannot distinguish pacs.008 from any other
+      pacs.NNN message — this ambiguity is itself part of why the original
+      trigger was too broad; a future re-attempt would need per-message-code
+      disambiguation, not a bare "pacs" stem.
+
+  - stems: ["pacs"]
+    subquery: "pacs.004 payment return devolução entre instituições"
+    enabled: false
+    reason: >
+      Same regression history as the pacs.008 entry above (commit 2e3b722)
+      — spec's "pacs.004, devolução entre instituições -> payment return
+      message" mapping.
+
+  - stems: ["camt"]
+    subquery: "camt.054 account notification extrato lançamento"
+    enabled: false
+    reason: >
+      Same regression history as the pacs.008 entry above (commit 2e3b722)
+      — spec's "camt.054, extrato, lançamento -> account notification
+      message" mapping.
