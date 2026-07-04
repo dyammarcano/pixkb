@@ -135,24 +135,52 @@ const (
 // which share vocabulary and score well above it — are never affected.
 const vecScoreFloor = 0.05
 
+// Explain captures the per-hit ranking components hybridCore computes
+// internally, for callers that opt into search explanation (HybridExplain,
+// CLI --explain, MCP explain: true). Rank fields are 1-based so 0 doubles as
+// the "not present in this arm" sentinel; FinalScore always equals the
+// corresponding Hit's Score field.
+type Explain struct {
+	FTSRank    int
+	VecRank    int
+	VecScore   float64
+	TypeWeight float64
+	TitleBoost float64
+	FinalScore float64
+	Arm        string
+}
+
 // Hybrid runs full-text and vector search for q and fuses the two result sets
 // with reciprocal-rank fusion (RRF), returning hits ordered by fused score. The
 // query is embedded once with emb for the vector arm. Titles are hydrated from
 // whichever arm returned the concept. The Filter (type/tag/as-of) applies to
 // both arms; f.Limit caps the fused result.
+//
+// Hybrid is a thin wrapper over hybridCore that discards the Explain side
+// channel; behavior and output are unchanged from before hybridCore existed.
 func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f postgres.Filter) ([]postgres.Hit, error) {
+	hits, _, err := hybridCore(ctx, s, emb, q, f)
+	return hits, err
+}
+
+// hybridCore is the shared implementation behind Hybrid and HybridExplain. It
+// returns the fused hits AND a parallel []Explain slice — built in the same
+// final loop, so index i in both slices always refers to the same hit — from
+// data already computed while fusing (never a second computation, so there is
+// no way for the two outputs to disagree).
+func hybridCore(ctx context.Context, s Searcher, emb embed.Embedder, q string, f postgres.Filter) ([]postgres.Hit, []Explain, error) {
 	ftsHits, err := s.FTS(ctx, q, f)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	vecs, err := emb.Embed(ctx, []string{q})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	vecHits, err := s.Vector(ctx, vecs[0], f)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Drop near-zero-overlap vector hits so an out-of-domain query returns nothing
 	// instead of hashing-vector noise (see vecScoreFloor). Filter in place.
@@ -171,6 +199,11 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 	firstSeen := make(map[string]int)
 	fromFTS := make(map[string]bool)
 	fromVec := make(map[string]bool)
+	// 1-based per-arm rank and per-arm vector score, tracked alongside
+	// fromFTS/fromVec purely for Explain — never read by the fusion math below.
+	ftsRank := make(map[string]int)
+	vecRank := make(map[string]int)
+	vecScoreByID := make(map[string]float64)
 	order := 0
 	note := func(h postgres.Hit, rank int, weight float64) {
 		if _, ok := titles[h.ID]; !ok {
@@ -188,16 +221,25 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 	for i, h := range ftsHits {
 		note(h, i, ftsArmWeight)
 		fromFTS[h.ID] = true
+		ftsRank[h.ID] = i + 1
 	}
 	for i, h := range vecHits {
 		note(h, i, vecArmWeight)
 		fromVec[h.ID] = true
+		vecRank[h.ID] = i + 1
+		vecScoreByID[h.ID] = h.Score
 	}
 
 	// Apply the type-authority weight, then sort (score desc, first-seen, id).
+	typeWeightByID := make(map[string]float64, len(scores))
+	titleBoostByID := make(map[string]float64, len(scores))
 	ids := make([]string, 0, len(scores))
 	for id := range scores {
-		scores[id] *= typeWeight(types[id]) * titleBoost(q, titles[id])
+		tw := typeWeight(types[id])
+		tb := titleBoost(q, titles[id])
+		typeWeightByID[id] = tw
+		titleBoostByID[id] = tb
+		scores[id] *= tw * tb
 		ids = append(ids, id)
 	}
 	sort.SliceStable(ids, func(a, b int) bool {
@@ -215,17 +257,28 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 		limit = 20
 	}
 	out := make([]postgres.Hit, 0, len(ids))
+	explains := make([]Explain, 0, len(ids))
 	for i, id := range ids {
 		if i >= limit {
 			break
 		}
+		arm := armLabel(fromFTS[id], fromVec[id])
 		out = append(out, postgres.Hit{
 			ID: id, Title: titles[id], Type: types[id], Rank: i + 1,
 			Score: scores[id],
-			Arm:   armLabel(fromFTS[id], fromVec[id]),
+			Arm:   arm,
+		})
+		explains = append(explains, Explain{
+			FTSRank:    ftsRank[id],
+			VecRank:    vecRank[id],
+			VecScore:   vecScoreByID[id],
+			TypeWeight: typeWeightByID[id],
+			TitleBoost: titleBoostByID[id],
+			FinalScore: scores[id],
+			Arm:        arm,
 		})
 	}
-	return out, nil
+	return out, explains, nil
 }
 
 // armLabel names which retrieval arm(s) surfaced a hit, for provenance
