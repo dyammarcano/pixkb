@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:052 -->
+<!-- rev:053 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -7,11 +7,16 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 ## P1
 - _(none open — the RAG layer shipped; see Shipped. Promote a P2 item here when
   scheduled.)_
-- **RAG follow-up (optional polish).** The core RAG layer is shipped; this is a
-  nice-to-have, not a blocker: wire the now-shipped `query.MultiHybrid` (below)
-  into `rag.Retriever`/`HybridRetriever` for grounding diversity on broad
-  questions — the primitive exists, RAG just doesn't call it yet. Gate any
-  change on `eval/run-rag-judge.sh`.
+- ~~**RAG follow-up (optional polish).** wire `query.MultiHybrid` into
+  `rag.Retriever`/`HybridRetriever` for grounding diversity on broad
+  questions.~~ **Already shipped, this entry was stale** (`/steps:next`,
+  2026-07-04): `rag.Options.MultiQuery` + the `rag.MultiRetriever` interface
+  + `HybridRetriever.RetrieveMulti` (`internal/rag/rag.go`,
+  `internal/rag/adapters.go`) already call `query.MultiHybrid`, wired to
+  `pixkb ask --multi` and MCP `kb_ask`'s `multi` field — landed as part of
+  Phase 9's "RAG retrieval upgrade (multi-query grounding...)". No code
+  change needed; found and closed during doc-vs-code cross-reference, not
+  re-implemented.
 
 ## P2
 - **Search evaluation expansion follow-ups (Feature 6 of
