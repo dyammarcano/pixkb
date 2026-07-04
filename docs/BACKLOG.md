@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:051 -->
+<!-- rev:052 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -32,7 +32,7 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     per ADR 0002) sharpens RRF so one subquery's strong rank outweighs two
     subqueries' mediocre ranks. `pixkb eval multi` coverage 7/8 (88%) → 8/8
     (100%); precise/fuzzy/multi tophit guards unchanged.
-  - **`eval rag-diversity`'s first live run (2026-07-04, `--provider claude`,
+  - ~~**`eval rag-diversity`'s first live run (2026-07-04, `--provider claude`,
     against the live KB) came back BELOW MIN for both cases** —
     `diversity-devolucao-fluxo` and `diversity-cobranca-fluxo` both reported
     `types=[]` (zero valid citations), not merely below `min-types=2`. The
@@ -49,7 +49,65 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     guidance: revisit the two questions' wording (they may be reading as
     unanswerable-as-phrased rather than as the intended broad-but-answerable
     Pix flow questions) or lower `min-types` explicitly — do not treat this
-    silently as a passing case.
+    silently as a passing case.~~
+    **Diagnosed (2026-07-04 follow-up), NOT a citation-matching or
+    `typeByID` bug.** `pixkb ask --json --provider claude` against the live
+    KB for `diversity-devolucao-fluxo`'s original wording ("quais os passos e
+    regras para tratar a devolução de um Pix, desde a chamada de API até a
+    mensagem interbancária envolvida?") came back a legitimate refusal whose
+    own answer text named the retrieved context as being about "gestão
+    integrada de riscos, compliance e controles internos" — i.e. retrieval,
+    not synthesis, was broken. `pixkb search` with that exact question
+    confirmed it: top hits were unrelated `web/acessoinformacao-*`
+    institutional pages, while a short query like `"devolução pix"` against
+    the same KB correctly surfaces `api/openapi/put-pix-e2eid-devolucao-id.md`,
+    `messages/pacs.004.md`, etc. Root cause: the question is long enough
+    that `internal/store/postgres/search.go`'s
+    `websearch_to_tsquery('pixpt', $1)` (implicit AND of every non-stopword
+    term — a known, deliberate tradeoff documented at search.go:86-92 and
+    tracked separately below as the QUORUM/coverage-ranking item) matches
+    zero concepts, so the FTS arm contributes nothing and fusion falls back
+    entirely to `internal/embed/hashing.go`'s hashing embedder — which hashes
+    raw character 3-grams over the whole string (not tokens, not
+    stopword-filtered), so it is weak and punctuation-sensitive for long
+    natural-language sentences and surfaced generic long documents instead.
+    `diversity-cobranca-fluxo`'s wording, by contrast, retrieves the correct
+    concepts deterministically (verified via `pixkb search`: the exact two
+    concepts the answerer later cited rank #1-#2), so its original `types=[]`
+    is attributed to single-sample answerer variance (an occasional refusal
+    or malformed-JSON reply — see the new known-limitation note below — on
+    otherwise-adequate grounding), not a retrieval defect.
+    **Action taken**: reworded `diversity-devolucao-fluxo` in
+    `eval/cases-rag-diversity.tsv` to name the concrete devolução endpoint
+    and `pacs.004` message the KB actually indexes ("Passos da devolução de
+    um Pix, do endpoint de devolução até a mensagem pacs.004 no SPI?"),
+    verified live with `pixkb ask --json --provider claude` (2 distinct
+    types: `ApiEndpoint`, `Reference`) and then with the actual `pixkb eval
+    rag-diversity --provider claude` command end-to-end: `cases=2
+    below-min=0`, both `types=[ApiEndpoint Reference]`. Left
+    `diversity-cobranca-fluxo`'s wording unchanged (its retrieval was already
+    correct) and left `min-types=2` unchanged for both. No source code was
+    changed — the retrieval-ranking root cause (FTS AND-of-all-terms +
+    weak long-text hashing-vector fallback) is a pre-existing, deliberate
+    tradeoff already tracked as the QUORUM/coverage-ranking item, not a new
+    bug, and reformulating a `--provider claude`-costed eval question was the
+    smallest safe fix available.
+    **New known limitation surfaced during this follow-up** (not fixed,
+    tracked here for visibility): re-running `pixkb eval rag-diversity`
+    intermittently hit `pixkb: ask "diversity-cobranca-fluxo": parse
+    answerer reply: invalid character 'E' after object key:value pair` —
+    an occasional malformed-JSON answerer reply that `rag.Synthesize`'s
+    `extractJSON` (`internal/rag/answer.go`) mishandles (its first-`{`-to-
+    last-`}` span assumes exactly one JSON object in the reply; trailing
+    prose containing its own `}` can extend the span past the real object).
+    The error also drops the raw agent reply, so the exact malformed shape
+    was not captured. Re-running immediately succeeded (LLM sampling
+    variance, not deterministic), so this is a robustness gap in the
+    answerer-reply parser, not a regression from today's fix. Left
+    unfixed pending a captured repro; a fix should (a) log/wrap the raw
+    reply on parse failure and (b) make `extractJSON` robust to trailing
+    content after a balanced first JSON object (e.g. brace-depth matching
+    from the first `{` instead of `LastIndexByte` for the last `}`).
   - Feature 8 (Search Quality Operations) has since shipped — see its own
     backlog block below.
   - ~~**`pixkb eval`'s six subcommands report numbers but never fail the

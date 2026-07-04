@@ -8,5 +8,26 @@
 # starting expectation, not a proven baseline — adjust after the first run
 # if the actual diversity differs, and say so in the task report rather than
 # silently editing the number to make it pass.
-diversity-devolucao-fluxo	quais os passos e regras para tratar a devolução de um Pix, desde a chamada de API até a mensagem interbancária envolvida?	2
+#
+# 2026-07-04 follow-up (see docs/BACKLOG.md): the first live run reported
+# types=[] for both cases. Root cause was retrieval, not citation-matching —
+# diversity-devolucao-fluxo's original wording ("quais os passos e regras
+# para tratar a devolução de um Pix, desde a chamada de API até a mensagem
+# interbancária envolvida?") is long enough that websearch_to_tsquery's
+# implicit AND-of-all-terms (internal/store/postgres/search.go's FTS) matched
+# zero concepts, leaving the hashing embedder's weak, punctuation-sensitive
+# vector arm (internal/embed/hashing.go hashes raw character 3-grams, not
+# tokens) to surface unrelated institutional pages. Reworded to name the
+# concrete devolução endpoint + pacs.004 message the KB actually indexes;
+# verified live (--provider claude) after the reword: 2 distinct types
+# (ApiEndpoint, Reference), min-types=2 met.
+# diversity-cobranca-fluxo's original wording was left unchanged — a live
+# rerun (2026-07-04) got 2 distinct types (ApiEndpoint, Reference) cleanly;
+# its earlier types=[] is attributed to single-sample answerer variance on
+# borderline-relevant grounding (retrieval itself is deterministic and
+# already surfaces the right two concepts in the top ranks), not a
+# retrieval or citation-matching bug. Known limitation: this eval spends one
+# live agent turn per case with no retry, so an occasional answerer refusal
+# on borderline grounding can still register as a false failure.
+diversity-devolucao-fluxo	Passos da devolução de um Pix, do endpoint de devolução até a mensagem pacs.004 no SPI?	2
 diversity-cobranca-fluxo	como funciona o ciclo de uma cobrança com vencimento, da criação via API até a liquidação no SPI?	2
