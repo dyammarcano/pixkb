@@ -17,10 +17,11 @@ import (
 )
 
 // Hit is a retrieved concept reference — the subset of a search hit the augment
-// step needs (id + title + fused score), decoupled from the postgres type.
+// step needs (id + title + type + fused score), decoupled from the postgres type.
 type Hit struct {
 	ID    string
 	Title string
+	Type  string
 	Score float64
 }
 
@@ -30,6 +31,17 @@ type Hit struct {
 type Retriever interface {
 	Retrieve(ctx context.Context, q string, k int) ([]Hit, error)
 	Related(ctx context.Context, id string) ([]string, error)
+}
+
+// MultiRetriever is an optional capability a Retriever may implement: run
+// query.MultiHybrid's multi-query expansion instead of single-query Hybrid.
+// BuildGrounding type-asserts for it when Options.MultiQuery is set and falls
+// back to Retrieve when the assertion fails — every existing Retriever
+// (including every test fake) keeps compiling with no change, and a
+// Retriever that doesn't support multi-query degrades to single-query
+// search rather than erroring.
+type MultiRetriever interface {
+	RetrieveMulti(ctx context.Context, q string, k int) ([]Hit, error)
 }
 
 // ConceptSource resolves a concept's full content (body + provenance) by id from

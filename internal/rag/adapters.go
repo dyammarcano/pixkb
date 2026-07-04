@@ -30,7 +30,25 @@ func (h HybridRetriever) Retrieve(ctx context.Context, q string, k int) ([]Hit, 
 	}
 	out := make([]Hit, 0, len(hits))
 	for _, x := range hits {
-		out = append(out, Hit{ID: x.ID, Title: x.Title, Score: x.Score})
+		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
+	}
+	return out, nil
+}
+
+// RetrieveMulti runs the multi-query expansion (query.MultiHybrid) instead of
+// single-query Hybrid — same RRF fusion, same ranking math, just seeded from
+// ExpandQuery's subqueries instead of one query string. Satisfies
+// rag.MultiRetriever.
+func (h HybridRetriever) RetrieveMulti(ctx context.Context, q string, k int) ([]Hit, error) {
+	f := h.Filter
+	f.Limit = k
+	hits, err := query.MultiHybrid(ctx, h.Store, h.Emb, q, f)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Hit, 0, len(hits))
+	for _, x := range hits {
+		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
 	}
 	return out, nil
 }
