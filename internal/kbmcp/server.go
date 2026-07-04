@@ -70,6 +70,7 @@ type searchIn struct {
 	Query string `json:"query" jsonschema:"natural-language or lexical query"`
 	Type  string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
 	Limit int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
+	Mode  string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`
@@ -78,13 +79,23 @@ type searchOut struct {
 func registerSearch(s *mcp.Server, d Deps) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "search",
-		Description: "Hybrid (lexical + vector) search over the Pix/SPB knowledge base. Returns ranked concept hits.",
+		Description: "Hybrid (lexical + vector) search over the Pix/SPB knowledge base. Returns ranked concept hits. mode=multi broadens recall via deterministic query expansion.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in searchIn) (*mcp.CallToolResult, searchOut, error) {
 		limit := in.Limit
 		if limit <= 0 {
 			limit = 10
 		}
-		hits, err := query.Hybrid(ctx, d.Store, d.Emb, in.Query, postgres.Filter{Type: in.Type, Limit: limit})
+		f := postgres.Filter{Type: in.Type, Limit: limit}
+		var hits []postgres.Hit
+		var err error
+		if in.Mode == "multi" {
+			var mh []query.MultiHit
+			if mh, err = query.MultiHybrid(ctx, d.Store, d.Emb, in.Query, f); err == nil {
+				hits = query.Hits(mh)
+			}
+		} else {
+			hits, err = query.Hybrid(ctx, d.Store, d.Emb, in.Query, f)
+		}
 		if err != nil {
 			return nil, searchOut{}, err
 		}
