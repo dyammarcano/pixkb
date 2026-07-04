@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:009 -->
+<!-- rev:010 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -115,6 +115,31 @@ itself as the agents' self-contained tool surface.
   citation accuracy, correct-refusal (`7276aac`, `544473d`, `69fad4a`, `cabc7b4`).
 - [ ] **Scraper wired** — render JS BACEN SPA pages into canonical concepts.
   BACKLOG P2.
+
+## Phase 9 — Search Capability Upgrade [x]
+Implemented all 8 features of `docs/SEARCH-CAPABILITY-SPEC.md`: multi-query
+retrieval (`internal/query.MultiHybrid`, domain-vocabulary-driven
+`ExpandQuery`), concept similarity (`internal/similar`, `pixkb similar`),
+search explanation (`query.HybridExplain`, `--explain`), rich filters/output
+formats (`internal/output`, `--format`, as-of filters), RAG retrieval upgrade
+(multi-query grounding, diversify, multi-seed expand, min-score refusal,
+answer cache, deterministic PII/LGPD redaction), search evaluation expansion
+(`internal/evalkit`, `pixkb eval {multi,similar,ood,explain,asof,rag-diversity}`),
+domain-aware query understanding (`internal/query/domain_vocabulary.yaml`,
+`pixkb vocab`), and search quality operations (`internal/searchhealth`,
+`pixkb search-health`). New: SELIC/Dólar economic-index mappers
+(`internal/econindex`, `pixkb econindex`), matching the ISPB mapper pattern.
+
+Follow-up hardening pass (`/steps:next`, 2026-07-04): fixed 3 real test bugs
+surfaced by finally running the full DSN-gated integration suite (a flaky
+own-test, a stale ISO-message-count assertion, an MCP test hardcoding a
+prod-only concept id); found and fixed 3 concepts that existed only in
+Postgres, not the canonical bundle (one via an OKF reserved-filename
+collision); `golangci-lint` clean; a targeted `curate --enrich --ids` pass
+(new `--ids` flag) measurably lifted both precise and fuzzy recall; closed
+the e2eid natural-language alias gap; `multiRRFK` fusion fix took
+`pixkb eval multi` coverage to 100%. See `docs/BACKLOG.md` for full details
+and remaining follow-ups.
 - [x] Agent **e2e integration test** — live coding-agent CLI through the Agency
   with a conceptSchema returns a parseable concept (`pkg/agents/agency_e2e_test.go`,
   guarded by provider-on-PATH + `-short`); paired with the MCP
