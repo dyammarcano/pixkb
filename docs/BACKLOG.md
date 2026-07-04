@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:031 -->
+<!-- rev:032 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -14,6 +14,20 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **SELIC and Dólar (USD/BRL) mappers — current + historical series.** Same
+  pattern as the ISPB mapper (`internal/ispb`): a new `internal/econindex` (or
+  similar) package sourcing BACEN's public SGS time-series API
+  (`https://api.bcb.gov.br/dados/serie/bcdata.sgs.<codigo>/dados`), no auth.
+  Needs, per indicator: (a) the "real" (latest/current) value — a lightweight
+  single-point fetch — and (b) full history — the same endpoint with
+  `dataInicial`/`dataFinal` params, paginated for long ranges. Known series
+  codes to verify at brainstorm time: Selic (daily rate, series 11; target/meta
+  rate, series 432) and Dólar comercial (PTAX venda, series 1) — BCB's Olinda
+  OData API (`olinda.bcb.gov.br/olinda/servico/PTAX`) may be a better fit
+  specifically for PTAX's official daily quote vs. the SGS series. New table(s)
+  + migration, `pixkb` CLI subcommands (`fetch`/`load`/`sync`/`lookup` or
+  similar, matching the air-gap online/offline split), following the exact
+  brainstorm → spec → plan → SDD pipeline used for ISPB.
 - **Scraper wired to a headless renderer.** Render the JS-rendered BACEN SPA
   pages into BACEN-canonical concepts via the scraper agent. BLOCKED on two
   prerequisites: (1) Scout MCP browser must be connected (it was down this run),
