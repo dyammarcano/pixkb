@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -15,7 +16,9 @@ import (
 )
 
 // Config holds pixkb runtime settings. Resolution order: built-in defaults <
-// pixkb.yaml < environment variables (PIXKB_*). A --dsn flag overrides DSN.
+// global user config (globalConfigPath()) < pixkb.yaml (project-local) <
+// environment variables (PIXKB_*). A --dsn flag overrides DSN on commands
+// that expose one.
 type Config struct {
 	DSN           string     `yaml:"dsn"`
 	BundleDir     string     `yaml:"bundle_dir"`
@@ -42,33 +45,77 @@ func envOr(key, def string) string {
 	return def
 }
 
+// globalConfigPath returns the per-user config file path: PIXKB_CONFIG_DIR's
+// config.yaml if that env var is set (a power-user override, and how tests
+// isolate themselves from whatever global config exists on the machine
+// running them), else <os.UserConfigDir()>/PixKB/config.yaml — which resolves
+// to %LocalAppData%\PixKB\config.yaml on Windows, ~/.config/PixKB/config.yaml
+// on Linux, and ~/Library/Application Support/PixKB/config.yaml on macOS.
+// Returns "" if neither resolves (os.UserConfigDir can fail on some systems).
+func globalConfigPath() string {
+	if dir := os.Getenv("PIXKB_CONFIG_DIR"); dir != "" {
+		return filepath.Join(dir, "config.yaml")
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "PixKB", "config.yaml")
+}
+
+// applyConfigFile reads the YAML file at path, if it exists, and merges its
+// non-empty/non-nil fields into cfg. A field left unset in the file never
+// clobbers a value cfg already holds, which lets applyConfigFile be called
+// repeatedly with increasing precedence (global config, then project-local
+// pixkb.yaml) — a later call's absent fields don't erase an earlier call's
+// values.
+func applyConfigFile(cfg *Config, path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	var fromFile Config
+	if yaml.Unmarshal(data, &fromFile) != nil {
+		return
+	}
+	if fromFile.DSN != "" {
+		cfg.DSN = fromFile.DSN
+	}
+	if fromFile.BundleDir != "" {
+		cfg.BundleDir = fromFile.BundleDir
+	}
+	if fromFile.IngestDir != "" {
+		cfg.IngestDir = fromFile.IngestDir
+	}
+	if fromFile.Embedder != "" {
+		cfg.Embedder = fromFile.Embedder
+	}
+	if fromFile.MirrorDir != "" {
+		cfg.MirrorDir = fromFile.MirrorDir
+	}
+	if len(fromFile.PDFs) > 0 {
+		cfg.PDFs = fromFile.PDFs
+	}
+	if len(fromFile.Markdown) > 0 {
+		cfg.Markdown = fromFile.Markdown
+	}
+	if len(fromFile.Repos) > 0 {
+		cfg.Repos = fromFile.Repos
+	}
+	if len(fromFile.APIDocs) > 0 {
+		cfg.APIDocs = fromFile.APIDocs
+	}
+	if fromFile.ScoutCrawlDir != "" {
+		cfg.ScoutCrawlDir = fromFile.ScoutCrawlDir
+	}
+}
+
 func loadConfig() Config {
 	cfg := Config{BundleDir: "kb", IngestDir: "ingest", Embedder: "hashing", MirrorDir: "mirrors"}
-	if data, err := os.ReadFile("pixkb.yaml"); err == nil {
-		var fromFile Config
-		if yaml.Unmarshal(data, &fromFile) == nil {
-			if fromFile.DSN != "" {
-				cfg.DSN = fromFile.DSN
-			}
-			if fromFile.BundleDir != "" {
-				cfg.BundleDir = fromFile.BundleDir
-			}
-			if fromFile.IngestDir != "" {
-				cfg.IngestDir = fromFile.IngestDir
-			}
-			if fromFile.Embedder != "" {
-				cfg.Embedder = fromFile.Embedder
-			}
-			if fromFile.MirrorDir != "" {
-				cfg.MirrorDir = fromFile.MirrorDir
-			}
-			cfg.PDFs = fromFile.PDFs
-			cfg.Markdown = fromFile.Markdown
-			cfg.Repos = fromFile.Repos
-			cfg.APIDocs = fromFile.APIDocs
-			cfg.ScoutCrawlDir = fromFile.ScoutCrawlDir
-		}
+	if path := globalConfigPath(); path != "" {
+		applyConfigFile(&cfg, path)
 	}
+	applyConfigFile(&cfg, "pixkb.yaml")
 	// Environment overrides file + defaults.
 	cfg.DSN = envOr("PIXKB_DSN", cfg.DSN)
 	cfg.BundleDir = envOr("PIXKB_BUNDLE", cfg.BundleDir)

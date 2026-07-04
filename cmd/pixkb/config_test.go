@@ -13,6 +13,7 @@ import (
 // pixkb.yaml and no PIXKB_* env vars are present.
 func TestLoadConfig_Defaults(t *testing.T) {
 	t.Chdir(t.TempDir()) // empty dir: no pixkb.yaml
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	t.Setenv("PIXKB_BUNDLE", "")
 	t.Setenv("PIXKB_INGEST", "")
@@ -29,6 +30,7 @@ func TestLoadConfig_Defaults(t *testing.T) {
 // TestLoadConfig_EnvOverrides confirms PIXKB_* env vars override defaults.
 func TestLoadConfig_EnvOverrides(t *testing.T) {
 	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "postgres://envuser@localhost/db")
 	t.Setenv("PIXKB_BUNDLE", "envbundle")
 	t.Setenv("PIXKB_INGEST", "envingest")
@@ -54,6 +56,7 @@ func TestLoadConfig_FileThenEnv(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "pixkb.yaml"), []byte(yaml), 0o644))
 
 	// Env unset for most keys -> file wins; one env override -> env wins.
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	t.Setenv("PIXKB_BUNDLE", "")
 	t.Setenv("PIXKB_INGEST", "")
@@ -92,6 +95,7 @@ func TestNewEmbedder_HashingSelection(t *testing.T) {
 func TestLoadConfig_ScoutCrawlDir(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	yaml := "scout_crawl_dir: mirrors/bcb/knowledge/pages\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "pixkb.yaml"), []byte(yaml), 0o644))
 
@@ -101,6 +105,50 @@ func TestLoadConfig_ScoutCrawlDir(t *testing.T) {
 
 func TestLoadConfig_ScoutCrawlDir_DefaultsEmpty(t *testing.T) {
 	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	cfg := loadConfig()
 	assert.Empty(t, cfg.ScoutCrawlDir)
+}
+
+// TestGlobalConfigPath_UsesConfigDirOverride confirms PIXKB_CONFIG_DIR is a
+// full override of the OS-specific lookup, not a suffix added to it.
+func TestGlobalConfigPath_UsesConfigDirOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PIXKB_CONFIG_DIR", dir)
+	assert.Equal(t, filepath.Join(dir, "config.yaml"), globalConfigPath())
+}
+
+// TestLoadConfig_GlobalConfigAppliesWhenNoLocalFile confirms the global config
+// (PIXKB_CONFIG_DIR/config.yaml) is picked up even with no project-local
+// pixkb.yaml present.
+func TestLoadConfig_GlobalConfigAppliesWhenNoLocalFile(t *testing.T) {
+	globalDir := t.TempDir()
+	t.Setenv("PIXKB_CONFIG_DIR", globalDir)
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "config.yaml"),
+		[]byte("dsn: postgres://fromglobal@localhost/db\n"), 0o644))
+	t.Chdir(t.TempDir()) // empty dir: no local pixkb.yaml
+	t.Setenv("PIXKB_DSN", "")
+
+	cfg := loadConfig()
+	assert.Equal(t, "postgres://fromglobal@localhost/db", cfg.DSN)
+}
+
+// TestLoadConfig_LocalOverridesGlobal confirms project-local pixkb.yaml wins
+// over the global config for fields both set, while fields only the global
+// config sets survive (a local file's absence of a field must not erase it).
+func TestLoadConfig_LocalOverridesGlobal(t *testing.T) {
+	globalDir := t.TempDir()
+	t.Setenv("PIXKB_CONFIG_DIR", globalDir)
+	require.NoError(t, os.WriteFile(filepath.Join(globalDir, "config.yaml"),
+		[]byte("dsn: postgres://fromglobal@localhost/db\nbundle_dir: global-kb\n"), 0o644))
+
+	localDir := t.TempDir()
+	t.Chdir(localDir)
+	require.NoError(t, os.WriteFile(filepath.Join(localDir, "pixkb.yaml"),
+		[]byte("dsn: postgres://fromlocal@localhost/db\n"), 0o644))
+	t.Setenv("PIXKB_DSN", "")
+
+	cfg := loadConfig()
+	assert.Equal(t, "postgres://fromlocal@localhost/db", cfg.DSN, "local dsn overrides global")
+	assert.Equal(t, "global-kb", cfg.BundleDir, "global bundle_dir survives since local doesn't set it")
 }
