@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:032 -->
+<!-- rev:033 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -14,6 +14,13 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **CLI output formats — markdown, YAML, JSON.** Commands that currently print
+  fixed plain-text tables (`ispb lookup`, `stats`, `search`, `related`, etc.)
+  should accept a shared `--format` flag (`text` default, `md`, `yaml`,
+  `json`) so output is both scriptable (json/yaml) and shareable as a
+  rendered doc (md). Likely a small shared `internal/output` helper each
+  command's print step routes through, rather than each command hand-rolling
+  its own formatter.
 - **SELIC and Dólar (USD/BRL) mappers — current + historical series.** Same
   pattern as the ISPB mapper (`internal/ispb`): a new `internal/econindex` (or
   similar) package sourcing BACEN's public SGS time-series API
