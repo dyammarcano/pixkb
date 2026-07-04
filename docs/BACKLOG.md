@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:035 -->
+<!-- rev:036 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -16,6 +16,38 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **Concept similarity search follow-ups (Feature 2 of
+  `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
+  `internal/similar`'s `Similar()` (semantic/graph/hybrid/more-like-this modes)
+  shipped via `pixkb similar <id>` and the MCP `similar` tool. Live spot-check
+  against the production KB: self-exclusion holds, all 4 modes give visibly
+  distinct result sets for the same concept, hybrid mode genuinely fuses
+  signals (multi-Why hits observed, e.g. `[graph semantic]`), and domain
+  tagging fires correctly only for type-adjacent candidates already in the
+  fused set (verified against both the `Reference`->{ApiEndpoint,
+  ManualSection} and `PacsMessage`->{ApiEndpoint, CamtMessage} rows of
+  `domainAdjacency`). Remaining, explicitly out of scope for that plan:
+  - **No curated regression gate.** Unlike multi-query retrieval's
+    `eval/tophit.sh` + `eval/cases-{precise,fuzzy}-ids.tsv`, this plan's Task 8
+    was a one-time manual spot-check, not a standing harness. Build a
+    `eval/cases-similar-ids.tsv` (concept id -> expected similar id(s)) gold
+    set plus a `tophit.sh`-equivalent so future `domainAdjacency`/fusion
+    changes are measured, not spot-checked.
+  - **Domain signal is type-pair-only.** The spec's finer-grained examples
+    ("DICT endpoints near key concepts" specifically) need a topic-specific
+    rule layer beyond `internal/similar/domain.go`'s 5-entry type table.
+  - **Surfacing `Hit.Why`/per-signal scores in a dedicated explanation view**
+    (spec Feature 3) and **richer CLI/MCP filters/output formats** (Feature 4)
+    — same deferral already recorded for multi-query retrieval's provenance.
+  - **Wiring `similar.Similar` into RAG grounding** (spec Feature 5) as an
+    additional evidence-diversification source, alongside the already-
+    backlogged `query.MultiHybrid` RAG wiring above.
+  - **Semantic-mode noise from the hashing embedder** (e.g. unrelated WebPage
+    hits surfacing in `--mode semantic`/`more-like-this` results) is the same
+    documented, air-gap-bounded limitation ADR 0002 already recorded for
+    search generally — not a defect introduced by this feature, and not
+    separately actionable without a learned embedder (forbidden by the
+    air-gap rule).
 - **Multi-query retrieval follow-ups (Feature 1 of `docs/SEARCH-CAPABILITY-SPEC.md`
   shipped; these are the pieces deliberately deferred).** `query.ExpandQuery` +
   `query.MultiHybrid` (`internal/query/expand.go`, `multi.go`) ship deterministic
