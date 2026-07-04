@@ -44,13 +44,15 @@ func enrichCandidates(concepts []okf.Concept, reenrich bool) []hygiene.Finding {
 // EnrichPlan is the offline preview of the enrich pass: it lists the concepts the
 // enrich agent would be asked to enrich (those with no intent_terms, or ALL when
 // reenrich is set) with no agent run and no database. Use it to scope a batch
-// before spending any provider quota.
-func EnrichPlan(bundle string, reenrich bool) (Outcome, error) {
+// before spending any provider quota. ids restricts the preview to those
+// concepts (empty = every candidate, unchanged behavior).
+func EnrichPlan(bundle string, reenrich bool, ids []string) (Outcome, error) {
 	concepts, err := okf.ReadBundle(bundle)
 	if err != nil {
 		return Outcome{}, fmt.Errorf("read bundle %q: %w", bundle, err)
 	}
 	missing := enrichCandidates(concepts, reenrich)
+	missing = filterByIDs(missing, ids, func(f hygiene.Finding) string { return f.ConceptID })
 	out := Outcome{Concepts: len(concepts), Findings: len(missing), Routed: len(missing)}
 	for _, f := range missing {
 		out.Items = append(out.Items, Item{
@@ -81,6 +83,7 @@ func (c *Curator) Enrich(ctx context.Context) (Outcome, error) {
 	}
 
 	missing := enrichCandidates(concepts, c.Reenrich)
+	missing = filterByIDs(missing, c.IDs, func(f hygiene.Finding) string { return f.ConceptID })
 	if c.Limit > 0 && len(missing) > c.Limit {
 		missing = missing[:c.Limit]
 	}

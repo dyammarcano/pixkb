@@ -104,12 +104,47 @@ func TestPlanOffline(t *testing.T) {
 		ContentSHA: "sha1",
 	}
 	bundle := writeBundle(t, dirty)
-	out, err := Plan(bundle)
+	out, err := Plan(bundle, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if out.Routed != 1 || out.Items[0].Status != StatusPlanned || out.Items[0].Agent != "deviation" {
 		t.Fatalf("plan out = %+v", out)
+	}
+}
+
+// TestPlanOffline_IDsRestrictsRouting verifies the --ids targeting added for
+// /steps:next item 4: two concepts have fixable findings, but restricting to
+// one id must route only that one, leaving the other unrouted.
+func TestPlanOffline_IDsRestrictsRouting(t *testing.T) {
+	a := okf.Concept{
+		ID: "messages/pix-in.md", Type: "Reference", Title: "Pix-in flow",
+		SourceURI: "https://bcb.gov.br/x",
+		Body:      "# Pix-in flow\n\nThe Recebedor PSP publishes to a Pulsar topic.",
+		ContentSHA: "sha1",
+	}
+	b := okf.Concept{
+		ID: "messages/pix-out.md", Type: "Reference", Title: "Pix-out flow",
+		SourceURI: "https://bcb.gov.br/y",
+		Body:      "# Pix-out flow\n\nThe Pagador PSP publishes to a Kafka topic.",
+		ContentSHA: "sha2",
+	}
+	bundle := writeBundle(t, a, b)
+
+	all, err := Plan(bundle, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if all.Routed != 2 {
+		t.Fatalf("unrestricted plan should route both concepts, got %+v", all)
+	}
+
+	restricted, err := Plan(bundle, []string{a.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restricted.Routed != 1 || restricted.Items[0].ConceptID != a.ID {
+		t.Fatalf("--ids restricted plan should route only %s, got %+v", a.ID, restricted)
 	}
 }
 

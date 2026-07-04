@@ -40,6 +40,7 @@ type Curator struct {
 	Apply    bool          // false (default) = dry-run: propose + gate, never write
 	Limit    int           // cap routed concepts per pass (0 = no cap); spares quota on big bundles
 	Reenrich bool          // Enrich: route ALL concepts, not just those with empty intent_terms (re-tune terms)
+	IDs      []string      // restrict routing to these concept ids (empty = no restriction); applied before Limit
 }
 
 // Status is the per-concept verdict of one curate pass.
@@ -170,19 +171,44 @@ func sortedChecks(set map[hygiene.Check]struct{}) []hygiene.Check {
 
 // Plan is the offline routing preview: scan + route only — no agents, no
 // database. It shows which agent each flagged concept would be handed to, so a
-// curate run can be reviewed before any provider turn is spent.
-func Plan(bundle string) (Outcome, error) {
+// curate run can be reviewed before any provider turn is spent. ids restricts
+// the preview to those concepts (empty = every routed concept, unchanged
+// behavior).
+func Plan(bundle string, ids []string) (Outcome, error) {
 	concepts, err := okf.ReadBundle(bundle)
 	if err != nil {
 		return Outcome{}, fmt.Errorf("read bundle %q: %w", bundle, err)
 	}
 	rep := hygiene.Scan(concepts)
 	routes, skipped := route(rep)
+	routes = filterByIDs(routes, ids, func(r route_) string { return r.ConceptID })
 	out := Outcome{Concepts: len(concepts), Findings: fixableCount(rep), Routed: len(routes), Items: skipped}
 	for _, r := range routes {
 		out.Items = append(out.Items, Item{ConceptID: r.ConceptID, Agent: r.Agent, Checks: r.Checks, Status: StatusPlanned})
 	}
 	return out, nil
+}
+
+// filterByIDs keeps only the items whose id (extracted by key) is in ids —
+// used by Curator.Run/Enrich to restrict a pass to specific concepts (e.g. a
+// targeted re-enrichment of a few search-health-flagged ids) instead of the
+// whole scan. No restriction when ids is empty, so every existing caller's
+// unfiltered behavior is unchanged.
+func filterByIDs[T any](items []T, ids []string, key func(T) string) []T {
+	if len(ids) == 0 {
+		return items
+	}
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	out := make([]T, 0, len(items))
+	for _, item := range items {
+		if want[key(item)] {
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 // Run executes one curate pass. It never panics on a single agent failure: that
@@ -199,6 +225,7 @@ func (c *Curator) Run(ctx context.Context) (Outcome, error) {
 	}
 
 	routes, skipped := route(rep)
+	routes = filterByIDs(routes, c.IDs, func(r route_) string { return r.ConceptID })
 	if c.Limit > 0 && len(routes) > c.Limit {
 		routes = routes[:c.Limit]
 	}

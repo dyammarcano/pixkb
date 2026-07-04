@@ -22,6 +22,7 @@ func newCurateCmd() *cobra.Command {
 	var provider string
 	var apply, planOnly, asJSON, enrich, reenrich bool
 	var limit int
+	var ids []string
 	cmd := &cobra.Command{
 		Use:   "curate",
 		Short: "Run the curation loop: scan -> route to fix agents -> gate -> (--apply) upsert+reindex",
@@ -43,9 +44,9 @@ func newCurateCmd() *cobra.Command {
 				var out curate.Outcome
 				var err error
 				if enrich {
-					out, err = curate.EnrichPlan(cfg.BundleDir, reenrich)
+					out, err = curate.EnrichPlan(cfg.BundleDir, reenrich, ids)
 				} else {
-					out, err = curate.Plan(cfg.BundleDir)
+					out, err = curate.Plan(cfg.BundleDir, ids)
 				}
 				if err != nil {
 					return err
@@ -71,6 +72,7 @@ func newCurateCmd() *cobra.Command {
 				Apply:    apply,
 				Limit:    limit,
 				Reenrich: reenrich,
+				IDs:      ids,
 			}
 			if apply {
 				r, st, err := newRunner(cmd.Context(), cfg)
@@ -99,6 +101,7 @@ func newCurateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&reenrich, "reenrich", false, "with --enrich: route ALL concepts (re-tune existing intent_terms), not only empty ones")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit the outcome as JSON")
 	cmd.Flags().IntVar(&limit, "limit", 0, "cap routed concepts this pass (0 = all); spares subscription quota")
+	cmd.Flags().StringSliceVar(&ids, "ids", nil, "restrict this pass to these concept ids (comma-separated; empty = every routed/candidate concept)")
 	return cmd
 }
 

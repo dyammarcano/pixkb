@@ -37,7 +37,7 @@ func TestEnrichPlanListsMissing(t *testing.T) {
 	filled.IntentTerms = "e2eid identificador fim a fim"
 
 	bundle := writeBundle(t, missing, filled)
-	out, err := EnrichPlan(bundle, false)
+	out, err := EnrichPlan(bundle, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestEnrichPlanListsMissing(t *testing.T) {
 	}
 
 	// --reenrich routes BOTH (the filled one too) so terms can be re-tuned.
-	re, err := EnrichPlan(bundle, true)
+	re, err := EnrichPlan(bundle, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
