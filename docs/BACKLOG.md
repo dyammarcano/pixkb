@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:050 -->
+<!-- rev:051 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -52,11 +52,19 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     silently as a passing case.
   - Feature 8 (Search Quality Operations) has since shipped — see its own
     backlog block below.
-  - **`pixkb eval`'s six subcommands report numbers but never fail the
+  - ~~**`pixkb eval`'s six subcommands report numbers but never fail the
     process** (`os.Exit(1)` on a bad number) — intentional per the plan's
     Global Constraints (these are measurement tools, like `eval/tophit.sh`,
     not CI gates), but a future CI-gating use case would need a
-    `--fail-under`-style flag; not built here.
+    `--fail-under`-style flag; not built here.~~ **Resolved (2026-07-04)**:
+    every subcommand now takes an opt-in `--fail-under <percentage>` flag
+    (`cmd/pixkb/eval.go`). Unset (0, the default) preserves the original
+    always-exit-0 behavior exactly; when set, the subcommand's headline
+    metric (multi=required-id coverage, similar=top@5, ood=clean rate,
+    explain=structural-consistency rate, asof=as-of invariant pass rate,
+    rag-diversity=min-types pass rate — all 0-100 scale) is compared against
+    the threshold after the report prints, returning a non-nil error (cobra
+    exits non-zero) if it falls below.
 - **Domain-aware query understanding follow-ups (Feature 7 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately
   deferred).** `internal/query/domain_vocabulary.yaml` + `vocab.go` replace
