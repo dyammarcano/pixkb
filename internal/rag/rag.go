@@ -69,9 +69,13 @@ type Grounding struct {
 
 // Options tune retrieval + assembly. The zero value is usable (defaults applied).
 type Options struct {
-	TopK          int  // hybrid hits to take (default defaultTopK)
-	ExpandRelated bool // also pull the graph neighbours of the top hit
-	MaxChars      int  // grounding char budget, ~4 chars/token (default defaultMaxChars)
+	TopK          int     // hybrid hits to take (default defaultTopK)
+	ExpandRelated bool    // also pull the graph neighbours of the seed hit(s)
+	MaxChars      int     // grounding char budget, ~4 chars/token (default defaultMaxChars)
+	MultiQuery    bool    // use the Retriever's MultiRetriever (multi-query expansion) when it implements one; silently falls back to single-query Retrieve otherwise
+	Diversify     bool    // prefer the first hit of each concept Type before filling remaining slots by rank
+	ExpandSeeds   int     // how many top hits' graph neighbours to pull when ExpandRelated (default 1, preserves the pre-upgrade single-seed behavior)
+	MinScore      float64 // refuse (empty Grounding, no agent turn spent) when the top hit's score is below this (0 = disabled)
 }
 
 const (
@@ -93,6 +97,51 @@ func (o Options) maxChars() int {
 	return defaultMaxChars
 }
 
+func (o Options) expandSeeds() int {
+	if o.ExpandSeeds > 0 {
+		return o.ExpandSeeds
+	}
+	return 1
+}
+
+// retrieve dispatches to the Retriever's multi-query path when the caller
+// asked for one (Options.MultiQuery) AND the Retriever supports it — a type
+// assertion, not an interface requirement, so every existing single-query
+// Retriever (and every existing test fake) needs no change. Without a
+// MultiRetriever, MultiQuery is silently a no-op fallback to single-query
+// Hybrid, matching the spec's "a failed rewrite step must fall back to
+// single-query hybrid search" constraint by construction.
+func retrieve(ctx context.Context, r Retriever, q string, opts Options) ([]Hit, error) {
+	if opts.MultiQuery {
+		if mr, ok := r.(MultiRetriever); ok {
+			return mr.RetrieveMulti(ctx, q, opts.topK())
+		}
+	}
+	return r.Retrieve(ctx, q, opts.topK())
+}
+
+// diversify reorders hits so the first hit of each distinct Type is promoted
+// ahead of any later hit of a Type already seen — a stable, rank-preserving
+// reshuffle, not a re-score (ties within a group keep their relative order).
+// Hits with Type == "" are never deduped against each other (each is treated
+// as its own group), so untyped concepts are never silently dropped.
+// Deterministic: the same input order always yields the same output order.
+func diversify(hits []Hit) []Hit {
+	seenType := map[string]bool{}
+	var first, rest []Hit
+	for _, h := range hits {
+		if h.Type != "" && seenType[h.Type] {
+			rest = append(rest, h)
+			continue
+		}
+		if h.Type != "" {
+			seenType[h.Type] = true
+		}
+		first = append(first, h)
+	}
+	return append(first, rest...)
+}
+
 // BuildGrounding retrieves for q, optionally expands the top hit's graph
 // neighbours, then reads each concept from the bundle and packs them into the
 // char budget — always including at least the top hit, dropping the rest once the
@@ -101,12 +150,18 @@ func (o Options) maxChars() int {
 // fatal. An empty result (OOD / no hits) returns a Grounding with no Chunks.
 func BuildGrounding(ctx context.Context, r Retriever, cs ConceptSource, q string, opts Options) (Grounding, error) {
 	g := Grounding{Query: q}
-	hits, err := r.Retrieve(ctx, q, opts.topK())
+	hits, err := retrieve(ctx, r, q, opts)
 	if err != nil {
 		return g, fmt.Errorf("retrieve: %w", err)
 	}
 	if len(hits) == 0 {
 		return g, nil // OOD / empty — caller refuses
+	}
+	if opts.MinScore > 0 && hits[0].Score < opts.MinScore {
+		return g, nil // weak evidence — refuse without spending an agent turn
+	}
+	if opts.Diversify {
+		hits = diversify(hits)
 	}
 
 	ids := make([]string, 0, len(hits)+4)
@@ -122,8 +177,17 @@ func BuildGrounding(ctx context.Context, r Retriever, cs ConceptSource, q string
 		add(h.ID)
 	}
 	if opts.ExpandRelated {
-		// Neighbours of the single best hit — the most likely to share context.
-		if nb, err := r.Related(ctx, hits[0].ID); err == nil {
+		// Neighbours of the top N seed hits (N = ExpandSeeds, default 1 — the
+		// pre-upgrade behavior of expanding only the single best hit).
+		seeds := opts.expandSeeds()
+		if seeds > len(hits) {
+			seeds = len(hits)
+		}
+		for _, h := range hits[:seeds] {
+			nb, err := r.Related(ctx, h.ID)
+			if err != nil {
+				continue
+			}
 			for _, id := range nb {
 				add(id)
 			}
