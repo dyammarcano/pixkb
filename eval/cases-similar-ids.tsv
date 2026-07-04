@@ -1,0 +1,23 @@
+# Concept-similarity expected-neighbor cases (eval/evalkit RunSimilarFamily,
+# `pixkb eval similar`). Format: concept-id<TAB>mode<TAB>id1[,id2,...].
+# One case per major concept family (docs/SEARCH-CAPABILITY-SPEC.md Feature 6
+# acceptance criterion: "at least one expected-neighbor test per major
+# concept family: API endpoint, ISO message, reference concept, manual
+# section"). Verified live at limit=20 on 2026-07-04; ranks noted in comments
+# are what was observed then — a regression is a rank that gets worse or the
+# expected id disappearing, not necessarily rank drifting by one or two.
+
+# ApiEndpoint family — verified rank 1.
+api/openapi/post-cob.md	hybrid	api/openapi/get-cob-txid.md
+
+# PacsMessage (ISO 20022 message) family — verified rank 1.
+messages/pacs.008.md	hybrid	messages/pacs.009.md
+
+# Reference concept family — verified rank 1.
+reference/bacen-pix-concepts/01-tipos-de-chave-pix-cpf-cnpj-e-mail-telefone-evp.md	hybrid	api/openapi/get-entries-key.md
+
+# ManualSection family — graph mode, verified rank 16 of 20 (this
+# ManualSection is graph-linked to its own sibling sections first, which is
+# correct domain behavior, not noise; messages/pacs.008.md is a real direct
+# edge, confirmed via `pixkb related`).
+manuals/ii-manualdepadroesparainiciacaodopix/secao-51.md	graph	messages/pacs.008.md
