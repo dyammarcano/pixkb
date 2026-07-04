@@ -105,7 +105,7 @@ entries:
       subquery-ranking case; the full-pipeline rank-17 result is not itself
       re-testable by tophit.sh (mode-limited) and is recorded here instead.
 
-  - stems: ["e2eid", "endtoend"]
+  - stems: ["e2eid", "endtoend", "fim"]
     subquery: "pix e2eid endToEndId identificador fim a fim"
     enabled: true
     reason: >
@@ -113,13 +113,16 @@ entries:
       fim -> payment/refund lifecycle". Verified live 2026-07-04: the
       subquery alone ranks api/openapi/get-pix-e2eid.md and
       api/openapi/put-pix-e2eid-devolucao-id.md at ranks 1-2. Eval case:
-      eval/cases-vocab-ids.tsv. KNOWN GAP (unlike the txid entry above): this
-      only fires on the literal jargon ("e2eid"/"endToEndId" mentioned
-      verbatim), not on the natural-language circumlocution "identificador
-      fim a fim" the spec also names — a "fim" stem would match it, but
-      "fim" (Portuguese for "end") is too common a word to add safely
-      without a precise/fuzzy regression check this plan didn't run; see
-      docs/BACKLOG.md.
+      eval/cases-vocab-ids.tsv. The "fim" stem (added 2026-07-04, /steps:next
+      item 5) closes the natural-language gap noted when this entry was
+      first added: "identificador fim a fim" folds to tokens
+      identificador/fim/a/fim, none starting with "e2eid"/"endtoend", so
+      without this stem the alias never fired. "fim" (Portuguese for "end")
+      IS a common word — checked against every eval/cases-precise-ids.tsv
+      and eval/cases-fuzzy-ids.tsv query before adding it (zero matches) and
+      re-ran both suites after adding it: precise held at 96% top@5, no
+      regression. Full-pipeline check: "consultar pix pelo identificador fim
+      a fim" --mode multi now fires this entry (previously silent).
 
   - stems: ["pacs"]
     subquery: "pacs.008 customer credit transfer ordem de crédito"
