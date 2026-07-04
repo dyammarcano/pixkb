@@ -2,9 +2,15 @@
 # One query per line — no expected-id column (nothing should confidently
 # match). Gate: none of eval/cases-precise-ids.tsv's or
 # eval/cases-fuzzy-ids.tsv's expected ids may appear in the result (see
-# ForbiddenIDs / ForbiddenPresent). Verified live on 2026-07-04: all four
-# return only web/acessoinformacao-*.md institutional filler, zero leaked
-# normative ids.
+# ForbiddenIDs / ForbiddenPresent). Verified live on 2026-07-04 at limit=5:
+# 3 of 4 return only web/acessoinformacao-*.md institutional filler (clean).
+# "receita de bolo de cenoura" leaks 2 normative reference ids
+# (reference/bacen-pix-concepts/01-... and .../03-...) at ranks 4-5 — a real,
+# documented baseline (`pixkb eval ood` reports cases=4 clean=3 leaked=1
+# today), not a bug in this harness. A future regression widening the leak
+# (more leaked ids, or a leak on a previously-clean case) is real signal;
+# fixing this one is backlogged (see docs/BACKLOG.md) since it needs ranking
+# work, not eval-tooling work, and ADR 0002 forbids re-tuning ranking here.
 qual a previsão do tempo para amanhã em São Paulo?
 receita de bolo de cenoura
 melhor time de futebol do brasil

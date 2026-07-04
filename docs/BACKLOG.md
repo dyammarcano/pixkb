@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:040 -->
+<!-- rev:041 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -29,18 +29,24 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     1/2 today per `eval/cases-multi-ids.tsv`'s documented baseline) —
     fusion-weighting work to improve cross-subquery coverage without
     regressing precise top@5, deferred per ADR 0002's re-tuning caution.
-  - **`eval rag-diversity`'s two cases still need their first live run's
-    actual numbers recorded.** The plan's own Step 5 defers verification to
-    task execution (a real subscription-agent turn per case); at
-    implementation time the configured `PIXKB_DSN` host was unreachable from
-    the execution sandbox, so the live run could not be completed here
-    either — someone with DB + agent-provider access needs to run `pixkb
-    eval rag-diversity` once, record the actual `types=[...]` output for
-    `diversity-devolucao-fluxo` and `diversity-cobranca-fluxo`, and note in
-    this backlog item whether either case comes in below its `min-types=2`
-    starting expectation. If a case never reaches its min-types across a few
-    runs, revisit the question wording or lower the bar explicitly — never
-    silently.
+  - **`eval rag-diversity`'s first live run (2026-07-04, `--provider claude`,
+    against the live KB) came back BELOW MIN for both cases** —
+    `diversity-devolucao-fluxo` and `diversity-cobranca-fluxo` both reported
+    `types=[]` (zero valid citations), not merely below `min-types=2`. The
+    implementer's earlier sandbox run couldn't reach the DSN at all; this run
+    could, and the answerer returned an answer/refusal whose citations didn't
+    resolve to any grounding chunk id (see `rag.validCitations` /
+    `Synthesize`'s uncited-answer-downgrades-to-refusal path), so
+    `RunRAGDiversity`'s `typeByID` lookup found nothing to count. Needs
+    follow-up: run `pixkb ask --json --provider claude "<question>"`
+    directly for one of the two questions and inspect whether the agent
+    refused outright (plausible — both questions are broader/more compound
+    than `eval/cases-rag.tsv`'s existing single-concept questions) or
+    answered with citations that just didn't match. Per this plan's own
+    guidance: revisit the two questions' wording (they may be reading as
+    unanswerable-as-phrased rather than as the intended broad-but-answerable
+    Pix flow questions) or lower `min-types` explicitly — do not treat this
+    silently as a passing case.
   - Feature 7 (Domain-Aware Query Understanding) and Feature 8 (Search
     Quality Operations) remain unimplemented from
     `docs/SEARCH-CAPABILITY-SPEC.md` — each needs its own scoped plan.
