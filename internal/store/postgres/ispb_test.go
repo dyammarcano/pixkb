@@ -159,6 +159,11 @@ func TestSearchISPB_MatchesNameSubstringCaseInsensitive(t *testing.T) {
 	require.Len(t, matches, 1)
 	assert.Equal(t, "60701190", matches[0].ISPB)
 
+	asciiMatches, err := s.SearchISPB(ctx, "itau")
+	require.NoError(t, err)
+	require.Len(t, asciiMatches, 1, "plain ASCII query must match accented name")
+	assert.Equal(t, "60701190", asciiMatches[0].ISPB)
+
 	none, err := s.SearchISPB(ctx, "nonexistent bank name")
 	require.NoError(t, err)
 	assert.Empty(t, none)

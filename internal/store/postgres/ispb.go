@@ -117,13 +117,14 @@ func (s *Store) ListISPB(ctx context.Context) ([]ispb.Participant, error) {
 }
 
 // SearchISPB finds participants whose institution or legal name contains
-// query (case-insensitive substring match), ordered by name, capped at 20
-// results — the reverse of GetISPB, for "what's Itaú's ISPB code" instead of
-// "what's ISPB X".
+// query (case- and accent-insensitive substring match — "itau" matches
+// "ITAÚ"), ordered by name, capped at 20 results — the reverse of GetISPB,
+// for "what's Itaú's ISPB code" instead of "what's ISPB X".
 func (s *Store) SearchISPB(ctx context.Context, query string) ([]ispb.Participant, error) {
 	const q = `SELECT ` + ispbSelectCols + `
 FROM ispb_participant
-WHERE institution_name ILIKE '%' || $1 || '%' OR legal_name ILIKE '%' || $1 || '%'
+WHERE unaccent(institution_name) ILIKE '%' || unaccent($1) || '%'
+   OR unaccent(legal_name) ILIKE '%' || unaccent($1) || '%'
 ORDER BY institution_name
 LIMIT 20`
 	rows, err := s.pool.Query(ctx, q, query)
