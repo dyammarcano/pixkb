@@ -109,3 +109,30 @@ func TestHybrid_VectorFloorKeepsRealHit(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, "good", got[0].ID)
 }
+
+func TestHybrid_SetsScoreAndArm(t *testing.T) {
+	t.Parallel()
+	s := &fakeSearcher{
+		fts: []postgres.Hit{{ID: "a", Title: "Alpha"}, {ID: "b", Title: "Bravo"}},
+		vec: []postgres.Hit{{ID: "b", Title: "Bravo", Score: 0.9}, {ID: "c", Title: "Charlie", Score: 0.8}},
+	}
+	got, err := Hybrid(context.Background(), s, embed.NewHashing(8), "q", postgres.Filter{})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+
+	byID := map[string]postgres.Hit{}
+	for _, h := range got {
+		byID[h.ID] = h
+	}
+	assert.Equal(t, "both", byID["b"].Arm, "b appears in both arms")
+	assert.Equal(t, "fts", byID["a"].Arm, "a appears only in the FTS arm")
+	assert.Equal(t, "vector", byID["c"].Arm, "c appears only in the vector arm")
+
+	assert.Positive(t, byID["a"].Score, "fused score must be populated, not left at zero")
+	assert.Positive(t, byID["b"].Score)
+	assert.Positive(t, byID["c"].Score)
+	// b is in both arms so its RRF contribution is strictly greater than either
+	// single-arm hit's.
+	assert.Greater(t, byID["b"].Score, byID["a"].Score)
+	assert.Greater(t, byID["b"].Score, byID["c"].Score)
+}

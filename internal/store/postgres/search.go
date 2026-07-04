@@ -22,6 +22,10 @@ type Hit struct {
 	Type  string
 	Score float64
 	Rank  int
+	// Arm is "fts", "vector", or "both" — which retrieval arm(s) surfaced this
+	// hit. Set only by query.Hybrid's fused output; empty ("") on raw
+	// FTS()/Vector() results before fusion.
+	Arm string
 }
 
 const defaultLimit = 20

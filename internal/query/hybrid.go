@@ -169,6 +169,8 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 	types := make(map[string]string)
 	scores := make(map[string]float64)
 	firstSeen := make(map[string]int)
+	fromFTS := make(map[string]bool)
+	fromVec := make(map[string]bool)
 	order := 0
 	note := func(h postgres.Hit, rank int, weight float64) {
 		if _, ok := titles[h.ID]; !ok {
@@ -185,9 +187,11 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 	}
 	for i, h := range ftsHits {
 		note(h, i, ftsArmWeight)
+		fromFTS[h.ID] = true
 	}
 	for i, h := range vecHits {
 		note(h, i, vecArmWeight)
+		fromVec[h.ID] = true
 	}
 
 	// Apply the type-authority weight, then sort (score desc, first-seen, id).
@@ -215,7 +219,27 @@ func Hybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, f pos
 		if i >= limit {
 			break
 		}
-		out = append(out, postgres.Hit{ID: id, Title: titles[id], Type: types[id], Rank: i + 1})
+		out = append(out, postgres.Hit{
+			ID: id, Title: titles[id], Type: types[id], Rank: i + 1,
+			Score: scores[id],
+			Arm:   armLabel(fromFTS[id], fromVec[id]),
+		})
 	}
 	return out, nil
+}
+
+// armLabel names which retrieval arm(s) surfaced a hit, for provenance
+// (used directly by query.MultiHybrid, and by any future search-explanation
+// surface).
+func armLabel(fts, vec bool) string {
+	switch {
+	case fts && vec:
+		return "both"
+	case fts:
+		return "fts"
+	case vec:
+		return "vector"
+	default:
+		return ""
+	}
 }
