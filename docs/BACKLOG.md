@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:053 -->
+<!-- rev:054 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -224,12 +224,19 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   fused set (verified against both the `Reference`->{ApiEndpoint,
   ManualSection} and `PacsMessage`->{ApiEndpoint, CamtMessage} rows of
   `domainAdjacency`). Remaining, explicitly out of scope for that plan:
-  - **No curated regression gate.** Unlike multi-query retrieval's
-    `eval/tophit.sh` + `eval/cases-{precise,fuzzy}-ids.tsv`, this plan's Task 8
-    was a one-time manual spot-check, not a standing harness. Build a
-    `eval/cases-similar-ids.tsv` (concept id -> expected similar id(s)) gold
-    set plus a `tophit.sh`-equivalent so future `domainAdjacency`/fusion
-    changes are measured, not spot-checked.
+  - ~~**No curated regression gate.** Build a `eval/cases-similar-ids.tsv`
+    gold set plus a `tophit.sh`-equivalent so future `domainAdjacency`/fusion
+    changes are measured, not spot-checked.~~ **Already shipped, this entry
+    was stale** (`/steps:next`, 2026-07-04): `eval/cases-similar-ids.tsv`
+    already has one curated case per major concept family (ApiEndpoint,
+    PacsMessage, Reference, ManualSection) and `pixkb eval similar`
+    (`internal/evalkit.RunSimilarFamily` + `LoadSimilarCases`) is the
+    `tophit.sh`-equivalent standing harness, already defaulting to that
+    file. Re-verified live today: `cases=4 top@1=2(50%) top@5=3(75%)
+    MRR=0.641` — `messages/pacs.008.md` drifted rank1→rank2 (still top@5,
+    not a regression per this file's own tolerance note). No code/data
+    change needed; found and closed during doc-vs-code cross-reference, not
+    re-implemented.
   - **Domain signal is type-pair-only.** The spec's finer-grained examples
     ("DICT endpoints near key concepts" specifically) need a topic-specific
     rule layer beyond `internal/similar/domain.go`'s 5-entry type table.
