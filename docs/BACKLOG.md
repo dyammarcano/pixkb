@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:042 -->
+<!-- rev:044 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -47,8 +47,8 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     unanswerable-as-phrased rather than as the intended broad-but-answerable
     Pix flow questions) or lower `min-types` explicitly — do not treat this
     silently as a passing case.
-  - Feature 8 (Search Quality Operations) remains unimplemented from
-    `docs/SEARCH-CAPABILITY-SPEC.md` — needs its own scoped plan.
+  - Feature 8 (Search Quality Operations) has since shipped — see its own
+    backlog block below.
   - **`pixkb eval`'s six subcommands report numbers but never fail the
     process** (`os.Exit(1)` on a bad number) — intentional per the plan's
     Global Constraints (these are measurement tools, like `eval/tophit.sh`,
@@ -88,6 +88,41 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     disambiguation, not a bare family-name stem.
   - `endpoint`/`api` stem entry was migrated as-is without re-evaluating
     whether it still earns its place — not evaluated in this plan.
+- **Search quality operations follow-ups (Feature 8 of
+  `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately
+  deferred).** `internal/store/postgres.GraphSparsity`/`EmbeddingCoverage`
+  + `internal/searchhealth` (reuses `hygiene.Scan`/`MissingIntentTerms` for
+  the content-quality signals, `query.Hybrid` + `evalkit.BestRank` for the
+  eval-regression signal — no new ranking or hygiene detection logic,
+  purely synthesis) + `pixkb search-health [--json]` give the "one command"
+  health report the spec asks for. Live run against the production KB
+  (2026-07-04): 252 bundle concepts, ALL 252 missing `intent_terms`, 56
+  noisy titles, 123 sparse-graph concepts, 255/255 DB concepts embedded
+  (single model/dim, consistent), 10/43 precise+fuzzy eval cases regressed
+  (no acceptable hit). Remaining, explicitly out of scope for that plan:
+  - **Bundle vs. DB concept-count mismatch found by this very run**: the
+    bundle (`okf.ReadBundle`) reports 252 concepts; the live Postgres
+    `concept` table reports 255 (per `EmbeddingCoverage.TotalConcepts`).
+    `search-health` doesn't itself flag this drift (it reads the two counts
+    for different purposes and never diffs them) — worth adding as a
+    dedicated signal, and worth investigating **why** 3 concepts exist in
+    the index but not the current bundle (stale rows from a since-removed
+    source? a reindex vs. re-ingest gap?) before building the signal.
+  - **"Missing intent_terms" only detects absence, not staleness** — the
+    spec's own wording is "missing OR stale". `okf.Concept` has no
+    last-enriched timestamp to compare against `updated_at`/content
+    changes, so staleness (an intent_terms list that predates a body edit)
+    isn't detectable without adding one. Not built here.
+  - **100% of concepts missing `intent_terms` is itself worth investigating**,
+    not just enriching one by one — it suggests the enrich loop (BACKLOG's
+    "Eval-driven KB quality loop" / hygiene curate loop) either hasn't run
+    against `intent_terms` specifically, or `intent_terms` isn't being
+    written back to the canonical bundle files even when generated
+    elsewhere. Worth a `search-health`-driven enrichment pass as a
+    follow-up action, not just a report.
+  - `pixkb search-health` reports counts/recommendations but never fails
+    the process (`os.Exit(1)`) — intentional, matching `pixkb eval`'s own
+    "measurement tool, not a CI gate" convention from Feature 6.
 - **Concept similarity search follow-ups (Feature 2 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
   `internal/similar`'s `Similar()` (semantic/graph/hybrid/more-like-this modes)
@@ -195,10 +230,13 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     message + one manual section) is a stronger diversity contract than this
     task implements; revisit once Feature 6 (eval expansion) has a diversity
     metric to measure against.
-  - Feature 6 (Search Evaluation Expansion), Feature 7 (Domain-Aware Query
-    Understanding), Feature 8 (Search Quality Operations) remain
-    unimplemented from `docs/SEARCH-CAPABILITY-SPEC.md` — each needs its own
-    scoped plan.
+  - Features 6, 7, and 8 have since shipped (see their own backlog blocks
+    above for what each deliberately deferred). All eight
+    `docs/SEARCH-CAPABILITY-SPEC.md` features are now implemented; remaining
+    work is the follow-ups itemized per-feature, plus the spec's own
+    "Default-mode promotion" step (promoting multi-query or domain expansion
+    to the default only after precise/fuzzy/OOD/RAG evals all support it —
+    not evaluated, not scheduled).
 - **KB standardized in English — translate agent-written content + ingested
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
