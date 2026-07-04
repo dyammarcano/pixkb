@@ -69,7 +69,7 @@ func TestGraphSimilar_TagsSignalAndExcludesSelf(t *testing.T) {
 			{ID: "b.md", Title: "B", Type: "ApiEndpoint", Direction: "out"},
 		},
 	}}
-	got, err := GraphSimilar(context.Background(), s, "a.md", 20)
+	got, err := GraphSimilar(context.Background(), s, "a.md", postgres.Filter{Limit: 20})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "b.md", got[0].ID)
@@ -86,7 +86,21 @@ func TestGraphSimilar_RespectsLimit(t *testing.T) {
 			{ID: "d.md", Direction: "out"},
 		},
 	}}
-	got, err := GraphSimilar(context.Background(), s, "a.md", 2)
+	got, err := GraphSimilar(context.Background(), s, "a.md", postgres.Filter{Limit: 2})
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
+}
+
+func TestGraphSimilar_FiltersByType(t *testing.T) {
+	t.Parallel()
+	s := &fakeStore{related: map[string][]postgres.RelatedConcept{
+		"a.md": {
+			{ID: "b.md", Type: "ApiEndpoint", Direction: "out"},
+			{ID: "c.md", Type: "Reference", Direction: "out"},
+		},
+	}}
+	got, err := GraphSimilar(context.Background(), s, "a.md", postgres.Filter{Type: "ApiEndpoint", Limit: 20})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "b.md", got[0].ID)
 }

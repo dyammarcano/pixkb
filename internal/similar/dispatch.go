@@ -34,7 +34,7 @@ func Similar(ctx context.Context, s Store, emb embed.Embedder, bundleDir, id str
 	case "semantic":
 		return SemanticSimilar(ctx, s, id, opts.Filter)
 	case "graph":
-		return GraphSimilar(ctx, s, id, opts.Filter.Limit)
+		return GraphSimilar(ctx, s, id, opts.Filter)
 	case "more-like-this":
 		return MoreLikeThis(ctx, s, emb, bundleDir, id, opts.Filter)
 	case "hybrid":
@@ -68,7 +68,7 @@ func hybridSimilar(ctx context.Context, s Store, emb embed.Embedder, bundleDir, 
 	lists = append(lists, mlt)
 
 	if opts.IncludeGraph {
-		gr, err := GraphSimilar(ctx, s, id, opts.Filter.Limit)
+		gr, err := GraphSimilar(ctx, s, id, opts.Filter)
 		if err != nil {
 			return nil, err
 		}

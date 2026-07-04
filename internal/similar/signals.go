@@ -24,20 +24,28 @@ func SemanticSimilar(ctx context.Context, s Store, id string, f postgres.Filter)
 }
 
 // GraphSimilar returns id's direct link-graph neighbours (both directions),
-// tagged with the graph signal. Related() edges should never be self-loops,
-// but a defensive exclude-self is cheap and correct regardless of that
-// invariant holding.
-func GraphSimilar(ctx context.Context, s Store, id string, limit int) ([]Hit, error) {
+// tagged with the graph signal, optionally narrowed to f.Type. Related()
+// edges should never be self-loops, but a defensive exclude-self is cheap
+// and correct regardless of that invariant holding. Note: f.Tag is NOT
+// applied here — RelatedConcept carries no tag data (Related's SQL never
+// selects it), so tag filtering is a real, documented limitation of graph
+// mode, not a silent gap; semantic/lexical/more-like-this DO honor Tag via
+// Store.Vector/query.Hybrid.
+func GraphSimilar(ctx context.Context, s Store, id string, f postgres.Filter) ([]Hit, error) {
 	rel, err := s.Related(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("similar: related for %q: %w", id, err)
 	}
+	limit := f.Limit
 	if limit <= 0 {
 		limit = defaultLimit
 	}
 	out := make([]Hit, 0, len(rel))
 	for _, r := range rel {
 		if r.ID == id {
+			continue
+		}
+		if f.Type != "" && r.Type != f.Type {
 			continue
 		}
 		out = append(out, Hit{
