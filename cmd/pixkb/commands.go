@@ -10,12 +10,13 @@ import (
 
 	"pixkb/internal/ingest"
 	"pixkb/internal/query"
+	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
 )
 
 // attachCommands wires the knowledge-base subcommands onto root.
 func attachCommands(root *cobra.Command) {
-	root.AddCommand(newIngestCmd(), newSearchCmd(), newReindexCmd(), newDiffCmd(), newStatsCmd(), newRelatedCmd(), newAgentsCmd(), newConceptCmd(), newMCPCmd(), newHygieneCmd(), newCurateCmd(), newQRCmd(), newAskCmd(), newISPBCmd())
+	root.AddCommand(newIngestCmd(), newSearchCmd(), newReindexCmd(), newDiffCmd(), newStatsCmd(), newRelatedCmd(), newSimilarCmd(), newAgentsCmd(), newConceptCmd(), newMCPCmd(), newHygieneCmd(), newCurateCmd(), newQRCmd(), newAskCmd(), newISPBCmd())
 }
 
 // buildSources assembles the ingest sources from config. The ISO-20022 message
@@ -199,6 +200,55 @@ func newRelatedCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	return cmd
+}
+
+func newSimilarCmd() *cobra.Command {
+	var dsn, mode, typ, tag string
+	var limit int
+	var includeGraph bool
+	cmd := &cobra.Command{
+		Use:   "similar <concept-id>",
+		Short: "Find concepts similar to a known concept (semantic, graph, hybrid, or more-like-this)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := loadConfig()
+			if dsn != "" {
+				cfg.DSN = dsn
+			}
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			emb, err := newEmbedder(cfg)
+			if err != nil {
+				return err
+			}
+
+			opts := similar.Options{
+				Mode:         mode,
+				IncludeGraph: includeGraph,
+				Filter:       postgres.Filter{Type: typ, Tag: tag, Limit: limit},
+			}
+			hits, err := similar.Similar(ctx, st, emb, cfg.BundleDir, args[0], opts)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			for _, h := range hits {
+				_, _ = fmt.Fprintf(out, "%2d  %-34s  %-14s  %v\n", h.Rank, h.ID, h.Type, h.Why)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&mode, "mode", "hybrid", "similarity mode: hybrid|semantic|graph|more-like-this")
+	cmd.Flags().StringVar(&typ, "type", "", "filter results by concept type")
+	cmd.Flags().StringVar(&tag, "tag", "", "filter results by tag")
+	cmd.Flags().IntVar(&limit, "limit", 20, "max results")
+	cmd.Flags().BoolVar(&includeGraph, "include-graph", true, "hybrid mode: also fold in direct graph neighbours")
 	return cmd
 }
 
