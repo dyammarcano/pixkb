@@ -124,6 +124,49 @@ func TestEncodeValidation(t *testing.T) {
 	}
 }
 
+func TestPayloadValidate_SameChecksAsEncode(t *testing.T) {
+	cases := []struct {
+		name string
+		p    Payload
+		ok   bool
+	}{
+		{"valid", Payload{Key: "k", MerchantName: "A", City: "B"}, true},
+		{"no key or url", Payload{MerchantName: "A", City: "B"}, false},
+		{"both key and url", Payload{Key: "k", URL: "u", MerchantName: "A", City: "B"}, false},
+		{"missing name", Payload{Key: "k", City: "B"}, false},
+		{"name too long", Payload{Key: "k", MerchantName: strings.Repeat("X", 26), City: "B"}, false},
+		{"bad amount", Payload{Key: "k", MerchantName: "A", City: "B", Amount: "10.000"}, false},
+	}
+	for _, c := range cases {
+		err := c.p.Validate()
+		if c.ok && err != nil {
+			t.Errorf("%s: unexpected error: %v", c.name, err)
+		}
+		if !c.ok && err == nil {
+			t.Errorf("%s: expected error", c.name)
+		}
+	}
+}
+
+func TestValidateCode_ValidAndTampered(t *testing.T) {
+	code, err := Payload{Key: "k@e.com", MerchantName: "ACME", City: "SP"}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateCode(code); err != nil {
+		t.Fatalf("expected valid code, got %v", err)
+	}
+
+	bad := code[:len(code)-1] + flip(code[len(code)-1])
+	if err := ValidateCode(bad); err == nil {
+		t.Fatal("expected tampered CRC to fail validation")
+	}
+
+	if err := ValidateCode("00XX01"); err == nil {
+		t.Fatal("expected malformed frame to fail validation")
+	}
+}
+
 func flip(b byte) string {
 	if b == '0' {
 		return "1"

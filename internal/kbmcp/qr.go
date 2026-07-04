@@ -80,3 +80,26 @@ func registerQRWrite(s *mcp.Server) {
 		return textResult(code), qrWriteOut{Code: code, CRCValid: true}, nil
 	})
 }
+
+type qrValidateIn struct {
+	Code string `json:"code" jsonschema:"the Pix BR Code string to validate (EMV MPM / 'Copia e Cola')"`
+}
+type qrValidateOut struct {
+	Valid bool   `json:"valid"`
+	Error string `json:"error,omitempty"`
+}
+
+// registerQRValidate exposes a verdict-only check: is this serialized BR Code
+// well-formed with a matching CRC16. Unlike qr_read it never fails the tool
+// call on a bad code — the invalidity is the (successful) answer.
+func registerQRValidate(s *mcp.Server) {
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "qr_validate",
+		Description: "Check whether a Pix BR Code (EMV MPM / 'Pix Copia e Cola') is well-formed and its CRC16 checks out.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, in qrValidateIn) (*mcp.CallToolResult, qrValidateOut, error) {
+		if err := brcode.ValidateCode(in.Code); err != nil {
+			return textResult(fmt.Sprintf("invalid: %v", err)), qrValidateOut{Valid: false, Error: err.Error()}, nil
+		}
+		return textResult("valid"), qrValidateOut{Valid: true}, nil
+	})
+}

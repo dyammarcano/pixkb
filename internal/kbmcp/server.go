@@ -47,6 +47,7 @@ func NewServer(d Deps) *mcp.Server {
 	registerQRRead(s)
 	registerQRWrite(s)
 	registerQRDecode(s)
+	registerQRValidate(s)
 	if d.Runner != nil {
 		registerConceptUpsert(s, d)
 		registerReindex(s, d)

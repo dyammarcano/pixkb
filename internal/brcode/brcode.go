@@ -164,28 +164,55 @@ func Parse(code string) (Payload, error) {
 	return p, nil
 }
 
-// Encode builds a valid BR Code string from the Payload, computing the CRC. It
-// validates the required fields and the Pix-spec length caps (name 25, city 15).
-func (p Payload) Encode() (string, error) {
+// Validate checks the payload's fields against the Pix BR Code requirements —
+// key/url exclusivity, required merchant fields, the name (25) and city (15)
+// length caps, and the amount format — without building the code. Encode
+// calls this first, so it also doubles as a standalone check for a payload
+// filled from JSON before serializing.
+func (p Payload) Validate() error {
 	if strings.TrimSpace(p.Key) == "" && strings.TrimSpace(p.URL) == "" {
-		return "", fmt.Errorf("brcode: a Pix key or a payload URL is required")
+		return fmt.Errorf("brcode: a Pix key or a payload URL is required")
 	}
 	if p.Key != "" && p.URL != "" {
-		return "", fmt.Errorf("brcode: set either key (static) or url (dynamic), not both")
+		return fmt.Errorf("brcode: set either key (static) or url (dynamic), not both")
 	}
 	if strings.TrimSpace(p.MerchantName) == "" || strings.TrimSpace(p.City) == "" {
-		return "", fmt.Errorf("brcode: merchant_name and city are required")
+		return fmt.Errorf("brcode: merchant_name and city are required")
 	}
 	if len(p.MerchantName) > 25 {
-		return "", fmt.Errorf("brcode: merchant_name exceeds 25 chars (%d)", len(p.MerchantName))
+		return fmt.Errorf("brcode: merchant_name exceeds 25 chars (%d)", len(p.MerchantName))
 	}
 	if len(p.City) > 15 {
-		return "", fmt.Errorf("brcode: city exceeds 15 chars (%d)", len(p.City))
+		return fmt.Errorf("brcode: city exceeds 15 chars (%d)", len(p.City))
 	}
 	if p.Amount != "" {
 		if err := validAmount(p.Amount); err != nil {
-			return "", err
+			return err
 		}
+	}
+	return nil
+}
+
+// ValidateCode parses a serialized BR Code string and confirms it is
+// well-formed (strict TLV framing) and its CRC16 checks out — "is this
+// Copia e Cola code correct", as opposed to Payload.Validate which checks
+// fields before they are ever serialized.
+func ValidateCode(code string) error {
+	p, err := Parse(code)
+	if err != nil {
+		return err
+	}
+	if !p.CRCValid {
+		return fmt.Errorf("brcode: CRC check failed — code may be corrupted or tampered")
+	}
+	return nil
+}
+
+// Encode builds a valid BR Code string from the Payload, computing the CRC. It
+// validates the required fields and the Pix-spec length caps (name 25, city 15).
+func (p Payload) Encode() (string, error) {
+	if err := p.Validate(); err != nil {
+		return "", err
 	}
 
 	// merchant account (26) nested template

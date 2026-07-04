@@ -101,6 +101,49 @@ func TestQRTools_WriteReadDecode(t *testing.T) {
 	}
 }
 
+func TestQRValidate_ValidAndTampered(t *testing.T) {
+	ctx, cs := qrTestClient(t)
+
+	wr, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "qr_write", Arguments: map[string]any{
+		"merchant_name": "ACME", "city": "SP", "key": "k@e.com",
+	}})
+	if err != nil || wr.IsError {
+		t.Fatalf("qr_write: err=%v isErr=%v", err, wr.IsError)
+	}
+	wout := structured[struct {
+		Code string `json:"code"`
+	}](t, wr)
+
+	ok, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "qr_validate", Arguments: map[string]any{
+		"code": wout.Code,
+	}})
+	if err != nil || ok.IsError {
+		t.Fatalf("qr_validate: err=%v isErr=%v", err, ok.IsError)
+	}
+	got := structured[struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error,omitempty"`
+	}](t, ok)
+	if !got.Valid || got.Error != "" {
+		t.Fatalf("expected valid code, got %+v", got)
+	}
+
+	bad := wout.Code[:len(wout.Code)-1] + map[bool]string{true: "0", false: "1"}[wout.Code[len(wout.Code)-1] != '0']
+	tampered, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "qr_validate", Arguments: map[string]any{
+		"code": bad,
+	}})
+	if err != nil || tampered.IsError {
+		t.Fatalf("qr_validate on tampered code should succeed with valid=false, not error: err=%v isErr=%v", err, tampered.IsError)
+	}
+	tgot := structured[struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error,omitempty"`
+	}](t, tampered)
+	if tgot.Valid || tgot.Error == "" {
+		t.Fatalf("expected invalid verdict with an error message, got %+v", tgot)
+	}
+}
+
 func TestQRWrite_ValidationError(t *testing.T) {
 	ctx, cs := qrTestClient(t)
 	// Missing key/url -> the tool returns an error result.
