@@ -67,3 +67,34 @@ func RunSimilarFamily(ctx context.Context, s similar.Store, emb embed.Embedder, 
 	}
 	return out, nil
 }
+
+// OODResult is one out-of-domain case's outcome: which (if any) forbidden
+// normative ids leaked into the result set for a query that should not match
+// any of them.
+type OODResult struct {
+	Query  string
+	Leaked []string
+}
+
+// RunOOD runs query.Hybrid (unmodified) for each out-of-domain query and
+// checks that none of the forbidden ids (normally the union of every
+// precise/fuzzy suite's expected ids — see ForbiddenIDs) leaked into the
+// result. This is the "forbidden-id absence for out-of-domain or noisy
+// cases" metric docs/SEARCH-CAPABILITY-SPEC.md Feature 6 names — it
+// tolerates generic institutional filler in the results (verified live: OOD
+// queries here return web/acessoinformacao-*.md noise, not empty results —
+// the vector floor does not fully zero these out today) but treats a
+// confidently-returned NORMATIVE Pix procedure as a real failure, per the
+// Ranking Principles: "Treat out-of-domain silence as better than confident
+// noise."
+func RunOOD(ctx context.Context, s query.Searcher, emb embed.Embedder, queries []string, forbidden map[string]bool, limit int) ([]OODResult, error) {
+	out := make([]OODResult, 0, len(queries))
+	for _, q := range queries {
+		hits, err := query.Hybrid(ctx, s, emb, q, postgres.Filter{Limit: limit})
+		if err != nil {
+			return nil, fmt.Errorf("hybrid %q: %w", q, err)
+		}
+		out = append(out, OODResult{Query: q, Leaked: ForbiddenPresent(hits, forbidden)})
+	}
+	return out, nil
+}

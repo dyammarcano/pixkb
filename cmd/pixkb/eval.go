@@ -20,7 +20,7 @@ func newEvalCmd() *cobra.Command {
 		Use:   "eval",
 		Short: "Deterministic retrieval evaluation gates (Feature 6 of docs/SEARCH-CAPABILITY-SPEC.md)",
 	}
-	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd())
+	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd(), newEvalOODCmd())
 	return root
 }
 
@@ -149,4 +149,65 @@ func printRankReport(w io.Writer, results []evalkit.RankResult) error {
 	fmt.Fprintf(w, "cases=%d  top@1=%d (%.0f%%)  top@5=%d (%.0f%%)  MRR=%.3f\n",
 		n, t1, 100*float64(t1)/float64(n), t5, 100*float64(t5)/float64(n), mrr/float64(n))
 	return nil
+}
+
+func newEvalOODCmd() *cobra.Command {
+	var dsn, file, preciseFile, fuzzyFile string
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "ood",
+		Short: "Forbidden-id absence for out-of-domain queries (query.Hybrid)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg := loadConfig()
+			if dsn != "" {
+				cfg.DSN = dsn
+			}
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			emb, err := newEmbedder(cfg)
+			if err != nil {
+				return err
+			}
+			queries, err := evalkit.LoadQueries(file)
+			if err != nil {
+				return err
+			}
+			precise, err := evalkit.LoadPairCases(preciseFile)
+			if err != nil {
+				return err
+			}
+			fuzzy, err := evalkit.LoadPairCases(fuzzyFile)
+			if err != nil {
+				return err
+			}
+			forbidden := evalkit.ForbiddenIDs(precise, fuzzy)
+			results, err := evalkit.RunOOD(ctx, st, emb, queries, forbidden, limit)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			leaks := 0
+			for _, r := range results {
+				if len(r.Leaked) > 0 {
+					leaks++
+					fmt.Fprintf(out, "LEAK  %-60.60s  %v\n", r.Query, r.Leaked)
+				} else {
+					fmt.Fprintf(out, "clean %-60.60s\n", r.Query)
+				}
+			}
+			fmt.Fprintln(out, "----")
+			fmt.Fprintf(out, "cases=%d  clean=%d  leaked=%d\n", len(results), len(results)-leaks, leaks)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&file, "file", "eval/cases-ood.tsv", "OOD query file (one query per line)")
+	cmd.Flags().StringVar(&preciseFile, "precise-file", "eval/cases-precise-ids.tsv", "forbidden-id source: precise cases")
+	cmd.Flags().StringVar(&fuzzyFile, "fuzzy-file", "eval/cases-fuzzy-ids.tsv", "forbidden-id source: fuzzy cases")
+	cmd.Flags().IntVar(&limit, "limit", 5, "max results per OOD query")
+	return cmd
 }

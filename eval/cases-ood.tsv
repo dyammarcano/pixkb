@@ -1,0 +1,11 @@
+# Out-of-domain rejection cases (eval/evalkit RunOOD, `pixkb eval ood`).
+# One query per line — no expected-id column (nothing should confidently
+# match). Gate: none of eval/cases-precise-ids.tsv's or
+# eval/cases-fuzzy-ids.tsv's expected ids may appear in the result (see
+# ForbiddenIDs / ForbiddenPresent). Verified live on 2026-07-04: all four
+# return only web/acessoinformacao-*.md institutional filler, zero leaked
+# normative ids.
+qual a previsão do tempo para amanhã em São Paulo?
+receita de bolo de cenoura
+melhor time de futebol do brasil
+qual o número de telefone do presidente do Banco Central?
