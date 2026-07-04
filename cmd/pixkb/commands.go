@@ -144,6 +144,11 @@ func newSearchCmd() *cobra.Command {
 				if vs, err = emb.Embed(ctx, []string{q}); err == nil {
 					hits, err = st.Vector(ctx, vs[0], f)
 				}
+			case "multi":
+				var mh []query.MultiHit
+				if mh, err = query.MultiHybrid(ctx, st, emb, q, f); err == nil {
+					hits = query.Hits(mh)
+				}
 			default:
 				hits, err = query.Hybrid(ctx, st, emb, q, f)
 			}
@@ -157,7 +162,7 @@ func newSearchCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
-	cmd.Flags().StringVar(&mode, "mode", "hybrid", "search mode: hybrid|fts|vector")
+	cmd.Flags().StringVar(&mode, "mode", "hybrid", "search mode: hybrid|fts|vector|multi")
 	cmd.Flags().StringVar(&typ, "type", "", "filter by concept type")
 	cmd.Flags().StringVar(&tag, "tag", "", "filter by tag")
 	cmd.Flags().IntVar(&limit, "limit", 20, "max results")
