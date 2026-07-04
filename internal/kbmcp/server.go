@@ -60,19 +60,31 @@ func NewServer(d Deps) *mcp.Server {
 	return s
 }
 
+type explainOut struct {
+	FTSRank    int     `json:"fts_rank"`
+	VecRank    int     `json:"vec_rank"`
+	VecScore   float64 `json:"vec_score"`
+	TypeWeight float64 `json:"type_weight"`
+	TitleBoost float64 `json:"title_boost"`
+	FinalScore float64 `json:"final_score"`
+	Arm        string  `json:"arm"`
+}
+
 type hitOut struct {
-	ID    string  `json:"id"`
-	Title string  `json:"title"`
-	Type  string  `json:"type"`
-	Score float64 `json:"score"`
-	Rank  int     `json:"rank"`
+	ID      string      `json:"id"`
+	Title   string      `json:"title"`
+	Type    string      `json:"type"`
+	Score   float64     `json:"score"`
+	Rank    int         `json:"rank"`
+	Explain *explainOut `json:"explain,omitempty"`
 }
 
 type searchIn struct {
-	Query string `json:"query" jsonschema:"natural-language or lexical query"`
-	Type  string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
-	Limit int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
-	Mode  string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
+	Query   string `json:"query" jsonschema:"natural-language or lexical query"`
+	Type    string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
+	Mode    string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
+	Explain bool   `json:"explain,omitempty" jsonschema:"include per-hit ranking explanation (FTS/vector rank, scores, boosts, arm) — only supported with the default hybrid mode; ignored (best-effort) otherwise"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`
@@ -89,21 +101,38 @@ func registerSearch(s *mcp.Server, d Deps) {
 		}
 		f := postgres.Filter{Type: in.Type, Limit: limit}
 		var hits []postgres.Hit
+		var explains []query.Explain
 		var err error
-		if in.Mode == "multi" {
+		switch in.Mode {
+		case "multi":
 			var mh []query.MultiHit
 			if mh, err = query.MultiHybrid(ctx, d.Store, d.Emb, in.Query, f); err == nil {
 				hits = query.Hits(mh)
 			}
-		} else {
+		case "", "hybrid":
+			if in.Explain {
+				hits, explains, err = query.HybridExplain(ctx, d.Store, d.Emb, in.Query, f)
+			} else {
+				hits, err = query.Hybrid(ctx, d.Store, d.Emb, in.Query, f)
+			}
+		default:
 			hits, err = query.Hybrid(ctx, d.Store, d.Emb, in.Query, f)
 		}
 		if err != nil {
 			return nil, searchOut{}, err
 		}
 		out := searchOut{Hits: make([]hitOut, 0, len(hits))}
-		for _, h := range hits {
-			out.Hits = append(out.Hits, hitOut{ID: h.ID, Title: h.Title, Type: h.Type, Score: h.Score, Rank: h.Rank})
+		for i, h := range hits {
+			ho := hitOut{ID: h.ID, Title: h.Title, Type: h.Type, Score: h.Score, Rank: h.Rank}
+			if i < len(explains) {
+				e := explains[i]
+				ho.Explain = &explainOut{
+					FTSRank: e.FTSRank, VecRank: e.VecRank, VecScore: e.VecScore,
+					TypeWeight: e.TypeWeight, TitleBoost: e.TitleBoost,
+					FinalScore: e.FinalScore, Arm: e.Arm,
+				}
+			}
+			out.Hits = append(out.Hits, ho)
 		}
 		return textResult(fmt.Sprintf("%d hits for %q", len(out.Hits), in.Query)), out, nil
 	})

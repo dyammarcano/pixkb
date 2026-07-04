@@ -128,6 +128,54 @@ func TestServerSearch_MultiMode(t *testing.T) {
 	}
 }
 
+// TestServerSearch_ExplainMode exercises search's explain=true param over an
+// in-memory MCP transport against a live KB. Skipped without a DSN or under
+// -short, same as TestServerReadTools (read-only, no Runner needed).
+func TestServerSearch_ExplainMode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("needs a live Postgres KB")
+	}
+	dsn := os.Getenv("PIXKB_TEST_DSN")
+	if dsn == "" {
+		dsn = os.Getenv("PIXKB_DSN")
+	}
+	if dsn == "" {
+		t.Skip("no PIXKB_TEST_DSN/PIXKB_DSN set")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	st, err := postgres.Open(ctx, dsn)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	srv := NewServer(Deps{Store: st, Emb: embed.NewHashing(256), Bundle: "../../kb-data"})
+	serverTr, clientTr := mcp.NewInMemoryTransports()
+	if _, err := srv.Connect(ctx, serverTr, nil); err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+	cs, err := client.Connect(ctx, clientTr, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	defer func() { _ = cs.Close() }()
+
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "search",
+		Arguments: map[string]any{"query": "criar cobrança imediata", "explain": true, "limit": 3},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("search (explain) call: err=%v isErr=%v", err, res.IsError)
+	}
+	if len(res.Content) == 0 {
+		t.Fatal("search (explain) returned no content")
+	}
+}
+
 // TestServerSimilar_HybridMode exercises the similar tool over an in-memory
 // MCP transport against a live KB. Skipped without a DSN or under -short,
 // same pattern as TestServerReadTools.
