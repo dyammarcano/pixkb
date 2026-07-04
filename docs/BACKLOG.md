@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:045 -->
+<!-- rev:046 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -319,6 +319,15 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   and (2) a catalogued list of target BACEN SPA URLs (`SOURCES.md`, pending). The
   scraper agent + conceptSchema already exist; this is wiring + inputs, not new code.
 - **Fuzzy recall ceiling is the VECTOR arm + en/pt config, NOT FTS (re-scoped).**
+  UPDATE (2026-07-04, `/steps:next` item 4): lever (b) — targeted
+  `curate --enrich --apply --ids ...` against exactly the 10 concepts
+  `pixkb search-health` flagged as sparse-terms+eval-regression — CONFIRMED
+  the lift: precise top@1 62%→69% (top@5 held 96%, MRR 0.751→0.806), fuzzy
+  top@1 6%→12%/top@5 29%→35% (MRR 0.131→0.198), eval regressions 10/43→8/43.
+  Both axes improved together, matching this section's own prediction.
+  `--ids` targeting (`internal/curate`) was added to make this a small,
+  quota-bounded pass instead of a full ~253-concept sweep. 8 regressions
+  remain — same lever, more concepts, is the obvious next pass.
   A measured chain on the deterministic harness (`eval/tophit.sh`) settled where
   the recall ceiling actually is:
   - AND-recall baseline: precise MRR 0.698 (top@5 100%) / fuzzy 0.285 (top@5 41%).
