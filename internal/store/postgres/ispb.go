@@ -116,6 +116,35 @@ func (s *Store) ListISPB(ctx context.Context) ([]ispb.Participant, error) {
 	return out, nil
 }
 
+// SearchISPB finds participants whose institution or legal name contains
+// query (case-insensitive substring match), ordered by name, capped at 20
+// results — the reverse of GetISPB, for "what's Itaú's ISPB code" instead of
+// "what's ISPB X".
+func (s *Store) SearchISPB(ctx context.Context, query string) ([]ispb.Participant, error) {
+	const q = `SELECT ` + ispbSelectCols + `
+FROM ispb_participant
+WHERE institution_name ILIKE '%' || $1 || '%' OR legal_name ILIKE '%' || $1 || '%'
+ORDER BY institution_name
+LIMIT 20`
+	rows, err := s.pool.Query(ctx, q, query)
+	if err != nil {
+		return nil, fmt.Errorf("search ispb %q: %w", query, err)
+	}
+	defer rows.Close()
+	var out []ispb.Participant
+	for rows.Next() {
+		p, err := scanParticipant(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan ispb row: %w", err)
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate ispb rows: %w", err)
+	}
+	return out, nil
+}
+
 // CountISPB returns the number of stored participants.
 func (s *Store) CountISPB(ctx context.Context) (int, error) {
 	var n int

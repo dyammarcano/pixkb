@@ -141,3 +141,25 @@ func TestListISPB_And_CountISPB(t *testing.T) {
 	require.Len(t, list, 2)
 	assert.Equal(t, "00000001", list[0].ISPB, "ordered by ispb_code")
 }
+
+func TestSearchISPB_MatchesNameSubstringCaseInsensitive(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateISPB(t, s)
+
+	require.NoError(t, s.UpsertSTR(ctx, ispb.STRRecord{ISPB: "60701190", Name: "ITAÚ UNIBANCO S.A.", SyncedAt: time.Now()}))
+	require.NoError(t, s.UpsertSTR(ctx, ispb.STRRecord{ISPB: "00000000", Name: "BCO DO BRASIL S.A.", SyncedAt: time.Now()}))
+
+	matches, err := s.SearchISPB(ctx, "itaú")
+	require.NoError(t, err)
+	require.Len(t, matches, 1)
+	assert.Equal(t, "60701190", matches[0].ISPB)
+
+	none, err := s.SearchISPB(ctx, "nonexistent bank name")
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

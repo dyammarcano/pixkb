@@ -17,7 +17,7 @@ func newISPBCmd() *cobra.Command {
 		Use:   "ispb",
 		Short: "Map BACEN ISPB codes to SPB/Pix participant institutions",
 	}
-	cmd.AddCommand(newISPBSTRCmd(), newISPBPixCmd(), newISPBSyncCmd(), newISPBLookupCmd())
+	cmd.AddCommand(newISPBSTRCmd(), newISPBPixCmd(), newISPBSyncCmd(), newISPBLookupCmd(), newISPBSearchCmd())
 	return cmd
 }
 
@@ -266,6 +266,36 @@ func newISPBSyncCmd() *cobra.Command {
 			}
 			if err := newISPBPixSyncCmd().RunE(cmd, args); err != nil {
 				return fmt.Errorf("pix sync: %w", err)
+			}
+			return nil
+		},
+	}
+}
+
+func newISPBSearchCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "search <name>",
+		Short: "Find participants by a substring of their institution or legal name",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := loadConfig()
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			matches, err := st.SearchISPB(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			if len(matches) == 0 {
+				_, _ = fmt.Fprintln(out, "no matches")
+				return nil
+			}
+			for _, p := range matches {
+				_, _ = fmt.Fprintf(out, "%-10s %s\n", p.ISPB, p.Name)
 			}
 			return nil
 		},
