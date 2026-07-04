@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:038 -->
+<!-- rev:039 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -100,6 +100,33 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     `MultiHybrid` — a bigger unit of work deliberately deferred here.
   - **An HTTP `/search` format query param for `pixkb serve`** — this plan
     only touched the CLI (`--format`) and MCP surfaces, not `pixkb serve`.
+- **RAG retrieval upgrade follow-ups (Feature 5 of `docs/SEARCH-CAPABILITY-SPEC.md`
+  shipped; these are deliberately deferred).** `rag.BuildGrounding` gained opt-in
+  `MultiQuery` (dispatches to `query.MultiHybrid` via the `MultiRetriever`
+  type-assertion, falling back to single-query `Retrieve` when unsupported),
+  `Diversify` (promotes the first hit of each concept `Type` ahead of later
+  same-type hits), `ExpandSeeds` (graph-neighbour expansion from more than one
+  seed hit, default 1 = pre-upgrade behavior), and `MinScore` (refuse — empty
+  `Grounding`, no agent turn spent — on weak top-hit evidence) — all
+  zero-default-behavior-change (`Options{}` unchanged), exposed via
+  `pixkb ask --multi/--diversify/--expand-seeds/--min-score` and the MCP
+  `kb_ask` tool's matching fields. Remaining, explicitly out of scope for that
+  plan:
+  - **Partial-chunk budget trimming.** `BuildGrounding`'s char budget is still
+    all-or-nothing per whole concept body (a chunk either fits or is
+    dropped); truncating the last admitted chunk to fill the remaining
+    budget would pack denser context but risks cutting a citation
+    mid-thought — deliberately deferred.
+  - **`Diversify`'s "one per type first" is a promotion, not a per-type
+    quota** (e.g. "at most 2 ApiEndpoint, at least 1 Reference") — the
+    spec's retrieval-policy example (one reference + one endpoint + one ISO
+    message + one manual section) is a stronger diversity contract than this
+    task implements; revisit once Feature 6 (eval expansion) has a diversity
+    metric to measure against.
+  - Feature 6 (Search Evaluation Expansion), Feature 7 (Domain-Aware Query
+    Understanding), Feature 8 (Search Quality Operations) remain
+    unimplemented from `docs/SEARCH-CAPABILITY-SPEC.md` — each needs its own
+    scoped plan.
 - **KB standardized in English — translate agent-written content + ingested
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
