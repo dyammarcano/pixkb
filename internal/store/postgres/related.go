@@ -9,6 +9,7 @@ import (
 type RelatedConcept struct {
 	ID        string
 	Title     string
+	Type      string // neighbour's concept type; "" if the neighbour row has no concept (dangling edge)
 	Direction string // "out" = this concept links to it; "in" = it links here
 }
 
@@ -17,14 +18,14 @@ type RelatedConcept struct {
 // it). It is read-only.
 func (s *Store) Related(ctx context.Context, id string) ([]RelatedConcept, error) {
 	const q = `
-SELECT e.dst AS rid, COALESCE(c.title, ''), 'out'
+SELECT e.dst AS rid, COALESCE(c.title, ''), COALESCE(c.type, ''), 'out'
   FROM edge e LEFT JOIN concept c ON c.id = e.dst
  WHERE e.src = $1
 UNION
-SELECT e.src AS rid, COALESCE(c.title, ''), 'in'
+SELECT e.src AS rid, COALESCE(c.title, ''), COALESCE(c.type, ''), 'in'
   FROM edge e LEFT JOIN concept c ON c.id = e.src
  WHERE e.dst = $1
- ORDER BY 3, 1`
+ ORDER BY 4, 1`
 	rows, err := s.pool.Query(ctx, q, id)
 	if err != nil {
 		return nil, fmt.Errorf("related query %q: %w", id, err)
@@ -34,7 +35,7 @@ SELECT e.src AS rid, COALESCE(c.title, ''), 'in'
 	var out []RelatedConcept
 	for rows.Next() {
 		var r RelatedConcept
-		if err := rows.Scan(&r.ID, &r.Title, &r.Direction); err != nil {
+		if err := rows.Scan(&r.ID, &r.Title, &r.Type, &r.Direction); err != nil {
 			return nil, fmt.Errorf("scan related row: %w", err)
 		}
 		out = append(out, r)

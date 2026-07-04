@@ -66,3 +66,36 @@ func TestUpsertEmbedding(t *testing.T) {
 	assert.Equal(t, "hashing", model)
 	assert.Equal(t, 256, dim)
 }
+
+func TestGetEmbedding_ReturnsLatestEpoch(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO concept (id, type, title, body, content_sha, first_epoch, last_epoch, updated_at)
+VALUES ('x.md', 'Reference', 'X', 'body', 'sha', 1, 1, now())`)
+	require.NoError(t, err)
+
+	require.NoError(t, s.UpsertEmbedding(ctx, "x.md", 1, "hashing", []float32{1, 0, 0}, time.Now()))
+	require.NoError(t, s.UpsertEmbedding(ctx, "x.md", 2, "hashing", []float32{0, 1, 0}, time.Now()))
+
+	got, err := s.GetEmbedding(ctx, "x.md")
+	require.NoError(t, err)
+	assert.Equal(t, []float32{0, 1, 0}, got, "must return the LATEST epoch's vector, not the first")
+}
+
+func TestGetEmbedding_NotFound(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	_, err = s.GetEmbedding(ctx, "does-not-exist.md")
+	require.Error(t, err)
+}

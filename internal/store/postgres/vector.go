@@ -48,7 +48,7 @@ SELECT c.id, coalesce(c.title,''), c.type, 1 - (e.vec <=> $1) AS score
 FROM (SELECT DISTINCT ON (id) id AS eid, vec FROM embedding ORDER BY id, epoch DESC) e
 JOIN concept c ON c.id = e.eid
 %s
-ORDER BY e.vec <=> $1 ASC
+ORDER BY e.vec <=> $1 ASC, c.id ASC
 LIMIT $%d`, where, len(args))
 
 	rows, err := s.pool.Query(ctx, query, args...)
