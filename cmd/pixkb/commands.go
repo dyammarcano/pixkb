@@ -141,8 +141,15 @@ func newSearchCmd() *cobra.Command {
 			f := postgres.Filter{Type: typ, Tag: tag, Limit: limit}
 
 			if explain {
+				if mode == "multi" {
+					mh, err := query.MultiHybrid(ctx, st, emb, q, f)
+					if err != nil {
+						return err
+					}
+					return printMultiExplain(cmd.OutOrStdout(), mh)
+				}
 				if mode != "" && mode != "hybrid" {
-					return fmt.Errorf("--explain is only supported with --mode hybrid (or the default)")
+					return fmt.Errorf("--explain is only supported with --mode hybrid or --mode multi (or the default)")
 				}
 				hits, explains, err := query.HybridExplain(ctx, st, emb, q, f)
 				if err != nil {
@@ -182,7 +189,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&typ, "type", "", "filter by concept type")
 	cmd.Flags().StringVar(&tag, "tag", "", "filter by tag")
 	cmd.Flags().IntVar(&limit, "limit", 20, "max results")
-	cmd.Flags().BoolVar(&explain, "explain", false, "print per-hit ranking breakdown as JSON (hybrid mode only)")
+	cmd.Flags().BoolVar(&explain, "explain", false, "print per-hit ranking breakdown as JSON (hybrid mode) or subquery attribution (multi mode)")
 	return cmd
 }
 
@@ -202,6 +209,30 @@ func printExplain(w io.Writer, hits []postgres.Hit, explains []query.Explain) er
 	out := make([]explainHit, len(hits))
 	for i, h := range hits {
 		out[i] = explainHit{ID: h.ID, Title: h.Title, Rank: h.Rank, Explain: explains[i]}
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+// multiExplainHit combines a fused multi-query hit's identity (id/title/rank)
+// with its subquery provenance trail — Feature 3's "subquery attribution for
+// multi-query search" requirement, for --explain --mode multi JSON output.
+type multiExplainHit struct {
+	ID         string                `json:"id"`
+	Title      string                `json:"title"`
+	Rank       int                   `json:"rank"`
+	Subqueries []query.SubqueryMatch `json:"subqueries"`
+}
+
+// printMultiExplain writes fused multi-query hits and their subquery
+// provenance (which subquery/arm/rank found each hit) as an indented JSON
+// array to w. The provenance comes straight from MultiHit.Subqueries, a field
+// query.MultiHybrid already populates — no new computation needed.
+func printMultiExplain(w io.Writer, mh []query.MultiHit) error {
+	out := make([]multiExplainHit, len(mh))
+	for i, m := range mh {
+		out[i] = multiExplainHit{ID: m.ID, Title: m.Title, Rank: m.Rank, Subqueries: m.Subqueries}
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

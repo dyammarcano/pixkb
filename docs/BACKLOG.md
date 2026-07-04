@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:036 -->
+<!-- rev:037 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -74,6 +74,20 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     treat any FUTURE entity addition here as needing the same
     `eval/tophit.sh` precise-regression check before it's kept, not just
     "does it look right in a spot-check".
+- **Search explanation follow-ups (Feature 3 of `docs/SEARCH-CAPABILITY-SPEC.md`
+  shipped; these are deliberately deferred).** `query.HybridExplain` (FTS/vector
+  rank, vector cosine, type-weight/title-boost multipliers, final fused score,
+  retrieval arm) ships via `pixkb search --explain` and the MCP `search` tool's
+  `explain: true`; multi-query mode's subquery attribution (`MultiHit.Subqueries`)
+  is now surfaced too via `pixkb search --explain --mode multi`. Remaining,
+  explicitly out of scope for that plan:
+  - **Matched-query-token highlighting and matched-field-category breakdown** —
+    2 of the spec's 7 required explain fields, not built here. Extracting them
+    needs either a Postgres `ts_headline`-style query or client-side
+    re-tokenization — a bigger unit of work than the rest of Feature 3.
+  - **An HTTP `/explain` endpoint / `explain=true` query param for `pixkb
+    serve`** — not touched by this plan; only the CLI and MCP surfaces got
+    `--explain`/`explain: true`.
 - **KB standardized in English — translate agent-written content + ingested
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
