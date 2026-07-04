@@ -161,6 +161,15 @@ func ParsePix(data []byte, cfg PixConfig, syncedAt time.Time) ([]PixRecord, erro
 		if len(row) <= colISPB || len(row) <= colName {
 			continue
 		}
+		// BACEN's live Pix CSV concatenates a second, differently-shaped table
+		// (pending/in-adhesion participants) after the active-participants
+		// table, re-stating the header row rather than starting a new file.
+		// That second table's column layout doesn't match this one's, so stop
+		// cleanly at the boundary instead of misparsing rows under the wrong
+		// column mapping.
+		if strings.EqualFold(strings.TrimSpace(row[colISPB]), cfg.ColumnISPB) {
+			break
+		}
 		code := strings.TrimSpace(row[colISPB])
 		if code == "" {
 			continue

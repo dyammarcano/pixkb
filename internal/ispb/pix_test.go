@@ -47,6 +47,27 @@ func TestParsePix_NoDataRows(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestParsePix_StopsAtSecondEmbeddedTable covers BACEN's real live Pix CSV,
+// which concatenates a second, differently-shaped table (pending/in-adhesion
+// participants) after the active-participants table by re-stating the header
+// row rather than starting a new file — discovered when a real sync errored
+// on "invalid ISPB code \"0000ISPB\"" (the re-stated header's ISPB cell,
+// zero-padded like a real code). Rows before the second header must still be
+// parsed; the second header and anything after it must be dropped, not
+// misparsed under the first table's column mapping.
+func TestParsePix_StopsAtSecondEmbeddedTable(t *testing.T) {
+	fixture := []byte("Lista de participantes ativos do Pix\n" +
+		" ;Nome Reduzido;ISPB;CNPJ;Tipo de Instituição;Autorizada pelo BCB\n" +
+		"1;99PAY IP S.A.;24313102;24.313.102/0001-25;Instituição de Pagamento;Sim\n" +
+		" ;Nome Reduzido;ISPB;CNPJ;Tipo de Instituição;Status da adesão\n" +
+		"1;PENDING BANK;12345678;12.345.678/0001-95;Banco;Em analise\n")
+
+	records, err := ParsePix(fixture, DefaultPixConfig(), time.Now())
+	require.NoError(t, err)
+	require.Len(t, records, 1, "only the row before the second header table")
+	assert.Equal(t, "24313102", records[0].ISPB)
+}
+
 // TestParsePix_NormalizesFormattedCNPJ covers BACEN's real live Pix CSV,
 // which formats CNPJ with punctuation (e.g. "24.313.102/0001-25", 18 chars) —
 // discovered when a real sync failed against the `cnpj VARCHAR(14)` column.
