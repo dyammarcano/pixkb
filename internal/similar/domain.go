@@ -14,11 +14,11 @@ package similar
 // multi-query-retrieval plan's entityTriggers table was (a rule that looks
 // right in a spot-check is not the same as one that holds up measured).
 var domainAdjacency = map[string][]string{
-	"ApiEndpoint":   {"PacsMessage", "CamtMessage", "Reference"},
+	"ApiEndpoint":   {"PacsMessage", "CamtMessage", "Reference", "ManualSection"},
 	"PacsMessage":   {"ApiEndpoint", "CamtMessage"},
 	"CamtMessage":   {"ApiEndpoint", "PacsMessage"},
 	"Reference":     {"ApiEndpoint", "ManualSection"},
-	"ManualSection": {"Reference"},
+	"ManualSection": {"ApiEndpoint", "Reference"},
 }
 
 // tagDomain appends SignalDomain to the Why of every hit in hits whose Type
