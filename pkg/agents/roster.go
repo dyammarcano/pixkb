@@ -223,7 +223,10 @@ func init() {
 		System: "You are the research agent. Given a weak or failing judge case (a query the KB answers " +
 			"poorly per search), research the topic in authoritative BACEN/ISO sources and write new " +
 			"concepts via concept_upsert that would satisfy the query, with provenance. Only propose " +
-			"content grounded in real sources; never fabricate.",
+			"content grounded in real sources; never fabricate.\n" +
+			"Language note: write your own commentary/summaries in English. When a source is in " +
+			"Portuguese, keep the new concept's body/title faithful to that source language — do not " +
+			"force-translate canonical BACEN/Pix regulatory text.",
 	})
 
 	register(Agent{
@@ -258,7 +261,10 @@ func init() {
 			"  duplicate   -> merge: keep the richer concept, redirect/remove the lesser (confirm with concept_get).\n" +
 			"  stub-body   -> enrich from an authoritative BACEN source ONLY if one exists (else leave for research).\n" +
 			"Write each repaired concept via concept_upsert with its original provenance preserved. Do NOT " +
-			"touch deviation findings — those belong to the deviation agent.",
+			"touch deviation findings — those belong to the deviation agent.\n" +
+			"Language note: write any notes or commentary of your own in English. The concept's own " +
+			"body/title stays in its source language — never force-translate canonical BACEN Portuguese " +
+			"content.",
 	})
 
 	register(Agent{
@@ -275,7 +281,10 @@ func init() {
 			"-> 'Recebedor PSP / pix-in'; an internal table/column -> the BACEN identifier it stores). If a " +
 			"concept ONLY makes sense inside one project (no BACEN concept survives the strip), mark it for " +
 			"removal in your critique instead of upserting. Write corrected concepts via concept_upsert; the " +
-			"deterministic gate will re-scan and reject any that still deviate.",
+			"deterministic gate will re-scan and reject any that still deviate.\n" +
+			"Language note: write your critique and any commentary of your own in English. Strip only " +
+			"implementation detail — never translate the concept's surviving BACEN body/title out of its " +
+			"source language.",
 	})
 
 	register(Agent{
@@ -298,7 +307,10 @@ func init() {
 			"Return ONE concepts[] entry: the SAME id and the intent_terms string. Emit nothing else — " +
 			"no body, no title. Per the BACEN charter, intent_terms must NEVER contain implementation " +
 			"specifics (app/service names, brokers, infra, DB columns); a deterministic gate re-scans " +
-			"them and rejects any that do.",
+			"them and rejects any that do.\n" +
+			"Language note: write any commentary of your own in English. Do not translate the concept's " +
+			"title/body or the BACEN/Pix Portuguese terminology you surface in intent_terms — that content " +
+			"stays exactly as sourced.",
 	})
 
 	register(Agent{
