@@ -70,15 +70,15 @@ func newSearchHealthCmd() *cobra.Command {
 // individual concept ids are visible in --json or in the recommendation
 // list for concepts with multiple/stronger signals.
 func printSearchHealthReport(w io.Writer, rep searchhealth.Report) error {
-	fmt.Fprintf(w, "concepts:            %d\n", rep.TotalConcepts)
-	fmt.Fprintf(w, "missing intent_terms: %d\n", len(rep.MissingIntentTerms))
-	fmt.Fprintf(w, "noisy titles:        %d\n", len(rep.NoisyTitles))
-	fmt.Fprintf(w, "sparse graph links:  %d\n", len(rep.SparseGraph))
-	fmt.Fprintf(w, "embedding coverage:  %d/%d concepts", rep.Embedding.EmbeddedConcepts, rep.Embedding.TotalConcepts)
+	_, _ = fmt.Fprintf(w, "concepts:            %d\n", rep.TotalConcepts)
+	_, _ = fmt.Fprintf(w, "missing intent_terms: %d\n", len(rep.MissingIntentTerms))
+	_, _ = fmt.Fprintf(w, "noisy titles:        %d\n", len(rep.NoisyTitles))
+	_, _ = fmt.Fprintf(w, "sparse graph links:  %d\n", len(rep.SparseGraph))
+	_, _ = fmt.Fprintf(w, "embedding coverage:  %d/%d concepts", rep.Embedding.EmbeddedConcepts, rep.Embedding.TotalConcepts)
 	if !rep.Embedding.Consistent() {
-		fmt.Fprintf(w, "  ⚠ %d distinct model/dim combinations found (inconsistent)\n", len(rep.Embedding.Models))
+		_, _ = fmt.Fprintf(w, "  ⚠ %d distinct model/dim combinations found (inconsistent)\n", len(rep.Embedding.Models))
 	} else {
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 
 	if len(rep.EvalRegressions) > 0 {
@@ -88,25 +88,25 @@ func printSearchHealthReport(w io.Writer, rep searchhealth.Report) error {
 				failed++
 			}
 		}
-		fmt.Fprintf(w, "eval regressions:    %d/%d cases found no acceptable hit\n", failed, len(rep.EvalRegressions))
+		_, _ = fmt.Fprintf(w, "eval regressions:    %d/%d cases found no acceptable hit\n", failed, len(rep.EvalRegressions))
 		for _, r := range rep.EvalRegressions {
 			if r.Rank == 0 {
-				fmt.Fprintf(w, "  FAIL  %.70s\n", r.Query)
+				_, _ = fmt.Fprintf(w, "  FAIL  %.70s\n", r.Query)
 			}
 		}
 	}
 
 	if len(rep.Recommendations) == 0 {
-		fmt.Fprintln(w, "\nno re-enrichment candidates — search readiness looks healthy")
+		_, _ = fmt.Fprintln(w, "\nno re-enrichment candidates — search readiness looks healthy")
 		return nil
 	}
-	fmt.Fprintln(w, "\nre-enrichment candidates (highest priority first):")
+	_, _ = fmt.Fprintln(w, "\nre-enrichment candidates (highest priority first):")
 	for _, r := range rep.Recommendations {
 		kinds := make([]string, 0, len(r.Signals))
 		for _, s := range r.Signals {
 			kinds = append(kinds, s.Kind)
 		}
-		fmt.Fprintf(w, "  [score %d] %-40.40s %s\n", r.Score, r.ConceptID, strings.Join(kinds, ", "))
+		_, _ = fmt.Fprintf(w, "  [score %d] %-40.40s %s\n", r.Score, r.ConceptID, strings.Join(kinds, ", "))
 	}
 	return nil
 }

@@ -31,7 +31,7 @@ func LoadPairCases(path string) ([]PairCase, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []PairCase
 	sc := bufio.NewScanner(f)
@@ -72,7 +72,7 @@ func LoadSimilarCases(path string) ([]SimilarCase, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []SimilarCase
 	sc := bufio.NewScanner(f)
@@ -110,7 +110,7 @@ func LoadQueries(path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []string
 	sc := bufio.NewScanner(f)
@@ -161,7 +161,7 @@ func LoadRAGDiversityCases(path string) ([]RAGDiversityCase, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var out []RAGDiversityCase
 	sc := bufio.NewScanner(f)

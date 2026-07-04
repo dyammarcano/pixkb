@@ -24,16 +24,16 @@ func newVocabCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			if v := os.Getenv("PIXKB_DISABLE_DOMAIN_VOCAB"); v != "" {
-				fmt.Fprintf(out, "PIXKB_DISABLE_DOMAIN_VOCAB is set (%q) — domain-vocabulary expansion is currently DISABLED for multi-query search.\n\n", v)
+				_, _ = fmt.Fprintf(out, "PIXKB_DISABLE_DOMAIN_VOCAB is set (%q) — domain-vocabulary expansion is currently DISABLED for multi-query search.\n\n", v)
 			}
 			for _, e := range query.Vocabulary() {
 				status := "enabled"
 				if !e.Enabled {
 					status = "disabled"
 				}
-				fmt.Fprintf(out, "[%-8s] stems=%v -> %q\n", status, e.Stems, e.Subquery)
+				_, _ = fmt.Fprintf(out, "[%-8s] stems=%v -> %q\n", status, e.Stems, e.Subquery)
 				if showReasons {
-					fmt.Fprintf(out, "           %s\n", strings.TrimSpace(e.Reason))
+					_, _ = fmt.Fprintf(out, "           %s\n", strings.TrimSpace(e.Reason))
 				}
 			}
 			return nil

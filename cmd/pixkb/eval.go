@@ -72,16 +72,16 @@ func newEvalMultiCmd() *cobra.Command {
 func printCoverageReport(w io.Writer, results []evalkit.CoverageResult) error {
 	var foundSum, totalSum int
 	for _, r := range results {
-		fmt.Fprintf(w, "%d/%d  %.60s\n", r.Found, r.Total, r.Case.Query)
+		_, _ = fmt.Fprintf(w, "%d/%d  %.60s\n", r.Found, r.Total, r.Case.Query)
 		foundSum += r.Found
 		totalSum += r.Total
 	}
-	fmt.Fprintln(w, "----")
+	_, _ = fmt.Fprintln(w, "----")
 	if totalSum == 0 {
-		fmt.Fprintln(w, "no cases")
+		_, _ = fmt.Fprintln(w, "no cases")
 		return nil
 	}
-	fmt.Fprintf(w, "cases=%d  required-id coverage=%d/%d (%.0f%%)\n",
+	_, _ = fmt.Fprintf(w, "cases=%d  required-id coverage=%d/%d (%.0f%%)\n",
 		len(results), foundSum, totalSum, 100*float64(foundSum)/float64(totalSum))
 	return nil
 }
@@ -139,18 +139,18 @@ func printRankReport(w io.Writer, results []evalkit.RankResult) error {
 				t5++
 			}
 			mrr += 1.0 / float64(r.Rank)
-			fmt.Fprintf(w, "%-70.70s  rank=%d\n", r.Label, r.Rank)
+			_, _ = fmt.Fprintf(w, "%-70.70s  rank=%d\n", r.Label, r.Rank)
 		} else {
-			fmt.Fprintf(w, "%-70.70s  rank=—\n", r.Label)
+			_, _ = fmt.Fprintf(w, "%-70.70s  rank=—\n", r.Label)
 		}
 	}
-	fmt.Fprintln(w, "----")
+	_, _ = fmt.Fprintln(w, "----")
 	n := len(results)
 	if n == 0 {
-		fmt.Fprintln(w, "no cases")
+		_, _ = fmt.Fprintln(w, "no cases")
 		return nil
 	}
-	fmt.Fprintf(w, "cases=%d  top@1=%d (%.0f%%)  top@5=%d (%.0f%%)  MRR=%.3f\n",
+	_, _ = fmt.Fprintf(w, "cases=%d  top@1=%d (%.0f%%)  top@5=%d (%.0f%%)  MRR=%.3f\n",
 		n, t1, 100*float64(t1)/float64(n), t5, 100*float64(t5)/float64(n), mrr/float64(n))
 	return nil
 }
@@ -198,13 +198,13 @@ func newEvalOODCmd() *cobra.Command {
 			for _, r := range results {
 				if len(r.Leaked) > 0 {
 					leaks++
-					fmt.Fprintf(out, "LEAK  %-60.60s  %v\n", r.Query, r.Leaked)
+					_, _ = fmt.Fprintf(out, "LEAK  %-60.60s  %v\n", r.Query, r.Leaked)
 				} else {
-					fmt.Fprintf(out, "clean %-60.60s\n", r.Query)
+					_, _ = fmt.Fprintf(out, "clean %-60.60s\n", r.Query)
 				}
 			}
-			fmt.Fprintln(out, "----")
-			fmt.Fprintf(out, "cases=%d  clean=%d  leaked=%d\n", len(results), len(results)-leaks, leaks)
+			_, _ = fmt.Fprintln(out, "----")
+			_, _ = fmt.Fprintf(out, "cases=%d  clean=%d  leaked=%d\n", len(results), len(results)-leaks, leaks)
 			return nil
 		},
 	}
@@ -246,10 +246,10 @@ func newEvalExplainCmd() *cobra.Command {
 			}
 			out := cmd.OutOrStdout()
 			for _, iss := range issues {
-				fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
+				_, _ = fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
 			}
-			fmt.Fprintln(out, "----")
-			fmt.Fprintf(out, "cases=%d  issues=%d\n", len(cases), len(issues))
+			_, _ = fmt.Fprintln(out, "----")
+			_, _ = fmt.Fprintf(out, "cases=%d  issues=%d\n", len(cases), len(issues))
 			return nil
 		},
 	}
@@ -309,10 +309,10 @@ func newEvalRAGDiversityCmd() *cobra.Command {
 					status = "BELOW MIN"
 					below++
 				}
-				fmt.Fprintf(out, "%-9s  %-40.40s  types=%v (want>=%d)\n", status, r.ID, r.Types, r.MinTypes)
+				_, _ = fmt.Fprintf(out, "%-9s  %-40.40s  types=%v (want>=%d)\n", status, r.ID, r.Types, r.MinTypes)
 			}
-			fmt.Fprintln(out, "----")
-			fmt.Fprintf(out, "cases=%d  below-min=%d\n", len(results), below)
+			_, _ = fmt.Fprintln(out, "----")
+			_, _ = fmt.Fprintf(out, "cases=%d  below-min=%d\n", len(results), below)
 			return nil
 		},
 	}
@@ -356,10 +356,10 @@ func newEvalAsOfCmd() *cobra.Command {
 			}
 			out := cmd.OutOrStdout()
 			for _, iss := range issues {
-				fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
+				_, _ = fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
 			}
-			fmt.Fprintln(out, "----")
-			fmt.Fprintf(out, "cases=%d  latest-epoch=%d  issues=%d\n", len(cases), s.LatestEpoch, len(issues))
+			_, _ = fmt.Fprintln(out, "----")
+			_, _ = fmt.Fprintf(out, "cases=%d  latest-epoch=%d  issues=%d\n", len(cases), s.LatestEpoch, len(issues))
 			return nil
 		},
 	}
