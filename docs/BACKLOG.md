@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:034 -->
+<!-- rev:035 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -8,12 +8,40 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 - _(none open — the RAG layer shipped; see Shipped. Promote a P2 item here when
   scheduled.)_
 - **RAG follow-ups (optional polish).** The core RAG layer is shipped; these are
-  nice-to-haves, not blockers: (a) multi-query rewriting before retrieval; (b) an
+  nice-to-haves, not blockers: (a) wire the now-shipped `query.MultiHybrid`
+  (below) into `rag.Retriever`/`HybridRetriever` for grounding diversity on
+  broad questions — the primitive exists, RAG just doesn't call it yet; (b) an
   answer cache keyed by (question-hash, KB-epoch) to avoid re-spending a turn on a
   repeated question; (c) a deterministic PII/LGPD post-filter on the answer (today
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **Multi-query retrieval follow-ups (Feature 1 of `docs/SEARCH-CAPABILITY-SPEC.md`
+  shipped; these are the pieces deliberately deferred).** `query.ExpandQuery` +
+  `query.MultiHybrid` (`internal/query/expand.go`, `multi.go`) ship deterministic
+  query expansion + fusion, wired to `pixkb search --mode multi` and the MCP
+  `search` tool's `mode: "multi"`. Measured on `eval/tophit.sh` against the live
+  KB: precise top@5 held exactly at baseline (96%, unchanged — two harmful
+  `entityTriggers` entries were removed during the verification gate: the
+  pacs/camt-message trigger and the bare English "settlement" stem, both of
+  which only ever fired on already-precise queries and never helped a fuzzy
+  one — see `internal/query/expand.go`'s `entityTriggers` doc comment); fuzzy
+  improved (top@1 6%→12%, MRR 0.131→0.216, top@5 flat at 29%). Remaining,
+  explicitly out of scope for that plan:
+  - Agent-generated query rewrites and bilingual (PT/EN ISO-message) subqueries
+    for `ExpandQuery` — both optional per the spec.
+  - Surfacing `MultiHit.Subqueries` provenance (which subquery/arm/rank found a
+    hit) in CLI/MCP JSON output — spec Feature 3, "Search Explanation".
+  - Wiring `MultiHybrid` into RAG grounding (see the RAG follow-up above,
+    P1) — spec Feature 5, sequenced after this measurement.
+  - The `entityTriggers` table is a small, 7-entry seed (only the entities
+    Feature 1's spec text names directly) — Feature 7 ("Domain-Aware Query
+    Understanding") will add a larger, versioned vocabulary; don't duplicate
+    entries here when that lands, extend/supersede this table instead. Given
+    two of the original 8 seed entities turned out net-harmful once measured,
+    treat any FUTURE entity addition here as needing the same
+    `eval/tophit.sh` precise-regression check before it's kept, not just
+    "does it look right in a spot-check".
 - **KB standardized in English — translate agent-written content + ingested
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git
