@@ -20,7 +20,7 @@ func newEvalCmd() *cobra.Command {
 		Use:   "eval",
 		Short: "Deterministic retrieval evaluation gates (Feature 6 of docs/SEARCH-CAPABILITY-SPEC.md)",
 	}
-	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd(), newEvalOODCmd())
+	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd(), newEvalOODCmd(), newEvalExplainCmd(), newEvalAsOfCmd())
 	return root
 }
 
@@ -209,5 +209,93 @@ func newEvalOODCmd() *cobra.Command {
 	cmd.Flags().StringVar(&preciseFile, "precise-file", "eval/cases-precise-ids.tsv", "forbidden-id source: precise cases")
 	cmd.Flags().StringVar(&fuzzyFile, "fuzzy-file", "eval/cases-fuzzy-ids.tsv", "forbidden-id source: fuzzy cases")
 	cmd.Flags().IntVar(&limit, "limit", 5, "max results per OOD query")
+	return cmd
+}
+
+func newEvalExplainCmd() *cobra.Command {
+	var dsn, file string
+	cmd := &cobra.Command{
+		Use:   "explain",
+		Short: "Structural consistency of --explain output (query.HybridExplain)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg := loadConfig()
+			if dsn != "" {
+				cfg.DSN = dsn
+			}
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			emb, err := newEmbedder(cfg)
+			if err != nil {
+				return err
+			}
+			cases, err := evalkit.LoadPairCases(file)
+			if err != nil {
+				return err
+			}
+			issues, err := evalkit.RunExplainConsistency(ctx, st, emb, cases)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			for _, iss := range issues {
+				fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
+			}
+			fmt.Fprintln(out, "----")
+			fmt.Fprintf(out, "cases=%d  issues=%d\n", len(cases), len(issues))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&file, "file", "eval/cases-precise-ids.tsv", "queries to check (only the query column is used)")
+	return cmd
+}
+
+func newEvalAsOfCmd() *cobra.Command {
+	var dsn, file string
+	cmd := &cobra.Command{
+		Use:   "asof",
+		Short: "As-of-at-latest-epoch equals unfiltered (query.Hybrid + Filter.AsOfEpoch)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg := loadConfig()
+			if dsn != "" {
+				cfg.DSN = dsn
+			}
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			emb, err := newEmbedder(cfg)
+			if err != nil {
+				return err
+			}
+			s, err := st.Stats(ctx)
+			if err != nil {
+				return err
+			}
+			cases, err := evalkit.LoadPairCases(file)
+			if err != nil {
+				return err
+			}
+			issues, err := evalkit.RunAsOfInvariant(ctx, st, emb, cases, s.LatestEpoch)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			for _, iss := range issues {
+				fmt.Fprintf(out, "ISSUE  %-50.50s  %s\n", iss.Query, iss.Detail)
+			}
+			fmt.Fprintln(out, "----")
+			fmt.Fprintf(out, "cases=%d  latest-epoch=%d  issues=%d\n", len(cases), s.LatestEpoch, len(issues))
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&file, "file", "eval/cases-precise-ids.tsv", "queries to check (only the query column is used)")
 	return cmd
 }

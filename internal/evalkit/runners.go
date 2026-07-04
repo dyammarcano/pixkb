@@ -98,3 +98,87 @@ func RunOOD(ctx context.Context, s query.Searcher, emb embed.Embedder, queries [
 	}
 	return out, nil
 }
+
+// ExplainIssue is one structural-consistency problem found in a --explain
+// response: the rank order (Hit.Rank) must agree with the score order
+// (Explain.FinalScore descending) — if rank 2 has a higher FinalScore than
+// rank 1, the explanation is lying about why something ranked where it did,
+// which is exactly what Feature 3 exists to prevent silently breaking.
+type ExplainIssue struct {
+	Query  string
+	Detail string
+}
+
+// RunExplainConsistency runs query.HybridExplain (unmodified) for each case
+// and checks two invariants that must always hold if the explanation is
+// telling the truth about the ranking it describes: (1) FinalScore is
+// non-increasing across the hits in rank order; (2) explains[i].FinalScore
+// equals hits[i].Score for every i (the same invariant
+// TestHybridExplain_MatchesHits already unit-tests with a fake — this reruns
+// it against the live index as a "search explanation consistency" gate, per
+// docs/SEARCH-CAPABILITY-SPEC.md Feature 6).
+func RunExplainConsistency(ctx context.Context, s query.Searcher, emb embed.Embedder, cases []PairCase) ([]ExplainIssue, error) {
+	var issues []ExplainIssue
+	for _, c := range cases {
+		hits, explains, err := query.HybridExplain(ctx, s, emb, c.Query, postgres.Filter{})
+		if err != nil {
+			return nil, fmt.Errorf("hybrid-explain %q: %w", c.Query, err)
+		}
+		if len(hits) != len(explains) {
+			issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("len(hits)=%d != len(explains)=%d", len(hits), len(explains))})
+			continue
+		}
+		for i := range hits {
+			if hits[i].Score != explains[i].FinalScore {
+				issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("hit[%d].Score=%v != explain[%d].FinalScore=%v", i, hits[i].Score, i, explains[i].FinalScore)})
+			}
+			if i > 0 && explains[i].FinalScore > explains[i-1].FinalScore {
+				issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("explain[%d].FinalScore=%v > explain[%d].FinalScore=%v (rank order violated)", i, explains[i].FinalScore, i-1, explains[i-1].FinalScore)})
+			}
+		}
+	}
+	return issues, nil
+}
+
+// AsOfIssue is one as-of-filtering invariant violation: querying at the
+// current latest epoch must return exactly the same result as an unfiltered
+// query, since "as of the latest state" and "no time-travel filter" describe
+// the same state by construction. This is the deterministic gate
+// docs/SEARCH-CAPABILITY-SPEC.md Feature 4's own acceptance criterion asks
+// for ("As-of filtering is test-covered at the public surface") — reusing
+// the live index instead of authoring historical fixtures (a concept's
+// epoch history is environment-specific and would make a hardcoded
+// before/after fixture fragile across KB instances).
+type AsOfIssue struct {
+	Query  string
+	Detail string
+}
+
+// RunAsOfInvariant runs query.Hybrid (unmodified) twice per case — once
+// unfiltered, once with Filter.AsOfEpoch pinned to the current latest
+// epoch — and checks the two id sequences are identical.
+func RunAsOfInvariant(ctx context.Context, s query.Searcher, emb embed.Embedder, cases []PairCase, latestEpoch int) ([]AsOfIssue, error) {
+	var issues []AsOfIssue
+	for _, c := range cases {
+		unfiltered, err := query.Hybrid(ctx, s, emb, c.Query, postgres.Filter{})
+		if err != nil {
+			return nil, fmt.Errorf("hybrid %q: %w", c.Query, err)
+		}
+		epoch := latestEpoch
+		asOf, err := query.Hybrid(ctx, s, emb, c.Query, postgres.Filter{AsOfEpoch: &epoch})
+		if err != nil {
+			return nil, fmt.Errorf("hybrid --as-of-epoch %d %q: %w", epoch, c.Query, err)
+		}
+		if len(unfiltered) != len(asOf) {
+			issues = append(issues, AsOfIssue{Query: c.Query, Detail: fmt.Sprintf("len(unfiltered)=%d != len(as-of)=%d", len(unfiltered), len(asOf))})
+			continue
+		}
+		for i := range unfiltered {
+			if unfiltered[i].ID != asOf[i].ID {
+				issues = append(issues, AsOfIssue{Query: c.Query, Detail: fmt.Sprintf("position %d: unfiltered=%s as-of=%s", i, unfiltered[i].ID, asOf[i].ID)})
+				break
+			}
+		}
+	}
+	return issues, nil
+}
