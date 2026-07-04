@@ -15,15 +15,16 @@ import (
 // newSearchHealthCmd is the one-command search-readiness health surface
 // Feature 8 of docs/SEARCH-CAPABILITY-SPEC.md ("Search Quality Operations")
 // asks for: missing intent_terms, noisy titles, sparse graph links,
-// embedding coverage/consistency, failing deterministic eval cases, and a
-// prioritized re-enrichment recommendation list — all from one run.
+// embedding coverage/consistency, bundle-vs-DB concept drift, failing
+// deterministic eval cases, and a prioritized re-enrichment recommendation
+// list — all from one run.
 func newSearchHealthCmd() *cobra.Command {
 	var dsn string
 	var asJSON bool
 	var evalFiles []string
 	cmd := &cobra.Command{
 		Use:   "search-health",
-		Short: "Report search-readiness health: enrichment gaps, graph sparsity, embedding coverage, eval regressions",
+		Short: "Report search-readiness health: enrichment gaps, graph sparsity, embedding coverage, bundle drift, eval regressions",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := loadConfig()
 			if dsn != "" {
@@ -79,6 +80,18 @@ func printSearchHealthReport(w io.Writer, rep searchhealth.Report) error {
 		_, _ = fmt.Fprintf(w, "  ⚠ %d distinct model/dim combinations found (inconsistent)\n", len(rep.Embedding.Models))
 	} else {
 		_, _ = fmt.Fprintln(w)
+	}
+
+	if len(rep.BundleDrift) > 0 {
+		_, _ = fmt.Fprintf(w, "bundle drift:        %d concepts in DB but not in bundle\n", len(rep.BundleDrift))
+		const maxShown = 20
+		for i, id := range rep.BundleDrift {
+			if i >= maxShown {
+				_, _ = fmt.Fprintf(w, "  ... and %d more\n", len(rep.BundleDrift)-maxShown)
+				break
+			}
+			_, _ = fmt.Fprintf(w, "  %s\n", id)
+		}
 	}
 
 	if len(rep.EvalRegressions) > 0 {

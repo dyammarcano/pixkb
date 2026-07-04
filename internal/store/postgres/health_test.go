@@ -80,3 +80,32 @@ INSERT INTO concept (id, type, title, body, content_sha, first_epoch, last_epoch
 	require.NoError(t, err)
 	assert.Equal(t, len(cov.Models)+1, len(cov2.Models), "a second brand-new (model, dim) pair must grow the distinct-combinations count by one more")
 }
+
+// TestBundleDrift_FindsConceptsInDBButNotInBundle follows the same
+// delta/Contains pattern as TestGraphSparsity_FindsConceptsWithNoEdges: this
+// package's integration tests share one uncleaned Postgres database, so we
+// only assert that OUR unique-per-run rows are classified correctly, never
+// on absolute counts.
+func TestBundleDrift_FindsConceptsInDBButNotInBundle(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	suffix := time.Now().UnixNano()
+	inBundleID := fmt.Sprintf("in-bundle-%d.md", suffix)
+	dbOnlyID := fmt.Sprintf("db-only-%d.md", suffix)
+
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO concept (id, type, title, body, content_sha, first_epoch, last_epoch, updated_at) VALUES
+  ($1, 'Reference', 'In bundle', 'body', 'sha', 1, 1, now()),
+  ($2, 'Reference', 'DB only',   'body', 'sha', 1, 1, now())`, inBundleID, dbOnlyID)
+	require.NoError(t, err)
+
+	dbOnly, err := s.BundleDrift(ctx, []string{inBundleID})
+	require.NoError(t, err)
+	assert.Contains(t, dbOnly, dbOnlyID, "concept in the DB but absent from the bundle set must be flagged as drift")
+	assert.NotContains(t, dbOnly, inBundleID, "concept present in both the DB and the bundle set must not be flagged as drift")
+}

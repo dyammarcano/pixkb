@@ -7,6 +7,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRecommend_BundleDriftOutranksSingleWeakSignal(t *testing.T) {
+	signals := []Signal{
+		{ConceptID: "weak.md", Kind: KindSparseTerms, Detail: "no intent_terms"},
+		{ConceptID: "drifted.md", Kind: KindBundleDrift, Detail: "in DB but not in bundle"},
+	}
+	recs := Recommend(signals)
+	require.Len(t, recs, 2)
+	assert.Equal(t, "drifted.md", recs[0].ConceptID, "bundle drift must outrank a single weak signal, same tier as an eval regression")
+	assert.Equal(t, 3, recs[0].Score)
+	assert.Equal(t, "weak.md", recs[1].ConceptID)
+}
+
+func TestRecommend_BundleDriftAndEvalRegressionTieAtTopTier(t *testing.T) {
+	signals := []Signal{
+		{ConceptID: "drifted.md", Kind: KindBundleDrift, Detail: "in DB but not in bundle"},
+		{ConceptID: "broken.md", Kind: KindEvalRegression, Detail: "query found no acceptable hit"},
+	}
+	recs := Recommend(signals)
+	require.Len(t, recs, 2)
+	assert.Equal(t, recs[0].Score, recs[1].Score, "bundle-drift and eval-regression must share the same top weight tier")
+	assert.Equal(t, "broken.md", recs[0].ConceptID, "ties break by concept id for determinism")
+	assert.Equal(t, "drifted.md", recs[1].ConceptID)
+}
+
 func TestRecommend_EvalRegressionOutranksSingleWeakSignal(t *testing.T) {
 	signals := []Signal{
 		{ConceptID: "weak.md", Kind: KindSparseTerms, Detail: "no intent_terms"},

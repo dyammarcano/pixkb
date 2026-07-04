@@ -2,15 +2,16 @@
 // ("Search Quality Operations") into one report: which concepts are missing
 // intent_terms, which titles are too noisy for title boosting, which
 // concepts have sparse graph links, whether embedding coverage/consistency
-// look healthy, and which deterministic eval cases are currently failing.
-// It reuses existing signals rather than re-detecting them — hygiene.Scan
-// and hygiene.MissingIntentTerms already do the content-quality checks;
-// postgres.GraphSparsity/EmbeddingCoverage do the index-health checks;
-// query.Hybrid + evalkit's own rank math do the eval-regression check. This
-// package's only new logic is synthesis: turning four kinds of signal into
-// one prioritized re-enrichment recommendation list — the spec's acceptance
-// criterion "A maintainer can run one command to see search-readiness
-// health."
+// look healthy, which concepts exist in the DB but not the canonical bundle
+// (drift), and which deterministic eval cases are currently failing. It
+// reuses existing signals rather than re-detecting them — hygiene.Scan and
+// hygiene.MissingIntentTerms already do the content-quality checks;
+// postgres.GraphSparsity/EmbeddingCoverage/BundleDrift do the index-health
+// checks; query.Hybrid + evalkit's own rank math do the eval-regression
+// check. This package's only new logic is synthesis: turning five kinds of
+// signal into one prioritized re-enrichment recommendation list — the
+// spec's acceptance criterion "A maintainer can run one command to see
+// search-readiness health."
 package searchhealth
 
 import (
@@ -31,17 +32,22 @@ const (
 	KindSparseTerms    = "sparse-terms"
 	KindNoisyTitle     = "noisy-title"
 	KindSparseGraph    = "sparse-graph"
+	KindBundleDrift    = "bundle-drift"
 	KindEvalRegression = "eval-regression"
 )
 
 // signalWeight scores each signal kind for Recommend's prioritization.
-// eval-regression is weighted heaviest — a concept failing a real, curated
-// eval case is the highest-confidence sign something is actually broken,
-// versus the other three signals, which are enrichment OPPORTUNITIES, not
-// proven problems (the spec's own acceptance criterion: "avoid treating all
-// missing enrichment as errors").
+// eval-regression and bundle-drift are weighted heaviest — a concept failing
+// a real, curated eval case, or a concept sitting in the DB with no bundle
+// backing at all, are the highest-confidence signs something is actually
+// broken, versus the other two signals, which are enrichment OPPORTUNITIES,
+// not proven problems (the spec's own acceptance criterion: "avoid treating
+// all missing enrichment as errors"). Bundle drift specifically violates
+// "the bundle is the source of truth", so it gets the same top tier as an
+// eval regression rather than the lower "opportunity" tier.
 var signalWeight = map[string]int{
 	KindEvalRegression: 3,
+	KindBundleDrift:    3,
 	KindSparseTerms:    1,
 	KindNoisyTitle:     1,
 	KindSparseGraph:    1,
@@ -132,6 +138,7 @@ type Report struct {
 	NoisyTitles        []hygiene.Finding
 	SparseGraph        []postgres.SparseConcept
 	Embedding          postgres.EmbeddingCoverage
+	BundleDrift        []string
 	EvalRegressions    []EvalCaseResult
 	Recommendations    []Recommendation
 }
@@ -163,6 +170,12 @@ func BuildReport(ctx context.Context, concepts []okf.Concept, st *postgres.Store
 	}
 	rep.Embedding = cov
 
+	drift, err := st.BundleDrift(ctx, conceptIDs(concepts))
+	if err != nil {
+		return rep, fmt.Errorf("bundle drift: %w", err)
+	}
+	rep.BundleDrift = drift
+
 	if len(casePaths) > 0 {
 		regressions, err := EvalRegressions(ctx, st, emb, casePaths...)
 		if err != nil {
@@ -181,6 +194,9 @@ func BuildReport(ctx context.Context, concepts []okf.Concept, st *postgres.Store
 	for _, sc := range rep.SparseGraph {
 		signals = append(signals, Signal{ConceptID: sc.ID, Kind: KindSparseGraph, Detail: "no graph edges"})
 	}
+	for _, id := range rep.BundleDrift {
+		signals = append(signals, Signal{ConceptID: id, Kind: KindBundleDrift, Detail: "in DB but not in bundle"})
+	}
 	for _, r := range rep.EvalRegressions {
 		if r.Rank == 0 {
 			for _, id := range r.WantIDs {
@@ -191,4 +207,14 @@ func BuildReport(ctx context.Context, concepts []okf.Concept, st *postgres.Store
 	rep.Recommendations = Recommend(signals)
 
 	return rep, nil
+}
+
+// conceptIDs extracts the id of each bundle concept — the bundle-side set
+// BuildReport diffs against the DB for the bundle-drift signal.
+func conceptIDs(concepts []okf.Concept) []string {
+	ids := make([]string, len(concepts))
+	for i, c := range concepts {
+		ids[i] = c.ID
+	}
+	return ids
 }

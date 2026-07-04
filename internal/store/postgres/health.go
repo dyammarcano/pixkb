@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sort"
 )
 
 // SparseConcept is a concept with no graph edges in either direction — a
@@ -97,3 +98,49 @@ SELECT
 // Consistent reports whether the index has at most one (model, dim)
 // combination — the "model/dimension consistency" half of EmbeddingCoverage.
 func (c EmbeddingCoverage) Consistent() bool { return len(c.Models) <= 1 }
+
+// BundleDrift compares the given set of canonical bundle concept ids against
+// what's actually in the DB, and returns the ids that exist in the DB but
+// are NOT in the bundle set, sorted for deterministic output. This is the
+// "search-health should diff bundle-vs-DB concept counts itself" signal
+// docs/BACKLOG.md asks for: a concept can end up in Postgres without ever
+// being (or no longer being) in the canonical OKF bundle — e.g. a stale row
+// surviving a rename, or, as happened once, an accidental filename
+// collision with an OKF reserved nav filename — and that's a real
+// correctness problem, since the bundle is supposed to be the single source
+// of truth.
+//
+// We only report DB-only drift here, not the reverse (bundle-only: "in the
+// bundle but not yet in the DB"). A concept present in the bundle but absent
+// from the DB is the normal, transient state of "not yet (re)indexed" —
+// that's what the regular reindex flow exists to fix, not a health problem
+// — whereas a concept in the DB with no bundle backing can only be
+// explained by drift or a bug, so it is worth flagging unconditionally.
+func (s *Store) BundleDrift(ctx context.Context, bundleIDs []string) (dbOnly []string, err error) {
+	const q = `SELECT id FROM concept`
+	rows, err := s.pool.Query(ctx, q)
+	if err != nil {
+		return nil, fmt.Errorf("bundle drift concept id query: %w", err)
+	}
+	defer rows.Close()
+
+	inBundle := make(map[string]struct{}, len(bundleIDs))
+	for _, id := range bundleIDs {
+		inBundle[id] = struct{}{}
+	}
+
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan concept id row: %w", err)
+		}
+		if _, ok := inBundle[id]; !ok {
+			dbOnly = append(dbOnly, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate concept id rows: %w", err)
+	}
+	sort.Strings(dbOnly)
+	return dbOnly, nil
+}
