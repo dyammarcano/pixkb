@@ -6,6 +6,7 @@ import (
 
 	"pixkb/internal/embed"
 	"pixkb/internal/query"
+	"pixkb/internal/rag"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
 )
@@ -181,4 +182,45 @@ func RunAsOfInvariant(ctx context.Context, s query.Searcher, emb embed.Embedder,
 		}
 	}
 	return issues, nil
+}
+
+// DiversityResult is one RAG-diversity case's outcome: the distinct concept
+// Types among the answer's actual citations (not all grounding chunks —
+// what got CITED is the real diversity signal), against the case's minimum.
+type DiversityResult struct {
+	ID       string
+	Question string
+	Types    []string
+	MinTypes int
+}
+
+// RunRAGDiversity runs rag.Ask (unmodified — Features 5's retrieval +
+// answer.Synthesize, not a reimplementation) for each case and counts the
+// distinct concept Types among the cited ids — the "type diversity for RAG
+// grounding" metric docs/SEARCH-CAPABILITY-SPEC.md Feature 6 names
+// explicitly. Needs a live agent provider (like eval/run-rag-judge.sh); the
+// CLI wraps this with the same --provider flag pixkb ask already exposes.
+func RunRAGDiversity(ctx context.Context, r rag.Retriever, cs rag.ConceptSource, gen rag.Generator, cases []RAGDiversityCase) ([]DiversityResult, error) {
+	out := make([]DiversityResult, 0, len(cases))
+	for _, c := range cases {
+		ans, g, err := rag.Ask(ctx, r, cs, gen, c.Question, rag.Options{})
+		if err != nil {
+			return nil, fmt.Errorf("ask %q: %w", c.ID, err)
+		}
+		typeByID := make(map[string]string, len(g.Chunks))
+		for _, ch := range g.Chunks {
+			typeByID[ch.ID] = ch.Type
+		}
+		seen := map[string]bool{}
+		var types []string
+		for _, cid := range ans.Citations {
+			t := typeByID[cid]
+			if t != "" && !seen[t] {
+				seen[t] = true
+				types = append(types, t)
+			}
+		}
+		out = append(out, DiversityResult{ID: c.ID, Question: c.Question, Types: types, MinTypes: c.MinTypes})
+	}
+	return out, nil
 }

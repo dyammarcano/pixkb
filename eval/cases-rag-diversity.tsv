@@ -1,0 +1,12 @@
+# RAG grounding type-diversity cases (eval/evalkit RunRAGDiversity,
+# `pixkb eval rag-diversity`). Format: id<TAB>question<TAB>min-distinct-types.
+# UNLIKE every other case file in this plan, these questions were NOT
+# live-verified during authoring — rag.Ask spends a real subscription-agent
+# turn per case (same cost as eval/run-rag-judge.sh), so verification is
+# deferred to this task's own Step 5 (run once, on purpose, and record the
+# actual numbers here as a comment or in the task report). min-types is a
+# starting expectation, not a proven baseline — adjust after the first run
+# if the actual diversity differs, and say so in the task report rather than
+# silently editing the number to make it pass.
+diversity-devolucao-fluxo	quais os passos e regras para tratar a devolução de um Pix, desde a chamada de API até a mensagem interbancária envolvida?	2
+diversity-cobranca-fluxo	como funciona o ciclo de uma cobrança com vencimento, da criação via API até a liquidação no SPI?	2

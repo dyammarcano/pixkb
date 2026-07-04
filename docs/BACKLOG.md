@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:039 -->
+<!-- rev:040 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -16,6 +16,39 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   it is prompt-level only). Gate any change on `eval/run-rag-judge.sh`.
 
 ## P2
+- **Search evaluation expansion follow-ups (Feature 6 of
+  `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
+  `internal/evalkit` (case loaders + pure metrics) and `pixkb eval
+  {multi,similar,ood,explain,asof,rag-diversity}` ship deterministic,
+  in-process measurement gates over Features 1-5's retrieval entry points
+  (`query.MultiHybrid`, `similar.Similar`, `query.Hybrid`,
+  `query.HybridExplain`, `rag.Ask`) — no new ranking math, no CI-failing exit
+  codes, per this feature's own plan. Remaining, explicitly out of scope for
+  that plan:
+  - **`eval multi`'s known partial-coverage case** (refund+webhook query,
+    1/2 today per `eval/cases-multi-ids.tsv`'s documented baseline) —
+    fusion-weighting work to improve cross-subquery coverage without
+    regressing precise top@5, deferred per ADR 0002's re-tuning caution.
+  - **`eval rag-diversity`'s two cases still need their first live run's
+    actual numbers recorded.** The plan's own Step 5 defers verification to
+    task execution (a real subscription-agent turn per case); at
+    implementation time the configured `PIXKB_DSN` host was unreachable from
+    the execution sandbox, so the live run could not be completed here
+    either — someone with DB + agent-provider access needs to run `pixkb
+    eval rag-diversity` once, record the actual `types=[...]` output for
+    `diversity-devolucao-fluxo` and `diversity-cobranca-fluxo`, and note in
+    this backlog item whether either case comes in below its `min-types=2`
+    starting expectation. If a case never reaches its min-types across a few
+    runs, revisit the question wording or lower the bar explicitly — never
+    silently.
+  - Feature 7 (Domain-Aware Query Understanding) and Feature 8 (Search
+    Quality Operations) remain unimplemented from
+    `docs/SEARCH-CAPABILITY-SPEC.md` — each needs its own scoped plan.
+  - **`pixkb eval`'s six subcommands report numbers but never fail the
+    process** (`os.Exit(1)` on a bad number) — intentional per the plan's
+    Global Constraints (these are measurement tools, like `eval/tophit.sh`,
+    not CI gates), but a future CI-gating use case would need a
+    `--fail-under`-style flag; not built here.
 - **Concept similarity search follow-ups (Feature 2 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
   `internal/similar`'s `Similar()` (semantic/graph/hybrid/more-like-this modes)

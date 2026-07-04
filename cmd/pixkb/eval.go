@@ -3,10 +3,14 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/evalkit"
+	"pixkb/internal/rag"
+	"pixkb/pkg/agents"
+	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
 )
 
 // newEvalCmd is the deterministic-retrieval-gate surface Feature 6 of
@@ -20,7 +24,7 @@ func newEvalCmd() *cobra.Command {
 		Use:   "eval",
 		Short: "Deterministic retrieval evaluation gates (Feature 6 of docs/SEARCH-CAPABILITY-SPEC.md)",
 	}
-	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd(), newEvalOODCmd(), newEvalExplainCmd(), newEvalAsOfCmd())
+	root.AddCommand(newEvalMultiCmd(), newEvalSimilarCmd(), newEvalOODCmd(), newEvalExplainCmd(), newEvalAsOfCmd(), newEvalRAGDiversityCmd())
 	return root
 }
 
@@ -251,6 +255,70 @@ func newEvalExplainCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
 	cmd.Flags().StringVar(&file, "file", "eval/cases-precise-ids.tsv", "queries to check (only the query column is used)")
+	return cmd
+}
+
+func newEvalRAGDiversityCmd() *cobra.Command {
+	var dsn, provider, file string
+	cmd := &cobra.Command{
+		Use:   "rag-diversity",
+		Short: "Distinct concept-type coverage of RAG citations (rag.Ask)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cfg := loadConfig()
+			if dsn != "" {
+				cfg.DSN = dsn
+			}
+			ctx := cmd.Context()
+			st, err := openStore(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+			emb, err := newEmbedder(cfg)
+			if err != nil {
+				return err
+			}
+			dir, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			ag, err := agents.NewAgency(provider, dir)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = ag.Close() }()
+
+			cases, err := evalkit.LoadRAGDiversityCases(file)
+			if err != nil {
+				return err
+			}
+			results, err := evalkit.RunRAGDiversity(ctx,
+				rag.HybridRetriever{Store: st, Emb: emb},
+				rag.BundleSource{Dir: cfg.BundleDir},
+				rag.AgentGenerator{Agency: ag},
+				cases,
+			)
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			below := 0
+			for _, r := range results {
+				status := "ok"
+				if len(r.Types) < r.MinTypes {
+					status = "BELOW MIN"
+					below++
+				}
+				fmt.Fprintf(out, "%-9s  %-40.40s  types=%v (want>=%d)\n", status, r.ID, r.Types, r.MinTypes)
+			}
+			fmt.Fprintln(out, "----")
+			fmt.Fprintf(out, "cases=%d  below-min=%d\n", len(results), below)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&provider, "provider", "claude", "answerer backend: claude|codex|agy")
+	cmd.Flags().StringVar(&file, "file", "eval/cases-rag-diversity.tsv", "RAG diversity case file (id<TAB>question<TAB>min-types)")
 	return cmd
 }
 

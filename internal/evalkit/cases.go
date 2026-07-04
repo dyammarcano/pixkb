@@ -145,3 +145,47 @@ func ForbiddenIDs(caseSets ...[]PairCase) map[string]bool {
 	}
 	return out
 }
+
+// RAGDiversityCase is one RAG grounding-diversity case: a question and the
+// minimum number of DISTINCT concept types its citations should span.
+type RAGDiversityCase struct {
+	ID       string
+	Question string
+	MinTypes int
+}
+
+// LoadRAGDiversityCases parses "id<TAB>question<TAB>min-types" TSV, mirroring
+// eval/cases-rag.tsv's id-prefixed convention (comments/blanks skipped).
+func LoadRAGDiversityCases(path string) ([]RAGDiversityCase, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer f.Close()
+
+	var out []RAGDiversityCase
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimRight(sc.Text(), "\r\n")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		id, question, minField := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), strings.TrimSpace(parts[2])
+		if id == "" || question == "" || minField == "" {
+			continue
+		}
+		var minTypes int
+		if _, err := fmt.Sscanf(minField, "%d", &minTypes); err != nil {
+			return nil, fmt.Errorf("%s: bad min-types %q on case %q: %w", path, minField, id, err)
+		}
+		out = append(out, RAGDiversityCase{ID: id, Question: question, MinTypes: minTypes})
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("scan %s: %w", path, err)
+	}
+	return out, nil
+}
