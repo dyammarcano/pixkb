@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -116,6 +117,20 @@ func TestGlobalConfigPath_UsesConfigDirOverride(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PIXKB_CONFIG_DIR", dir)
 	assert.Equal(t, filepath.Join(dir, "config.yaml"), globalConfigPath())
+}
+
+// TestUserConfigDir_WindowsUsesLocalAppDataNotRoaming confirms the Windows
+// path uses %LocalAppData% (a per-machine dir), not os.UserConfigDir()'s own
+// answer on Windows (%AppData%, which roams with the user profile) — a real
+// bug caught during manual verification: os.UserConfigDir() resolves to
+// AppData\Roaming on Windows, not AppData\Local.
+func TestUserConfigDir_WindowsUsesLocalAppDataNotRoaming(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows-specific: verifies %LocalAppData% is used, not os.UserConfigDir()'s %AppData%")
+	}
+	want := `C:\fake\local\appdata`
+	t.Setenv("LocalAppData", want)
+	assert.Equal(t, want, userConfigDir())
 }
 
 // TestLoadConfig_GlobalConfigAppliesWhenNoLocalFile confirms the global config

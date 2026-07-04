@@ -70,6 +70,7 @@ func TestISPBLookup_InvalidCode(t *testing.T) {
 
 func TestISPBLookup_NoDSN(t *testing.T) {
 	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	root := NewRootCmd()
 	var out bytes.Buffer

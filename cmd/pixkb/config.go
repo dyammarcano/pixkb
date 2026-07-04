@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -48,19 +49,37 @@ func envOr(key, def string) string {
 // globalConfigPath returns the per-user config file path: PIXKB_CONFIG_DIR's
 // config.yaml if that env var is set (a power-user override, and how tests
 // isolate themselves from whatever global config exists on the machine
-// running them), else <os.UserConfigDir()>/PixKB/config.yaml — which resolves
-// to %LocalAppData%\PixKB\config.yaml on Windows, ~/.config/PixKB/config.yaml
-// on Linux, and ~/Library/Application Support/PixKB/config.yaml on macOS.
-// Returns "" if neither resolves (os.UserConfigDir can fail on some systems).
+// running them), else <userConfigDir()>/PixKB/config.yaml — which resolves to
+// %LocalAppData%\PixKB\config.yaml on Windows, ~/.config/PixKB/config.yaml on
+// Linux, and ~/Library/Application Support/PixKB/config.yaml on macOS. Returns
+// "" if neither resolves.
 func globalConfigPath() string {
 	if dir := os.Getenv("PIXKB_CONFIG_DIR"); dir != "" {
 		return filepath.Join(dir, "config.yaml")
+	}
+	dir := userConfigDir()
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "PixKB", "config.yaml")
+}
+
+// userConfigDir returns the OS-appropriate per-user config directory. On
+// Windows this is %LocalAppData% — deliberately NOT os.UserConfigDir()'s own
+// answer there, which is %AppData% (Roaming): this project's convention (and
+// the layout of comparable native Windows apps) is a per-machine, Local
+// config directory, not one that roams with the user's profile. Elsewhere,
+// os.UserConfigDir() is already correct (~/.config on Linux, ~/Library/
+// Application Support on macOS) and is used as-is.
+func userConfigDir() string {
+	if runtime.GOOS == "windows" {
+		return os.Getenv("LocalAppData")
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(dir, "PixKB", "config.yaml")
+	return dir
 }
 
 // applyConfigFile reads the YAML file at path, if it exists, and merges its

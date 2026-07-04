@@ -127,6 +127,7 @@ func TestDoctorCmdWiring(t *testing.T) {
 func TestDoctorCmd_FailsWithoutDSN(t *testing.T) {
 	// With no DSN configured, doctor's "dsn configured" check fails, so RunE
 	// must return an error. This is fully offline (no live DB required).
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	t.Setenv("PIXKB_BUNDLE", filepath.Join(t.TempDir(), "kb"))
 
