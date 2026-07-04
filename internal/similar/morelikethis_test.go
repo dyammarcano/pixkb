@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +87,16 @@ func TestMoreLikeThis_ReadConceptErrorPropagates(t *testing.T) {
 	s := &queryAwareStore{}
 	_, err := MoreLikeThis(context.Background(), s, embed.NewHashing(8), t.TempDir(), "does-not-exist.md", postgres.Filter{})
 	require.Error(t, err)
+}
+
+func TestTruncate_DoesNotSplitMultiByteRune(t *testing.T) {
+	t.Parallel()
+	// Construct a body where naive byte-500 truncation would land mid-rune:
+	// one ASCII byte, then enough 2-byte "ç" runes to push the boundary
+	// into the middle of one. With 1 ASCII byte + 250 "ç" runes = 1 + 500 bytes = 501.
+	// The truncate at 500 bytes would cut right in the middle of the 250th "ç".
+	body := "x" + strings.Repeat("ç", 250)
+	got := truncate(body, mltBodyChars)
+	assert.True(t, utf8.ValidString(got), "truncated body must be valid UTF-8, got %q", got)
+	assert.LessOrEqual(t, len(got), mltBodyChars)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"pixkb/internal/embed"
 	"pixkb/internal/okf"
@@ -60,12 +61,16 @@ func MoreLikeThis(ctx context.Context, s Store, emb embed.Embedder, bundleDir, i
 	return out, nil
 }
 
-// truncate returns body's first n bytes, or the whole string if shorter.
+// truncate returns body's first n bytes trimmed back to a valid UTF-8 rune
+// boundary (never splits a multi-byte character mid-sequence — this corpus
+// is Portuguese-heavy with common accented characters, and a split rune
+// here would feed invalid UTF-8 straight into query.Hybrid's FTS query
+// parameter, which Postgres rejects outright).
 func truncate(body string, n int) string {
 	if len(body) <= n {
 		return body
 	}
-	return body[:n]
+	return strings.ToValidUTF8(body[:n], "")
 }
 
 // whyFromArm maps query.Hybrid's Arm field ("fts"/"vector"/"both"/"") onto
