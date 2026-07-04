@@ -10,10 +10,14 @@ const maxSubqueries = 5
 // canonical subquery that steers retrieval toward that domain entity's
 // concepts. Stems (not whole words) so common inflections match ("estornar",
 // "estornado", "estorno" all start with "estorn"). Order is fixed so
-// expansion is reproducible and reviewable. This list mirrors the exact
-// entity examples named in Feature 1's spec text (Pix refund, webhook, DICT
-// key, API endpoint, pacs/camt message, certificate, QR code, settlement) —
-// it is intentionally small and separate from the larger, versioned
+// expansion is reproducible and reviewable. This list covers a subset of
+// Feature 1's named example entities (Pix refund, webhook, DICT key, API
+// endpoint, certificate, QR code); pacs/camt-message and settlement entities
+// are no longer separately triggered (both measured to only fire on already-
+// precise queries containing that literal jargon, providing no fuzzy-recall
+// benefit while diluting precise ranking via concept ambiguity). The base
+// Hybrid search handles these correctly via direct lexical/semantic match.
+// This list is intentionally small and separate from the larger, versioned
 // vocabulary Feature 7 ("Domain-Aware Query Understanding") will add later;
 // that feature should supersede/extend this table, not duplicate it.
 var entityTriggers = []struct {
@@ -24,10 +28,9 @@ var entityTriggers = []struct {
 	{[]string{"webhook", "notific", "avis"}, "webhook notificação pix"},
 	{[]string{"chave", "dict", "evp"}, "chave DICT pix"},
 	{[]string{"endpoint", "api"}, "endpoint API"},
-	{[]string{"pacs", "camt"}, "mensagem ISO 20022 pacs camt"},
 	{[]string{"certific", "mtls", "icp"}, "certificado mTLS ICP-Brasil"},
 	{[]string{"qr"}, "QR Code Pix BR Code"},
-	{[]string{"liquida", "settlement", "spi"}, "liquidação SPI settlement"},
+	{[]string{"liquida", "spi"}, "liquidação SPI settlement"},
 }
 
 // ExpandQuery deterministically expands q into up to maxSubqueries retrieval
