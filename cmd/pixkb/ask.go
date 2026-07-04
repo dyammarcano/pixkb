@@ -23,7 +23,7 @@ import (
 func newAskCmd() *cobra.Command {
 	var dsn, provider, typ string
 	var topK, expandSeeds int
-	var expand, asJSON, multi, diversify bool
+	var expand, asJSON, multi, diversify, noPIIFilter bool
 	var minScore float64
 	cmd := &cobra.Command{
 		Use:   "ask <question>",
@@ -66,6 +66,7 @@ func newAskCmd() *cobra.Command {
 					Diversify:     diversify,
 					ExpandSeeds:   expandSeeds,
 					MinScore:      minScore,
+					NoPIIFilter:   noPIIFilter,
 				},
 			)
 			if err != nil {
@@ -84,6 +85,7 @@ func newAskCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&diversify, "diversify", false, "prefer one concept per type before filling remaining grounding slots by rank")
 	cmd.Flags().IntVar(&expandSeeds, "expand-seeds", 0, "graph-neighbour seed hits to expand when --expand is set (0 = default 1)")
 	cmd.Flags().Float64Var(&minScore, "min-score", 0, "refuse when the top retrieved hit's score is below this (0 = disabled)")
+	cmd.Flags().BoolVar(&noPIIFilter, "no-pii-filter", false, "disable the deterministic PII/LGPD redaction post-filter (debugging only — do not use for output shown to end users)")
 	return cmd
 }
 

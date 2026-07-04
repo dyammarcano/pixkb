@@ -19,6 +19,7 @@ type askIn struct {
 	Diversify   bool    `json:"diversify,omitempty" jsonschema:"prefer one concept per type before filling remaining grounding slots by rank"`
 	ExpandSeeds int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
 	MinScore    float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
+	NoPIIFilter bool    `json:"no_pii_filter,omitempty" jsonschema:"disable the deterministic PII/LGPD redaction post-filter (debugging only)"`
 }
 
 type askCitationOut struct {
@@ -52,6 +53,7 @@ func registerAsk(s *mcp.Server, d Deps) {
 				Diversify:     in.Diversify,
 				ExpandSeeds:   in.ExpandSeeds,
 				MinScore:      in.MinScore,
+				NoPIIFilter:   in.NoPIIFilter,
 			},
 		)
 		if err != nil {

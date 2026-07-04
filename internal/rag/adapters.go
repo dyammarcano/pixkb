@@ -90,14 +90,24 @@ func (a AgentGenerator) Generate(ctx context.Context, prompt string) (string, er
 
 // Ask is the end-to-end RAG entry point: retrieve + augment, then synthesize. It
 // returns the Grounding alongside the Answer so a surface can resolve each cited
-// concept id back to its source_uri for display.
+// concept id back to its source_uri for display. Answer.Text is redacted for
+// PII/LGPD (CPF/CNPJ/phone/email) before it is returned, unless
+// Options.NoPIIFilter is set — a code-enforced backstop behind the answerer's
+// prompt-level instruction to avoid personal data, since a prompt instruction is
+// not a guarantee.
 func Ask(ctx context.Context, r Retriever, cs ConceptSource, gen Generator, q string, opts Options) (Answer, Grounding, error) {
 	g, err := BuildGrounding(ctx, r, cs, q, opts)
 	if err != nil {
 		return Answer{}, Grounding{}, err
 	}
 	a, err := Synthesize(ctx, gen, g)
-	return a, g, err
+	if err != nil {
+		return Answer{}, g, err
+	}
+	if !opts.NoPIIFilter {
+		a.Text = RedactPII(a.Text)
+	}
+	return a, g, nil
 }
 
 // SourceFor returns the source_uri of a cited concept id from the grounding, or

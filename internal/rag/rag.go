@@ -77,6 +77,7 @@ type Options struct {
 	Diversify     bool    // prefer the first hit of each concept Type before filling remaining slots by rank
 	ExpandSeeds   int     // how many top hits' graph neighbours to pull when ExpandRelated (default 1, preserves the pre-upgrade single-seed behavior)
 	MinScore      float64 // refuse (empty Grounding, no agent turn spent) when the top hit's score is below this (0 = disabled)
+	NoPIIFilter   bool    // skip the deterministic PII/LGPD redaction pass over Answer.Text (default false = filter ON; debugging escape hatch only)
 }
 
 const (
