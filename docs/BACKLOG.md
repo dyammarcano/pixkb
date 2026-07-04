@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:037 -->
+<!-- rev:038 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -88,6 +88,18 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   - **An HTTP `/explain` endpoint / `explain=true` query param for `pixkb
     serve`** — not touched by this plan; only the CLI and MCP surfaces got
     `--explain`/`explain: true`.
+- **Rich search filters/formats follow-ups (Feature 4 of
+  `docs/SEARCH-CAPABILITY-SPEC.md`, as-of subset shipped; these are deliberately
+  deferred).** `internal/output` (text/json/md/yaml rendering) plus
+  `AsOfEpoch`/`AsOfTime` shipped via `pixkb search --format`/`--as-of-epoch`/
+  `--as-of-time` and the MCP `search` tool's `as_of_epoch`/`as_of_time` fields.
+  Remaining, explicitly out of scope for that plan:
+  - **Include/exclude concept-id and concept-type list filters, and a
+    minimum-vector-score filter.** None of these exist on `postgres.Filter`
+    today; adding them needs new SQL predicates in `FTS`/`Vector`/`Hybrid`/
+    `MultiHybrid` — a bigger unit of work deliberately deferred here.
+  - **An HTTP `/search` format query param for `pixkb serve`** — this plan
+    only touched the CLI (`--format`) and MCP surfaces, not `pixkb serve`.
 - **KB standardized in English — translate agent-written content + ingested
   sources.** The KB is currently mostly Portuguese (BACEN source material is
   PT-native: PDFs, scout-crawled bcb.gov.br pages, markdown references, git

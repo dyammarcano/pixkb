@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -80,11 +81,13 @@ type hitOut struct {
 }
 
 type searchIn struct {
-	Query   string `json:"query" jsonschema:"natural-language or lexical query"`
-	Type    string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
-	Limit   int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
-	Mode    string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
-	Explain bool   `json:"explain,omitempty" jsonschema:"include per-hit ranking explanation (FTS/vector rank, scores, boosts, arm) — only supported with the default hybrid mode; ignored (best-effort) otherwise"`
+	Query     string `json:"query" jsonschema:"natural-language or lexical query"`
+	Type      string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
+	Mode      string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
+	Explain   bool   `json:"explain,omitempty" jsonschema:"include per-hit ranking explanation (FTS/vector rank, scores, boosts, arm) — only supported with the default hybrid mode; ignored (best-effort) otherwise"`
+	AsOfEpoch *int   `json:"as_of_epoch,omitempty" jsonschema:"restrict results to the state as of this epoch (mutually exclusive with as_of_time)"`
+	AsOfTime  string `json:"as_of_time,omitempty" jsonschema:"RFC3339 timestamp: restrict results to the state as of this instant (mutually exclusive with as_of_epoch)"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`
@@ -100,6 +103,19 @@ func registerSearch(s *mcp.Server, d Deps) {
 			limit = 10
 		}
 		f := postgres.Filter{Type: in.Type, Limit: limit}
+		if in.AsOfEpoch != nil && in.AsOfTime != "" {
+			return nil, searchOut{}, fmt.Errorf("set only one of as_of_epoch or as_of_time")
+		}
+		if in.AsOfEpoch != nil {
+			f.AsOfEpoch = in.AsOfEpoch
+		}
+		if in.AsOfTime != "" {
+			t, err := time.Parse(time.RFC3339, in.AsOfTime)
+			if err != nil {
+				return nil, searchOut{}, fmt.Errorf("bad as_of_time %q: %w", in.AsOfTime, err)
+			}
+			f.AsOfTime = &t
+		}
 		var hits []postgres.Hit
 		var explains []query.Explain
 		var err error
