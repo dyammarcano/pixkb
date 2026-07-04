@@ -84,3 +84,56 @@ func TestExpandQuery_NoDuplicateSubqueries(t *testing.T) {
 		seen[key] = true
 	}
 }
+
+func TestExpandQuery_MatchesTxidEntity(t *testing.T) {
+	t.Parallel()
+	out := ExpandQuery("buscar pagamento pelo identificador da transação txid")
+	found := false
+	for _, sq := range out {
+		if sq == "consultar cobrança por txid" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the txid entity subquery, got %v", out)
+	}
+}
+
+func TestExpandQuery_MatchesE2eidEntity(t *testing.T) {
+	t.Parallel()
+	out := ExpandQuery("consultar pix pelo e2eid")
+	found := false
+	for _, sq := range out {
+		if sq == "pix e2eid endToEndId identificador fim a fim" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected the e2eid entity subquery, got %v", out)
+	}
+}
+
+func TestExpandQuery_DisabledEntriesNeverMatch(t *testing.T) {
+	t.Parallel()
+	// pacs.008's disabled entry's own stem ("pacs") must never fire, even
+	// though the query obviously mentions it.
+	out := ExpandQuery("mensagem pacs.008 ordem de crédito")
+	for _, sq := range out {
+		if sq == "pacs.008 customer credit transfer ordem de crédito" {
+			t.Fatalf("disabled vocabulary entry must never be matched, got %v", out)
+		}
+	}
+}
+
+func TestExpandQuery_DisableEnvVarSkipsVocabulary(t *testing.T) {
+	t.Setenv("PIXKB_DISABLE_DOMAIN_VOCAB", "1")
+	out := ExpandQuery("como estornar um pix que recebi por engano")
+	if len(out) > 2 {
+		t.Fatalf("PIXKB_DISABLE_DOMAIN_VOCAB must suppress all vocabulary subqueries, got %v", out)
+	}
+	for _, sq := range out {
+		if sq == "devolução pix refund" {
+			t.Fatalf("PIXKB_DISABLE_DOMAIN_VOCAB must suppress the refund entity subquery, got %v", out)
+		}
+	}
+}

@@ -1,46 +1,30 @@
 package query
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // maxSubqueries bounds ExpandQuery's output. Spec: "Default expansion count
 // should be small, preferably 3 to 5 queries."
 const maxSubqueries = 5
 
-// entityTriggers maps a fixed, ordered set of Portuguese word-stems to a
-// canonical subquery that steers retrieval toward that domain entity's
-// concepts. Stems (not whole words) so common inflections match ("estornar",
-// "estornado", "estorno" all start with "estorn"). Order is fixed so
-// expansion is reproducible and reviewable. This list covers a subset of
-// Feature 1's named example entities (Pix refund, webhook, DICT key, API
-// endpoint, certificate, QR code); pacs/camt-message and settlement entities
-// are no longer separately triggered (both measured to only fire on already-
-// precise queries containing that literal jargon, providing no fuzzy-recall
-// benefit while diluting precise ranking via concept ambiguity). The base
-// Hybrid search handles these correctly via direct lexical/semantic match.
-// This list is intentionally small and separate from the larger, versioned
-// vocabulary Feature 7 ("Domain-Aware Query Understanding") will add later;
-// that feature should supersede/extend this table, not duplicate it.
-var entityTriggers = []struct {
-	stems    []string
-	subquery string
-}{
-	{[]string{"estorn", "devolu", "refund"}, "devolução pix refund"},
-	{[]string{"webhook", "notific", "avis"}, "webhook notificação pix"},
-	{[]string{"chave", "dict", "evp"}, "chave DICT pix"},
-	{[]string{"endpoint", "api"}, "endpoint API"},
-	{[]string{"certific", "mtls", "icp"}, "certificado mTLS ICP-Brasil"},
-	{[]string{"qr"}, "QR Code Pix BR Code"},
-	{[]string{"liquida", "spi"}, "liquidação SPI settlement"},
-}
-
 // ExpandQuery deterministically expands q into up to maxSubqueries retrieval
 // queries: the original query verbatim, a concise domain-term rewrite
 // (diacritics folded, stopwords stripped, via the same foldTokens used for
 // title-boost matching), and one subquery per recognized domain entity the
-// query mentions. Duplicate subqueries (case-insensitive) are dropped. The
-// original query is always present and always first, so MultiHybrid always
-// has at least the equivalent of a plain single-query hybrid search to fall
-// back on.
+// query mentions. Domain-entity subqueries come from the versioned,
+// auditable table in domain_vocabulary.yaml (Feature 7 of
+// docs/SEARCH-CAPABILITY-SPEC.md — see vocab.go); only `enabled: true`
+// entries are matched. Duplicate subqueries (case-insensitive) are dropped.
+// The original query is always present and always first, so MultiHybrid
+// always has at least the equivalent of a plain single-query hybrid search
+// to fall back on. Setting PIXKB_DISABLE_DOMAIN_VOCAB (any non-empty value)
+// skips the vocabulary step entirely — the debugging disable switch the
+// spec's Feature 7 acceptance criteria ask for ("Users can inspect or
+// disable domain expansion when debugging"; see also `pixkb vocab list` for
+// inspection). The vocabulary never touches postgres.Filter, so it cannot
+// override a user's own filters.
 func ExpandQuery(q string) []string {
 	out := []string{q}
 	seen := map[string]bool{strings.ToLower(strings.TrimSpace(q)): true}
@@ -64,10 +48,13 @@ func ExpandQuery(q string) []string {
 	if add(strings.Join(tokens, " ")) {
 		return out
 	}
-	for _, trig := range entityTriggers {
+	if os.Getenv("PIXKB_DISABLE_DOMAIN_VOCAB") != "" {
+		return out
+	}
+	for _, entry := range activeVocabulary(Vocabulary()) {
 		matched := false
 		for token := range tokenSet {
-			for _, stem := range trig.stems {
+			for _, stem := range entry.Stems {
 				if strings.HasPrefix(token, stem) {
 					matched = true
 					break
@@ -77,7 +64,7 @@ func ExpandQuery(q string) []string {
 				break
 			}
 		}
-		if matched && add(trig.subquery) {
+		if matched && add(entry.Subquery) {
 			return out
 		}
 	}
