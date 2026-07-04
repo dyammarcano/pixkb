@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -114,6 +116,7 @@ func newIngestCmd() *cobra.Command {
 func newSearchCmd() *cobra.Command {
 	var dsn, mode, typ, tag string
 	var limit int
+	var explain bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search the KB (hybrid FTS+vector by default; --mode fts|vector)",
@@ -136,6 +139,18 @@ func newSearchCmd() *cobra.Command {
 
 			q := strings.Join(args, " ")
 			f := postgres.Filter{Type: typ, Tag: tag, Limit: limit}
+
+			if explain {
+				if mode != "" && mode != "hybrid" {
+					return fmt.Errorf("--explain is only supported with --mode hybrid (or the default)")
+				}
+				hits, explains, err := query.HybridExplain(ctx, st, emb, q, f)
+				if err != nil {
+					return err
+				}
+				return printExplain(cmd.OutOrStdout(), hits, explains)
+			}
+
 			var hits []postgres.Hit
 			switch mode {
 			case "fts":
@@ -167,7 +182,30 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&typ, "type", "", "filter by concept type")
 	cmd.Flags().StringVar(&tag, "tag", "", "filter by tag")
 	cmd.Flags().IntVar(&limit, "limit", 20, "max results")
+	cmd.Flags().BoolVar(&explain, "explain", false, "print per-hit ranking breakdown as JSON (hybrid mode only)")
 	return cmd
+}
+
+// explainHit combines a hit's identity (id/title/rank) with the full per-hit
+// ranking breakdown from query.HybridExplain, for --explain JSON output.
+type explainHit struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Rank  int    `json:"rank"`
+	query.Explain
+}
+
+// printExplain writes hits and their parallel Explain breakdowns as an
+// indented JSON array to w. hits and explains must be the same length and
+// index-aligned, which query.HybridExplain guarantees.
+func printExplain(w io.Writer, hits []postgres.Hit, explains []query.Explain) error {
+	out := make([]explainHit, len(hits))
+	for i, h := range hits {
+		out[i] = explainHit{ID: h.ID, Title: h.Title, Rank: h.Rank, Explain: explains[i]}
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
 }
 
 func newRelatedCmd() *cobra.Command {
