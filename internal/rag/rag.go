@@ -55,6 +55,7 @@ type ConceptSource interface {
 type Chunk struct {
 	ID        string
 	Title     string
+	Type      string
 	SourceURI string
 	Body      string
 }
@@ -209,7 +210,7 @@ func BuildGrounding(ctx context.Context, r Retriever, cs ConceptSource, q string
 		if len(g.Chunks) > 0 && used+len(body) > budget {
 			break
 		}
-		g.Chunks = append(g.Chunks, Chunk{ID: id, Title: c.Title, SourceURI: c.SourceURI, Body: body})
+		g.Chunks = append(g.Chunks, Chunk{ID: id, Title: c.Title, Type: c.Type, SourceURI: c.SourceURI, Body: body})
 		used += len(body)
 	}
 	return g, nil
