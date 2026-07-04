@@ -177,7 +177,7 @@ func ParsePix(data []byte, cfg PixConfig, syncedAt time.Time) ([]PixRecord, erro
 		}
 		cnpj := ""
 		if colCNPJ >= 0 && colCNPJ < len(row) {
-			cnpj = strings.TrimSpace(row[colCNPJ])
+			cnpj = digitsOnly(row[colCNPJ])
 		}
 		authorized := true
 		if colAuth >= 0 && colAuth < len(row) {
@@ -197,4 +197,19 @@ func pixColumn(header []string, name string) int {
 		}
 	}
 	return -1
+}
+
+// digitsOnly strips everything but ASCII digits from s. BACEN's live Pix CSV
+// formats CNPJ with punctuation (e.g. "24.313.102/0001-25", 18 chars); a CNPJ
+// is inherently a 14-digit number, so the digits-only form is the correct
+// normalized representation, not a lossy one, and fits the schema's
+// cnpj VARCHAR(14) column.
+func digitsOnly(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

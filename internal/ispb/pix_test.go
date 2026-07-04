@@ -47,6 +47,22 @@ func TestParsePix_NoDataRows(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestParsePix_NormalizesFormattedCNPJ covers BACEN's real live Pix CSV,
+// which formats CNPJ with punctuation (e.g. "24.313.102/0001-25", 18 chars) —
+// discovered when a real sync failed against the `cnpj VARCHAR(14)` column.
+// The digits-only form is always exactly 14 characters (CNPJ's actual data
+// type), so normalizing at parse time is correct, not lossy.
+func TestParsePix_NormalizesFormattedCNPJ(t *testing.T) {
+	fixture := []byte("Lista de participantes ativos do Pix\n" +
+		" ;Nome Reduzido;ISPB;CNPJ;Tipo de Instituição;Autorizada pelo BCB\n" +
+		"1;99PAY IP S.A.;24313102;24.313.102/0001-25;Instituição de Pagamento;Sim\n")
+
+	records, err := ParsePix(fixture, DefaultPixConfig(), time.Now())
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Equal(t, "24313102000125", records[0].CNPJ, "punctuation stripped, 14 digits")
+}
+
 func TestDownloadPix_ProbesDatesBackward(t *testing.T) {
 	today := time.Now()
 	validDate := today.AddDate(0, 0, -2).Format("20060102")
