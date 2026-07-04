@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/ingest"
+	"pixkb/internal/output"
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
@@ -114,8 +116,8 @@ func newIngestCmd() *cobra.Command {
 }
 
 func newSearchCmd() *cobra.Command {
-	var dsn, mode, typ, tag string
-	var limit int
+	var dsn, mode, typ, tag, format, asOfTime string
+	var limit, asOfEpoch int
 	var explain bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -139,6 +141,20 @@ func newSearchCmd() *cobra.Command {
 
 			q := strings.Join(args, " ")
 			f := postgres.Filter{Type: typ, Tag: tag, Limit: limit}
+
+			if asOfEpoch != 0 && asOfTime != "" {
+				return fmt.Errorf("set only one of --as-of-epoch or --as-of-time")
+			}
+			if asOfEpoch != 0 {
+				f.AsOfEpoch = &asOfEpoch
+			}
+			if asOfTime != "" {
+				t, err := time.Parse(time.RFC3339, asOfTime)
+				if err != nil {
+					return fmt.Errorf("bad --as-of-time %q: %w", asOfTime, err)
+				}
+				f.AsOfTime = &t
+			}
 
 			if explain {
 				if mode == "multi" {
@@ -178,9 +194,11 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, h := range hits {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%2d  %-34s  %s\n", h.Rank, h.ID, h.Title)
+			rendered, err := output.Render(format, hits)
+			if err != nil {
+				return err
 			}
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), rendered)
 			return nil
 		},
 	}
@@ -190,6 +208,9 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&tag, "tag", "", "filter by tag")
 	cmd.Flags().IntVar(&limit, "limit", 20, "max results")
 	cmd.Flags().BoolVar(&explain, "explain", false, "print per-hit ranking breakdown as JSON (hybrid mode) or subquery attribution (multi mode)")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text|json|md|yaml")
+	cmd.Flags().IntVar(&asOfEpoch, "as-of-epoch", 0, "time-travel: return the state as of this epoch (0 = unset)")
+	cmd.Flags().StringVar(&asOfTime, "as-of-time", "", "time-travel: return the state as of this RFC3339 timestamp (empty = unset)")
 	return cmd
 }
 
