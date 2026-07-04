@@ -21,24 +21,24 @@ import (
 // EMV field ids used by Pix. Only the ones the Pix spec defines are modelled;
 // the codec preserves any other ids it parses so a round-trip is lossless.
 const (
-	idPayloadFormat   = "00" // "01"
-	idInitiationPoint = "01" // "11" static (reusable) | "12" dynamic (one-time)
-	idMerchantAccount = "26" // nested: Pix GUI + key/url
+	idPayloadFormat    = "00" // "01"
+	idInitiationPoint  = "01" // "11" static (reusable) | "12" dynamic (one-time)
+	idMerchantAccount  = "26" // nested: Pix GUI + key/url
 	idMerchantCategory = "52" // MCC, "0000" when none
-	idCurrency        = "53" // "986" = BRL (ISO 4217)
-	idAmount          = "54" // decimal string, omitted when payer sets the value
-	idCountry         = "58" // "BR"
-	idMerchantName    = "59" // max 25 chars
-	idMerchantCity    = "60" // max 15 chars
-	idAdditionalData  = "62" // nested: txid (reference label)
-	idCRC             = "63" // CRC16 over the payload incl. "6304"
+	idCurrency         = "53" // "986" = BRL (ISO 4217)
+	idAmount           = "54" // decimal string, omitted when payer sets the value
+	idCountry          = "58" // "BR"
+	idMerchantName     = "59" // max 25 chars
+	idMerchantCity     = "60" // max 15 chars
+	idAdditionalData   = "62" // nested: txid (reference label)
+	idCRC              = "63" // CRC16 over the payload incl. "6304"
 
 	// nested ids under 26 (merchant account information)
-	idGUI         = "00" // "br.gov.bcb.pix"
-	idPixKey      = "01" // the Pix key (static)
-	idPixURL      = "25" // the payload-location URL (dynamic)
-	idPixDescr    = "02" // optional free description (static)
-	pixGUI        = "br.gov.bcb.pix"
+	idGUI      = "00" // "br.gov.bcb.pix"
+	idPixKey   = "01" // the Pix key (static)
+	idPixURL   = "25" // the payload-location URL (dynamic)
+	idPixDescr = "02" // optional free description (static)
+	pixGUI     = "br.gov.bcb.pix"
 
 	// nested id under 62 (additional data field template)
 	idReferenceLabel = "05" // txid; "***" means "no fixed txid"
@@ -47,16 +47,24 @@ const (
 // Payload is the decoded Pix BR Code. Amount is a decimal string ("" = payer
 // chooses). Dynamic carries a payload-location URL instead of a bare key.
 type Payload struct {
-	Key          string `json:"key,omitempty"`          // static: the Pix key
-	URL          string `json:"url,omitempty"`          // dynamic: payload-location URL
-	Description  string `json:"description,omitempty"`  // static: optional info
-	MerchantName string `json:"merchant_name"`          // field 59
-	City         string `json:"city"`                   // field 60
-	Amount       string `json:"amount,omitempty"`       // field 54, decimal string
-	TxID         string `json:"txid,omitempty"`         // field 62/05; "***" when none
-	Dynamic      bool   `json:"dynamic"`                // initiation point 12 vs 11
-	CRC          string `json:"crc,omitempty"`          // 4 hex digits (upper)
-	CRCValid     bool   `json:"crc_valid"`              // CRC recomputed == CRC field
+	Key          string `json:"key,omitempty"`         // static: the Pix key
+	URL          string `json:"url,omitempty"`         // dynamic: payload-location URL
+	Description  string `json:"description,omitempty"` // static: optional info
+	MerchantName string `json:"merchant_name"`         // field 59
+	City         string `json:"city"`                  // field 60
+	Amount       string `json:"amount,omitempty"`      // field 54, decimal string
+	TxID         string `json:"txid,omitempty"`        // field 62/05; "***" when none
+	Dynamic      bool   `json:"dynamic"`               // initiation point 12 vs 11
+	CRC          string `json:"crc,omitempty"`         // 4 hex digits (upper)
+	CRCValid     bool   `json:"crc_valid"`             // CRC recomputed == CRC field
+
+	// OmitInitiationPoint drops field 01 (the "11"/"12" initiation point) from
+	// a static code on Encode. Field 01 is optional per the EMV/Pix spec for
+	// static codes — some generators (e.g. Mercado Livre's) never emit it.
+	// Parse already tolerates its absence (defaults Dynamic=false), so this
+	// only affects Encode's output. Ignored for dynamic codes (URL set or
+	// Dynamic=true): wallets rely on "12" there to know to fetch the payload.
+	OmitInitiationPoint bool `json:"omit_initiation_point,omitempty"`
 }
 
 // tlv is one EMV field in document order (order is preserved on encode).
@@ -244,13 +252,15 @@ func (p Payload) Encode() (string, error) {
 		return "", err
 	}
 
-	fields := []tlv{
-		{idPayloadFormat, "01"},
-		{idInitiationPoint, initiation},
-		{idMerchantAccount, maStr},
-		{idMerchantCategory, "0000"},
-		{idCurrency, "986"},
+	fields := []tlv{{idPayloadFormat, "01"}}
+	if initiation == "12" || !p.OmitInitiationPoint {
+		fields = append(fields, tlv{idInitiationPoint, initiation})
 	}
+	fields = append(fields,
+		tlv{idMerchantAccount, maStr},
+		tlv{idMerchantCategory, "0000"},
+		tlv{idCurrency, "986"},
+	)
 	if p.Amount != "" {
 		fields = append(fields, tlv{idAmount, p.Amount})
 	}

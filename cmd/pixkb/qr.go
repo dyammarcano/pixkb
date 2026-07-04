@@ -122,6 +122,7 @@ func newQRWriteCmd() *cobra.Command {
 	f.StringVar(&p.Amount, "amount", "", "amount as decimal string, e.g. 10.00 (omit to let payer choose)")
 	f.StringVar(&p.TxID, "txid", "", "transaction id / reference label (default ***)")
 	f.StringVar(&p.Description, "description", "", "optional free description (static)")
+	f.BoolVar(&p.OmitInitiationPoint, "omit-initiation-point", false, "drop field 01 from a static code (some generators, e.g. Mercado Livre's, never emit it)")
 	f.StringVar(&pngPath, "png", "", "also render a scannable PNG to this path")
 	f.IntVar(&pngSize, "png-size", 512, "PNG size in pixels")
 	f.StringVar(&jsonPath, "json", "", `path to a JSON file with payload fields ("-" for stdin); fields present in the JSON override the flags above`)

@@ -49,13 +49,14 @@ func registerQRDecode(s *mcp.Server) {
 }
 
 type qrWriteIn struct {
-	Key          string `json:"key,omitempty" jsonschema:"Pix key for a static code (set key OR url)"`
-	URL          string `json:"url,omitempty" jsonschema:"payload-location URL for a dynamic code (set key OR url)"`
-	MerchantName string `json:"merchant_name" jsonschema:"merchant name, max 25 chars (required)"`
-	City         string `json:"city" jsonschema:"merchant city, max 15 chars (required)"`
-	Amount       string `json:"amount,omitempty" jsonschema:"amount as a decimal string e.g. 10.00 (omit to let the payer choose)"`
-	TxID         string `json:"txid,omitempty" jsonschema:"transaction id / reference label (default ***)"`
-	Description  string `json:"description,omitempty" jsonschema:"optional free description (static codes)"`
+	Key                 string `json:"key,omitempty" jsonschema:"Pix key for a static code (set key OR url)"`
+	URL                 string `json:"url,omitempty" jsonschema:"payload-location URL for a dynamic code (set key OR url)"`
+	MerchantName        string `json:"merchant_name" jsonschema:"merchant name, max 25 chars (required)"`
+	City                string `json:"city" jsonschema:"merchant city, max 15 chars (required)"`
+	Amount              string `json:"amount,omitempty" jsonschema:"amount as a decimal string e.g. 10.00 (omit to let the payer choose)"`
+	TxID                string `json:"txid,omitempty" jsonschema:"transaction id / reference label (default ***)"`
+	Description         string `json:"description,omitempty" jsonschema:"optional free description (static codes)"`
+	OmitInitiationPoint bool   `json:"omit_initiation_point,omitempty" jsonschema:"drop field 01 from a static code (some generators, e.g. Mercado Livre's, never emit it)"`
 }
 type qrWriteOut struct {
 	Code     string `json:"code"`
@@ -73,6 +74,7 @@ func registerQRWrite(s *mcp.Server) {
 		code, err := brcode.Payload{
 			Key: in.Key, URL: in.URL, MerchantName: in.MerchantName, City: in.City,
 			Amount: in.Amount, TxID: in.TxID, Description: in.Description,
+			OmitInitiationPoint: in.OmitInitiationPoint,
 		}.Encode()
 		if err != nil {
 			return nil, qrWriteOut{}, err

@@ -124,6 +124,62 @@ func TestEncodeValidation(t *testing.T) {
 	}
 }
 
+func TestEncodeOmitInitiationPoint_MatchesRealWorldSample(t *testing.T) {
+	// Real "Copia e Cola" issued by a Mercado Livre-style generator that never
+	// emits field 01 for static codes.
+	const want = "00020126540014br.gov.bcb.pix0132pix_marketplace@mercadolibre.com" +
+		"5204000053039865406214.575802BR5911@30448819476009Sao Paulo" +
+		"62250521mpqrinter1367527320626304A88B"
+
+	got, err := Payload{
+		Key:                 "pix_marketplace@mercadolibre.com",
+		MerchantName:        "@3044881947",
+		City:                "Sao Paulo",
+		Amount:              "214.57",
+		TxID:                "mpqrinter136752732062",
+		OmitInitiationPoint: true,
+	}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("encode mismatch:\n got: %s\nwant: %s", got, want)
+	}
+
+	out, err := Parse(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Dynamic {
+		t.Fatal("omitted field 01 must still parse as static")
+	}
+	if !out.CRCValid {
+		t.Fatal("CRC invalid")
+	}
+}
+
+func TestEncodeOmitInitiationPoint_IgnoredForDynamic(t *testing.T) {
+	// A dynamic code always needs "12" so wallets know to fetch the payload —
+	// OmitInitiationPoint must not suppress it.
+	code, err := Payload{
+		URL: "pix.example.com/qr/v2/abc", MerchantName: "ACME", City: "RECIFE",
+		OmitInitiationPoint: true,
+	}.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(code, "0102"+"12") {
+		t.Fatalf("expected initiation point 12 to survive OmitInitiationPoint for a dynamic code: %s", code)
+	}
+	out, err := Parse(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.Dynamic {
+		t.Fatal("expected dynamic")
+	}
+}
+
 func TestPayloadValidate_SameChecksAsEncode(t *testing.T) {
 	cases := []struct {
 		name string

@@ -103,6 +103,18 @@ func TestQRCmd_WriteJSONOverridesFlags(t *testing.T) {
 	assert.Contains(t, read, "k@e.com", "flag not present in JSON must survive")
 }
 
+func TestQRCmd_WriteOmitInitiationPoint(t *testing.T) {
+	out, err := runCmd(t, "qr", "write", "--key", "pix_marketplace@mercadolibre.com",
+		"--name", "@3044881947", "--city", "Sao Paulo", "--amount", "214.57",
+		"--txid", "mpqrinter136752732062", "--omit-initiation-point")
+	require.NoError(t, err)
+	code := strings.TrimSpace(strings.SplitN(out, "\n", 2)[0])
+	want := "00020126540014br.gov.bcb.pix0132pix_marketplace@mercadolibre.com" +
+		"5204000053039865406214.575802BR5911@30448819476009Sao Paulo" +
+		"62250521mpqrinter1367527320626304A88B"
+	assert.Equal(t, want, code)
+}
+
 func TestQRCmd_ValidateValidAndTampered(t *testing.T) {
 	out, err := runCmd(t, "qr", "write", "--key", "k@e.com", "--name", "ACME", "--city", "SP")
 	require.NoError(t, err)
