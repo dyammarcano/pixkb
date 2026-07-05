@@ -8,7 +8,7 @@ import (
 )
 
 // Generator runs the answerer agent over a prompt and returns its raw reply.
-// Production wires this to agents.Agency.Run("answerer", prompt); tests inject a
+// Production wires this to corral.Agency.Run("answerer", prompt); tests inject a
 // fake. The rag core never imports the agent fleet directly, so Answer is unit-
 // testable with no provider.
 type Generator interface {
