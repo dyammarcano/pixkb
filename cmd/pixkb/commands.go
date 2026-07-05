@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/ingest"
+	"pixkb/internal/okf"
 	"pixkb/internal/output"
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
@@ -176,7 +177,7 @@ func newSearchCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return printExplain(cmd.OutOrStdout(), hits, explains)
+				return printExplain(cmd.OutOrStdout(), hits, explains, q, cfg.BundleDir)
 			}
 
 			var hits []postgres.Hit
@@ -223,21 +224,33 @@ func newSearchCmd() *cobra.Command {
 }
 
 // explainHit combines a hit's identity (id/title/rank) with the full per-hit
-// ranking breakdown from query.HybridExplain, for --explain JSON output.
+// ranking breakdown from query.HybridExplain, plus the matched-token/
+// matched-field-category annotation (Feature 3's remaining 2 of 7 spec
+// fields), for --explain JSON output.
 type explainHit struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	Rank  int    `json:"rank"`
 	query.Explain
+	query.MatchedFields
 }
 
 // printExplain writes hits and their parallel Explain breakdowns as an
 // indented JSON array to w. hits and explains must be the same length and
-// index-aligned, which query.HybridExplain guarantees.
-func printExplain(w io.Writer, hits []postgres.Hit, explains []query.Explain) error {
+// index-aligned, which query.HybridExplain guarantees. q and bundleDir are
+// used only to compute the matched-token/matched-field-category annotation
+// (query.ComputeMatchedFields) — a read-only, post-ranking presentation
+// layer, never new ranking logic. A concept that fails to read from the
+// bundle (deleted/renamed since indexing) is not fatal: that hit's
+// MatchedFields is left at its zero value, matching rag.BuildGrounding's
+// "a missing concept is not fatal" convention.
+func printExplain(w io.Writer, hits []postgres.Hit, explains []query.Explain, q, bundleDir string) error {
 	out := make([]explainHit, len(hits))
 	for i, h := range hits {
 		out[i] = explainHit{ID: h.ID, Title: h.Title, Rank: h.Rank, Explain: explains[i]}
+		if c, err := okf.ReadConcept(filepath.Join(bundleDir, filepath.FromSlash(h.ID)), bundleDir); err == nil {
+			out[i].MatchedFields = query.ComputeMatchedFields(q, c.Title, c.IntentTerms, c.Body)
+		}
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

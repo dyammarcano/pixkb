@@ -69,6 +69,12 @@ type explainOut struct {
 	TitleBoost float64 `json:"title_boost"`
 	FinalScore float64 `json:"final_score"`
 	Arm        string  `json:"arm"`
+	// MatchedTokens/MatchedFieldCategories are a read-only, post-ranking
+	// annotation (query.ComputeMatchedFields) — Feature 3's remaining 2 of 7
+	// spec fields. Computed from the same canonical bundle text Postgres
+	// already indexed, never new ranking logic (ADR 0002).
+	MatchedTokens          []string `json:"matched_tokens,omitempty"`
+	MatchedFieldCategories []string `json:"matched_field_categories,omitempty"`
 }
 
 type hitOut struct {
@@ -148,11 +154,21 @@ func registerSearch(s *mcp.Server, d Deps) {
 			ho := hitOut{ID: h.ID, Title: h.Title, Type: h.Type, Score: h.Score, Rank: h.Rank}
 			if i < len(explains) {
 				e := explains[i]
-				ho.Explain = &explainOut{
+				eo := &explainOut{
 					FTSRank: e.FTSRank, VecRank: e.VecRank, VecScore: e.VecScore,
 					TypeWeight: e.TypeWeight, TitleBoost: e.TitleBoost,
 					FinalScore: e.FinalScore, Arm: e.Arm,
 				}
+				// A concept that fails to read from the bundle (deleted/renamed
+				// since indexing) is not fatal — matched-fields is left empty,
+				// matching rag.BuildGrounding's "a missing concept is not
+				// fatal" convention.
+				if c, err := okf.ReadConcept(filepath.Join(d.Bundle, filepath.FromSlash(h.ID)), d.Bundle); err == nil {
+					mf := query.ComputeMatchedFields(in.Query, c.Title, c.IntentTerms, c.Body)
+					eo.MatchedTokens = mf.Tokens
+					eo.MatchedFieldCategories = mf.Fields
+				}
+				ho.Explain = eo
 			}
 			out.Hits = append(out.Hits, ho)
 		}

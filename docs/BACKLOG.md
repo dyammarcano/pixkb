@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:056 -->
+<!-- rev:057 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -293,10 +293,21 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `explain: true`; multi-query mode's subquery attribution (`MultiHit.Subqueries`)
   is now surfaced too via `pixkb search --explain --mode multi`. Remaining,
   explicitly out of scope for that plan:
-  - **Matched-query-token highlighting and matched-field-category breakdown** —
-    2 of the spec's 7 required explain fields, not built here. Extracting them
-    needs either a Postgres `ts_headline`-style query or client-side
-    re-tokenization — a bigger unit of work than the rest of Feature 3.
+  - ~~**Matched-query-token highlighting and matched-field-category
+    breakdown** — 2 of the spec's 7 required explain fields, not built
+    here.~~ **Shipped** (`/steps:next`, 2026-07-04): `query.ComputeMatchedFields`
+    (`internal/query/matchedfields.go`) is a pure, read-only, post-ranking
+    annotation — client-side tokenization (lowercase, split on
+    non-letter/digit runes) checked as a case-insensitive substring against
+    the hit's title/intent_terms/body read from the canonical bundle, never
+    new ranking logic (ADR 0002 untouched: `query.Explain`/`hybridCore`
+    unchanged). Wired into `pixkb search --explain` (`cmd/pixkb/commands.go`)
+    and MCP `search`'s `explain: true` (`internal/kbmcp/server.go`) as
+    `matched_tokens`/`matched_field_categories`. Live-verified. Known,
+    documented limitation: simpler than Postgres's stemmed
+    `websearch_to_tsquery` matching, so a stemmed match (e.g. "cobranças"
+    matching indexed "cobrança") may not be found here — acceptable for a
+    presentation-layer explanation aid.
   - **An HTTP `/explain` endpoint / `explain=true` query param for `pixkb
     serve`** — not touched by this plan; only the CLI and MCP surfaces got
     `--explain`/`explain: true`.
