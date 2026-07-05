@@ -4,12 +4,12 @@ import (
 	"context"
 	"path/filepath"
 
+	"github.com/inovacc/corral"
 	"pixkb/internal/embed"
 	"pixkb/internal/okf"
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
-	"github.com/inovacc/corral"
 )
 
 // HybridRetriever adapts the hybrid search + edge graph to rag.Retriever. Thin

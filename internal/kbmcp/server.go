@@ -14,13 +14,13 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/inovacc/corral"
 	"pixkb/internal/embed"
 	"pixkb/internal/epoch"
 	"pixkb/internal/okf"
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
-	"github.com/inovacc/corral"
 )
 
 // Deps are the live KB dependencies the tools operate over.
@@ -197,10 +197,10 @@ func registerRelated(s *mcp.Server, d Deps) {
 }
 
 type similarIn struct {
-	ID           string `json:"id" jsonschema:"concept id (bundle-relative path) to find similar concepts for"`
-	Mode         string `json:"mode,omitempty" jsonschema:"semantic|graph|hybrid (default)|more-like-this"`
-	Type         string `json:"type,omitempty" jsonschema:"optional concept-type filter on results"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"max hits (default 20)"`
+	ID    string `json:"id" jsonschema:"concept id (bundle-relative path) to find similar concepts for"`
+	Mode  string `json:"mode,omitempty" jsonschema:"semantic|graph|hybrid (default)|more-like-this"`
+	Type  string `json:"type,omitempty" jsonschema:"optional concept-type filter on results"`
+	Limit int    `json:"limit,omitempty" jsonschema:"max hits (default 20)"`
 	// ExcludeGraph, not IncludeGraph: plain JSON bools can't distinguish
 	// "omitted" from "explicitly false", so the field is named/phrased so its
 	// zero value (false, or omitted entirely) IS the desired default — hybrid
