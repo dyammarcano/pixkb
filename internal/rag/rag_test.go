@@ -30,6 +30,21 @@ func (f *fakeMultiRetriever) RetrieveMulti(_ context.Context, _ string, _ int) (
 	return f.multiHits, nil
 }
 
+type fakeSimilarRetriever struct {
+	fakeRetriever
+	similarHits map[string][]Hit
+	similarErr  error
+	calls       int
+}
+
+func (f *fakeSimilarRetriever) RetrieveSimilar(_ context.Context, id string) ([]Hit, error) {
+	f.calls++
+	if f.similarErr != nil {
+		return nil, f.similarErr
+	}
+	return f.similarHits[id], nil
+}
+
 type fakeSource map[string]okf.Concept
 
 func (f fakeSource) Concept(_ context.Context, id string) (okf.Concept, error) {
@@ -235,5 +250,71 @@ func TestBuildGrounding_MinScorePassesStrongEvidence(t *testing.T) {
 	}
 	if len(g.Chunks) != 1 || g.Chunks[0].ID != "strong.md" {
 		t.Fatalf("a top hit at/above MinScore must proceed normally, got %+v", g.Chunks)
+	}
+}
+
+func TestBuildGrounding_ExpandSimilarUnsetNeverCallsRetrieveSimilar(t *testing.T) {
+	r := &fakeSimilarRetriever{
+		fakeRetriever: fakeRetriever{hits: []Hit{{ID: "a.md"}}},
+		similarHits:   map[string][]Hit{"a.md": {{ID: "sim.md"}}},
+	}
+	cs := fakeSource{"a.md": concept("a.md", "A", "body A", "doc:a")}
+	g, err := BuildGrounding(context.Background(), r, cs, "q", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.calls != 0 {
+		t.Fatalf("ExpandSimilar unset must never call RetrieveSimilar, got %d calls", r.calls)
+	}
+	if len(g.Chunks) != 1 || g.Chunks[0].ID != "a.md" {
+		t.Fatalf("zero behavior change expected, got %+v", g.Chunks)
+	}
+}
+
+func TestBuildGrounding_ExpandSimilarUsesSimilarRetriever(t *testing.T) {
+	r := &fakeSimilarRetriever{
+		fakeRetriever: fakeRetriever{hits: []Hit{{ID: "a.md"}}},
+		similarHits:   map[string][]Hit{"a.md": {{ID: "sim.md"}, {ID: "a.md"}}}, // dup of the seed itself
+	}
+	cs := fakeSource{
+		"a.md":   concept("a.md", "A", "body A", "doc:a"),
+		"sim.md": concept("sim.md", "Sim", "body Sim", "doc:sim"),
+	}
+	g, err := BuildGrounding(context.Background(), r, cs, "q", Options{ExpandSimilar: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.calls != 1 {
+		t.Fatalf("ExpandSimilar set must call RetrieveSimilar exactly once (top hit only), got %d calls", r.calls)
+	}
+	if len(g.Chunks) != 2 || g.Chunks[0].ID != "a.md" || g.Chunks[1].ID != "sim.md" {
+		t.Fatalf("expected seed hit + deduped similar hit, got %+v", g.Chunks)
+	}
+}
+
+func TestBuildGrounding_ExpandSimilarDegradesGracefullyWithoutSimilarRetriever(t *testing.T) {
+	r := &fakeRetriever{hits: []Hit{{ID: "a.md"}}}
+	cs := fakeSource{"a.md": concept("a.md", "A", "body A", "doc:a")}
+	g, err := BuildGrounding(context.Background(), r, cs, "q", Options{ExpandSimilar: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Chunks) != 1 || g.Chunks[0].ID != "a.md" {
+		t.Fatalf("ExpandSimilar without a SimilarRetriever must degrade to no-op, got %+v", g.Chunks)
+	}
+}
+
+func TestBuildGrounding_ExpandSimilarErrorIsNonFatal(t *testing.T) {
+	r := &fakeSimilarRetriever{
+		fakeRetriever: fakeRetriever{hits: []Hit{{ID: "a.md"}}},
+		similarErr:    context.Canceled,
+	}
+	cs := fakeSource{"a.md": concept("a.md", "A", "body A", "doc:a")}
+	g, err := BuildGrounding(context.Background(), r, cs, "q", Options{ExpandSimilar: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(g.Chunks) != 1 || g.Chunks[0].ID != "a.md" {
+		t.Fatalf("a RetrieveSimilar error must be non-fatal, got %+v", g.Chunks)
 	}
 }

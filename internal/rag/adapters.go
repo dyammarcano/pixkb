@@ -7,6 +7,7 @@ import (
 	"pixkb/internal/embed"
 	"pixkb/internal/okf"
 	"pixkb/internal/query"
+	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
 	"pixkb/pkg/agents"
 )
@@ -15,9 +16,10 @@ import (
 // wrapper, no logic — the ranking lives in query.Hybrid, the graph in
 // store.Related.
 type HybridRetriever struct {
-	Store  *postgres.Store
-	Emb    embed.Embedder
-	Filter postgres.Filter
+	Store     *postgres.Store
+	Emb       embed.Embedder
+	Filter    postgres.Filter
+	BundleDir string // bundle root, needed by RetrieveSimilar (similar.Similar reads concept type from the bundle)
 }
 
 // Retrieve runs the hybrid search and maps the top-k hits to rag.Hit.
@@ -43,6 +45,25 @@ func (h HybridRetriever) RetrieveMulti(ctx context.Context, q string, k int) ([]
 	f := h.Filter
 	f.Limit = k
 	hits, err := query.MultiHybrid(ctx, h.Store, h.Emb, q, f)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Hit, 0, len(hits))
+	for _, x := range hits {
+		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
+	}
+	return out, nil
+}
+
+// RetrieveSimilar pulls concept-similarity neighbours of id via
+// internal/similar's hybrid mode with graph included — satisfies
+// rag.SimilarRetriever.
+func (h HybridRetriever) RetrieveSimilar(ctx context.Context, id string) ([]Hit, error) {
+	hits, err := similar.Similar(ctx, h.Store, h.Emb, h.BundleDir, id, similar.Options{
+		Mode:         "hybrid",
+		IncludeGraph: true,
+		Filter:       h.Filter,
+	})
 	if err != nil {
 		return nil, err
 	}

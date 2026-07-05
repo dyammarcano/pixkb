@@ -11,16 +11,17 @@ import (
 )
 
 type askIn struct {
-	Question    string  `json:"question" jsonschema:"natural-language question to answer from the KB"`
-	Type        string  `json:"type,omitempty" jsonschema:"optional concept-type filter for retrieval"`
-	TopK        int     `json:"top_k,omitempty" jsonschema:"concepts to ground on (default 6)"`
-	Expand      bool    `json:"expand,omitempty" jsonschema:"also ground on the seed hit(s)' graph neighbours"`
-	Multi       bool    `json:"multi,omitempty" jsonschema:"expand the question into multiple subqueries before retrieving"`
-	Diversify   bool    `json:"diversify,omitempty" jsonschema:"prefer one concept per type before filling remaining grounding slots by rank"`
-	ExpandSeeds int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
-	MinScore    float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
-	NoPIIFilter bool    `json:"no_pii_filter,omitempty" jsonschema:"disable the deterministic PII/LGPD redaction post-filter (debugging only)"`
-	NoCache     bool    `json:"no_cache,omitempty" jsonschema:"bypass the answer cache and force a fresh agent turn"`
+	Question      string  `json:"question" jsonschema:"natural-language question to answer from the KB"`
+	Type          string  `json:"type,omitempty" jsonschema:"optional concept-type filter for retrieval"`
+	TopK          int     `json:"top_k,omitempty" jsonschema:"concepts to ground on (default 6)"`
+	Expand        bool    `json:"expand,omitempty" jsonschema:"also ground on the seed hit(s)' graph neighbours"`
+	Multi         bool    `json:"multi,omitempty" jsonschema:"expand the question into multiple subqueries before retrieving"`
+	Diversify     bool    `json:"diversify,omitempty" jsonschema:"prefer one concept per type before filling remaining grounding slots by rank"`
+	ExpandSeeds   int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
+	ExpandSimilar bool    `json:"expand_similar,omitempty" jsonschema:"also ground on the top hit's concept-similarity neighbours (internal/similar.Similar, hybrid mode)"`
+	MinScore      float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
+	NoPIIFilter   bool    `json:"no_pii_filter,omitempty" jsonschema:"disable the deterministic PII/LGPD redaction post-filter (debugging only)"`
+	NoCache       bool    `json:"no_cache,omitempty" jsonschema:"bypass the answer cache and force a fresh agent turn"`
 }
 
 type askCitationOut struct {
@@ -57,7 +58,7 @@ func registerAsk(s *mcp.Server, d Deps) {
 			cache = nil
 		}
 		ans, g, err := rag.Ask(ctx,
-			rag.HybridRetriever{Store: d.Store, Emb: d.Emb, Filter: postgres.Filter{Type: in.Type}},
+			rag.HybridRetriever{Store: d.Store, Emb: d.Emb, Filter: postgres.Filter{Type: in.Type}, BundleDir: d.Bundle},
 			rag.BundleSource{Dir: d.Bundle},
 			rag.AgentGenerator{Agency: d.Agency},
 			in.Question,
@@ -67,6 +68,7 @@ func registerAsk(s *mcp.Server, d Deps) {
 				MultiQuery:    in.Multi,
 				Diversify:     in.Diversify,
 				ExpandSeeds:   in.ExpandSeeds,
+				ExpandSimilar: in.ExpandSimilar,
 				MinScore:      in.MinScore,
 				NoPIIFilter:   in.NoPIIFilter,
 				Cache:         cache,

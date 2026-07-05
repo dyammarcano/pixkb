@@ -44,6 +44,17 @@ type MultiRetriever interface {
 	RetrieveMulti(ctx context.Context, q string, k int) ([]Hit, error)
 }
 
+// SimilarRetriever is an optional capability a Retriever may implement:
+// pull concept-similarity neighbours (internal/similar.Similar) of a seed
+// hit as an additional evidence-diversification source, alongside graph
+// neighbours (ExpandRelated). BuildGrounding type-asserts for it when
+// Options.ExpandSimilar is set and silently skips this source when the
+// Retriever doesn't implement it — every existing Retriever (including
+// every test fake) keeps compiling with no change.
+type SimilarRetriever interface {
+	RetrieveSimilar(ctx context.Context, id string) ([]Hit, error)
+}
+
 // ConceptSource resolves a concept's full content (body + provenance) by id from
 // the canonical bundle — the same source concept_get reads, so the grounding
 // shows exactly the curated text, never a stale DB copy.
@@ -76,6 +87,7 @@ type Options struct {
 	MultiQuery    bool        // use the Retriever's MultiRetriever (multi-query expansion) when it implements one; silently falls back to single-query Retrieve otherwise
 	Diversify     bool        // prefer the first hit of each concept Type before filling remaining slots by rank
 	ExpandSeeds   int         // how many top hits' graph neighbours to pull when ExpandRelated (default 1, preserves the pre-upgrade single-seed behavior)
+	ExpandSimilar bool        // also pull the top hit's concept-similarity neighbours (internal/similar.Similar) when the Retriever implements SimilarRetriever; silently a no-op otherwise
 	MinScore      float64     // refuse (empty Grounding, no agent turn spent) when the top hit's score is below this (0 = disabled)
 	NoPIIFilter   bool        // skip the deterministic PII/LGPD redaction pass over Answer.Text (default false = filter ON; debugging escape hatch only)
 	Cache         AnswerCache // when set, Ask checks/populates it keyed by CacheKey(q, Epoch) to skip re-spending an agent turn on a repeated question (nil = no caching, the pre-change default)
@@ -194,6 +206,17 @@ func BuildGrounding(ctx context.Context, r Retriever, cs ConceptSource, q string
 			}
 			for _, id := range nb {
 				add(id)
+			}
+		}
+	}
+	if opts.ExpandSimilar {
+		// Top hit only — concept-similarity is 1:1 with a seed concept, unlike
+		// graph expansion (ExpandRelated) which can fan out from multiple seeds.
+		if sr, ok := r.(SimilarRetriever); ok {
+			if nb, err := sr.RetrieveSimilar(ctx, hits[0].ID); err == nil {
+				for _, h := range nb {
+					add(h.ID)
+				}
 			}
 		}
 	}

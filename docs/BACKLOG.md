@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:054 -->
+<!-- rev:055 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -243,9 +243,17 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   - **Surfacing `Hit.Why`/per-signal scores in a dedicated explanation view**
     (spec Feature 3) and **richer CLI/MCP filters/output formats** (Feature 4)
     — same deferral already recorded for multi-query retrieval's provenance.
-  - **Wiring `similar.Similar` into RAG grounding** (spec Feature 5) as an
+  - ~~**Wiring `similar.Similar` into RAG grounding** (spec Feature 5) as an
     additional evidence-diversification source, alongside the already-
-    backlogged `query.MultiHybrid` RAG wiring above.
+    backlogged `query.MultiHybrid` RAG wiring above.~~ **Resolved** (2026-07-04):
+    `rag.Options.ExpandSimilar` + the `rag.SimilarRetriever` interface +
+    `HybridRetriever.RetrieveSimilar` (`internal/rag/rag.go`,
+    `internal/rag/adapters.go`) type-assert for the capability and pull the
+    top hit's concept-similarity neighbours via `similar.Similar` (hybrid
+    mode, graph included), following the exact `MultiRetriever`/
+    `ExpandRelated` pattern — zero-default-behavior-change, wired to
+    `pixkb ask --expand-similar` and the MCP `kb_ask` tool's
+    `expand_similar` field.
   - **Semantic-mode noise from the hashing embedder** (e.g. unrelated WebPage
     hits surfacing in `--mode semantic`/`more-like-this` results) is the same
     documented, air-gap-bounded limitation ADR 0002 already recorded for
