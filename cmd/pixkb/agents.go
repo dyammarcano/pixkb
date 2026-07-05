@@ -6,12 +6,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/inovacc/corral"
+	_ "github.com/inovacc/corral/all" // registers codex/claude/agy providers
+	"github.com/inovacc/corral/codex"
 	"github.com/spf13/cobra"
 
-	"pixkb/pkg/agents"
-	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
-	"pixkb/pkg/agents/codex"
-	"pixkb/pkg/agents/host"
+	"pixkb/internal/agenthost"
+	_ "pixkb/internal/roster" // populates corral's roster (control, gather, ..., judge)
 )
 
 // newAgentsCmd exposes the agy agent host: list the roster, run health checks,
@@ -92,11 +93,11 @@ func newAgentsUsageCmd() *cobra.Command {
 			"Only providers that expose a queryable limit report usage.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			w := cmd.OutOrStdout()
-			p, err := agents.ProviderByName(provider)
+			p, err := corral.ProviderByName(provider)
 			if err != nil {
 				return err
 			}
-			s, supported, err := agents.ProviderUsage(p)
+			s, supported, err := corral.ProviderUsage(p)
 			if err != nil {
 				return err
 			}
@@ -138,17 +139,17 @@ func newAgentsInstallCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Install the pixkb agent plugin into coding-agent hosts (claude|codex|agy|all)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			hosts := host.All()
+			hosts := agenthost.All()
 			if hostName != "" && hostName != "all" {
-				h, ok := host.ByName(hostName)
+				h, ok := agenthost.ByName(hostName)
 				if !ok {
 					return fmt.Errorf("unknown host %q (want claude|codex|agy|all)", hostName)
 				}
-				hosts = []host.Host{h}
+				hosts = []agenthost.Host{h}
 			}
 			w := cmd.OutOrStdout()
 			for _, h := range hosts {
-				res, err := host.Install(h, target, dryRun)
+				res, err := agenthost.Install(h, target, dryRun)
 				if err != nil {
 					return err
 				}
@@ -177,7 +178,7 @@ func newAgentsHostsCmd() *cobra.Command {
 		Short: "List installable hosts, or health-check them with --doctor",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			w := cmd.OutOrStdout()
-			for _, h := range host.All() {
+			for _, h := range agenthost.All() {
 				if !doctor {
 					root, _ := h.Root("")
 					_, _ = fmt.Fprintf(w, "%-8s %s\n", h.Name(), root)
@@ -202,7 +203,7 @@ func newAgentsListCmd() *cobra.Command {
 		Short: "List the registered agents",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			w := cmd.OutOrStdout()
-			for _, a := range agents.All() {
+			for _, a := range corral.All() {
 				_, _ = fmt.Fprintf(w, "%-14s %-13s %s\n", a.Name, a.Kind, a.Description)
 			}
 			return nil
@@ -216,7 +217,7 @@ func newAgentsDoctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Health-check the agent stack (CLIs on PATH, embedding key, roster)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			r := agents.Doctor()
+			r := corral.Doctor()
 			w := cmd.OutOrStdout()
 			if asJSON {
 				b, _ := json.MarshalIndent(r, "", "  ")
@@ -248,7 +249,7 @@ func newAgentsRunCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ag, err := agents.NewAgency(provider, dir)
+			ag, err := corral.NewAgency(provider, dir)
 			if err != nil {
 				return err
 			}

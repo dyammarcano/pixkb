@@ -4,13 +4,12 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/inovacc/corral"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 
+	"pixkb/internal/agenthost"
 	"pixkb/internal/kbmcp"
-	"pixkb/pkg/agents"
-	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
-	"pixkb/pkg/agents/host"
 )
 
 // newMCPCmd runs pixkb as an MCP server: the agent's self-contained tool
@@ -36,7 +35,7 @@ func newMCPManifestCmd() *cobra.Command {
 		Use:   "manifest",
 		Short: "Print the .mcp.json registering pixkb as a coding agent's MCP server",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, _ = cmd.OutOrStdout().Write(host.MCPManifest(bin))
+			_, _ = cmd.OutOrStdout().Write(agenthost.MCPManifest(bin))
 			return nil
 		},
 	}
@@ -74,7 +73,7 @@ func newMCPServeCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				ag, err := agents.NewAgency(answerer, dir)
+				ag, err := corral.NewAgency(answerer, dir)
 				if err != nil {
 					return err
 				}

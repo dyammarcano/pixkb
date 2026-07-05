@@ -6,12 +6,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/inovacc/corral"
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/rag"
 	"pixkb/internal/store/postgres"
-	"pixkb/pkg/agents"
-	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
 )
 
 // newAskCmd is the RAG surface: `pixkb ask "<question>"` returns a grounded,
@@ -56,7 +55,7 @@ func newAskCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ag, err := agents.NewAgency(provider, dir)
+			ag, err := corral.NewAgency(provider, dir)
 			if err != nil {
 				return err
 			}
