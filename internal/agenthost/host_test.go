@@ -1,26 +1,29 @@
-package host
+package agenthost_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"pixkb/internal/agenthost"
+	_ "pixkb/internal/roster" // populate corral's registry (judge, control, ...)
 )
 
 func TestRegistry(t *testing.T) {
-	hosts := All()
+	hosts := agenthost.All()
 	if len(hosts) != 3 {
 		t.Fatalf("want 3 hosts, got %d", len(hosts))
 	}
 	for _, name := range []string{"claude", "codex", "agy"} {
-		if _, ok := ByName(name); !ok {
+		if _, ok := agenthost.ByName(name); !ok {
 			t.Errorf("host %q not registered", name)
 		}
 	}
 }
 
 func TestMCPManifest(t *testing.T) {
-	m := string(MCPManifest("C:/bin/pixkb.exe"))
+	m := string(agenthost.MCPManifest("C:/bin/pixkb.exe"))
 	for _, want := range []string{`"pixkb"`, `"mcp", "serve"`, `C:/bin/pixkb.exe`} {
 		if !strings.Contains(m, want) {
 			t.Errorf("manifest missing %q:\n%s", want, m)
@@ -29,7 +32,7 @@ func TestMCPManifest(t *testing.T) {
 }
 
 func TestSharedFilesHaveAgentsAndManifest(t *testing.T) {
-	h, _ := ByName("codex")
+	h, _ := agenthost.ByName("codex")
 	files, err := h.Files()
 	if err != nil {
 		t.Fatal(err)
@@ -52,10 +55,10 @@ func TestSharedFilesHaveAgentsAndManifest(t *testing.T) {
 
 func TestInstallWritesTree(t *testing.T) {
 	base := t.TempDir()
-	h, _ := ByName("claude")
+	h, _ := agenthost.ByName("claude")
 
 	// Dry-run writes nothing but plans files.
-	dr, err := Install(h, base, true)
+	dr, err := agenthost.Install(h, base, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +69,9 @@ func TestInstallWritesTree(t *testing.T) {
 		t.Error("dry-run created files")
 	}
 
-	// Real install writes the tree under base/.claude/pixkb.
-	res, err := Install(h, base, false)
+	// Real install writes the tree under base/.claude/pixkb — confirms
+	// installDir is still "pixkb", not corral's own "corral".
+	res, err := agenthost.Install(h, base, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +88,10 @@ func TestInstallWritesTree(t *testing.T) {
 
 func TestDoctor(t *testing.T) {
 	base := t.TempDir()
-	r := claudeHost{}.Doctor(base)
+	// Doctor is exercised through the registered host, not the unexported
+	// claudeHost type directly (that type is package-private to agenthost).
+	h, _ := agenthost.ByName("claude")
+	r := h.Doctor(base)
 	if r.Host != "claude" || r.Verdict == "" || len(r.Checks) == 0 {
 		t.Fatalf("bad report: %+v", r)
 	}

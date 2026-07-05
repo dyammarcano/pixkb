@@ -1,4 +1,4 @@
-package host
+package agenthost
 
 import (
 	"os"
@@ -52,8 +52,8 @@ func doctorFor(name, sub, bin string, base string) Report {
 
 type claudeHost struct{}
 
-func (claudeHost) Name() string                 { return "claude" }
-func (claudeHost) Root(base string) (string, error) { return homeRoot(base, ".claude") }
+func (claudeHost) Name() string                      { return "claude" }
+func (claudeHost) Root(base string) (string, error)  { return homeRoot(base, ".claude") }
 func (claudeHost) Files() (map[string][]byte, error) {
 	return sharedFiles("Claude Code"), nil
 }
@@ -63,8 +63,8 @@ func (claudeHost) Doctor(base string) Report { return doctorFor("claude", ".clau
 
 type codexHost struct{}
 
-func (codexHost) Name() string                 { return "codex" }
-func (codexHost) Root(base string) (string, error) { return homeRoot(base, ".codex") }
+func (codexHost) Name() string                      { return "codex" }
+func (codexHost) Root(base string) (string, error)  { return homeRoot(base, ".codex") }
 func (codexHost) Files() (map[string][]byte, error) {
 	return sharedFiles("Codex"), nil
 }
@@ -74,7 +74,7 @@ func (codexHost) Doctor(base string) Report { return doctorFor("codex", ".codex"
 
 type antigravityHost struct{}
 
-func (antigravityHost) Name() string                 { return "agy" }
+func (antigravityHost) Name() string                     { return "agy" }
 func (antigravityHost) Root(base string) (string, error) { return homeRoot(base, ".antigravity") }
 func (antigravityHost) Files() (map[string][]byte, error) {
 	return sharedFiles("Antigravity"), nil

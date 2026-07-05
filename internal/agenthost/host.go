@@ -1,10 +1,14 @@
-// Package agyhost installs pixkb as a self-contained agent plugin across
+// Package agenthost installs pixkb as a self-contained agent plugin across
 // multiple coding-agent hosts (Claude Code, Codex, Antigravity). It mirrors
 // lensr's pkg/aihost: a lazy-factory Host registry whose members generate a
 // plugin tree (agent definitions + an .mcp.json that registers `pixkb mcp
 // serve`) and write it atomically into each host's config. Loading the host
 // then surfaces pixkb's verbs as the agent's self-contained tool set.
-package host
+//
+// This package is pixkb-owned (not corral's own `host` package) specifically
+// so installDir stays "pixkb" — corral's host package hardcodes "corral",
+// which would silently rename every existing install's target directory.
+package agenthost
 
 import (
 	"fmt"
@@ -13,7 +17,7 @@ import (
 	"sort"
 	"strings"
 
-	"pixkb/pkg/agents"
+	"github.com/inovacc/corral"
 )
 
 // Host is one coding-agent target. The minimal surface is Name/Root/Files;
@@ -152,9 +156,9 @@ func MCPManifest(bin string) []byte {
 `)
 }
 
-// AgentMarkdown renders one agents.Agent as a host agent-definition file: YAML
+// AgentMarkdown renders one corral.Agent as a host agent-definition file: YAML
 // frontmatter (name/description/kind/tools) followed by the system prompt.
-func AgentMarkdown(a agents.Agent) []byte {
+func AgentMarkdown(a corral.Agent) []byte {
 	var b strings.Builder
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "name: %s\n", a.Name)
@@ -185,7 +189,7 @@ func sharedFiles(host string) map[string][]byte {
 		".mcp.json": MCPManifest(""),
 		"README.md": readme(host),
 	}
-	for _, a := range agents.All() {
+	for _, a := range corral.All() {
 		files["agents/"+a.Name+".md"] = AgentMarkdown(a)
 	}
 	return files
