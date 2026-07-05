@@ -7,18 +7,44 @@ symbol-stripped). Companion to [antigravity-architecture.md](antigravity-archite
 and [agents-usage-signals.md](agents-usage-signals.md). Provider tooling context —
 NOT part of the BACEN KB.
 
-> unravel's automated KB pipeline (`knowledge` / `kb apps`) does **not** persist a
-> stripped Go binary's gRPC surface — its Go-PE analyzer yields metadata only
-> ("no identity derivable", 0 endpoints), and the MCP capture tools need
-> `UNRAVEL_KB_DSN` set at server start (was empty). The substance below was
+> unravel's automated Go-PE analyzer yields metadata only for this stripped
+> binary ("no identity derivable", 0 gRPC endpoints), so the substance below was
 > recovered via `unravel garble strings` (354,444 unique strings) + targeted
-> grep, and is the de-facto KB.
+> grep — the de-facto KB.
+>
+> **Status update (2026-07-03):** the earlier "not persisted" blocker was an
+> empty DSN, not a capability gap. With `UNRAVEL_KB_DSN` / `db setup` configured,
+> agy WAS ingested into unravel's Postgres catalog (`kb enrich generate` →
+> `ingest`) and now appears in `unravel kb catalog apps` as
+> **`kb_id 8c7b51c29445303a`** (agy · `windows-pe` · `go` · epoch 2). Module-level
+> enrichment stays shallow — a symbol-stripped Go PE has no per-module bodies to
+> enrich — so this string-recovered KB remains the rich surface.
 
 ## Binary
 - Go `go1.27-20260615-RC00 … X:boringcrypto,simd`, windows/amd64, static,
   no DWARF/symtab, build_info present (Deps stripped). garble=NONE.
 - Embedded `protodes` / `google_i` protobuf descriptor sections.
 - Self-updating from `antigravity-cli-auto-updater-974169037036.us-central1.run.app`.
+
+## Maturity & status
+- **Toolchain currency:** the `go1.27-20260615-RC00 … X:boringcrypto,simd` header
+  is a **Google-internal pre-release** Go (BoringCrypto/FIPS + experimental SIMD),
+  dated 2026-06-15 — not a public Go release. Self-updates from the auto-updater
+  `run.app`, so the on-disk build drifts continuously; treat every extracted fact
+  as point-in-time for the analysed build.
+- **Signing posture:** validly Authenticode-signed by **Google LLC** under an EV
+  code-signing cert (DigiCert Trusted G4 chain, RFC3161-timestamped, verifies).
+- **Obfuscation:** NOT garble-obfuscated (`garble detect` → NONE / 25% conf); a
+  normal stripped `-s -w` release (no symtab/DWARF/Go build-id).
+- **Leaked-secret surface:** ships **hard-coded Google OAuth client secrets**
+  (`GOCSPX-…`, redacted) in-binary; references the cloud **metadata endpoint**
+  `169.254.169.254`, `*.corp.google.com` staging, and OS-keyring token storage.
+- **Provider integration (`pkg/agents/agy`):** working but constrained — the CLI
+  has no headless mode (`agy --print` hangs in a non-TTY, antigravity-cli #318),
+  so it is driven via ConPTY on Windows with a warm Session; `run_other.go` is a
+  non-Windows stub. Usage (`retrieveUserQuotaSummary`, below) is decoded from a
+  field mapping **recovered from the binary, not a live response** — tolerant,
+  non-blocking.
 
 ## Local RPC surface (embedded language server)
 The TUI drives an embedded gRPC server over proto.
