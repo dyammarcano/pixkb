@@ -13,7 +13,6 @@ import (
 	"pixkb/internal/embed"
 	"pixkb/internal/epoch"
 	"pixkb/internal/store/postgres"
-	"pixkb/pkg/agents"
 )
 
 // Config holds pixkb runtime settings. Resolution order: built-in defaults <
@@ -153,7 +152,7 @@ func newEmbedder(cfg Config) (embed.Embedder, error) {
 		// pixdb (read/curate/write-back), not a metered embedding API. Kept as
 		// an opt-in for deployments that want it (point OPENAI_BASE_URL at a
 		// local server to stay offline).
-		return agents.NewOpenAIEmbedder(envOr("PIXKB_EMBED_MODEL", ""), embedDims(cfg))
+		return embed.NewOpenAIEmbedder(envOr("PIXKB_EMBED_MODEL", ""), embedDims(cfg))
 	default:
 		return embed.NewHashing(256), nil
 	}
