@@ -7,12 +7,34 @@ import (
 )
 
 // Filter narrows search/AsOf queries.
+//
+// Type and IncludeTypes combine with OR when both are set: a concept
+// matches the type predicate if its type equals Type OR appears in
+// IncludeTypes. When only one of the two is set, that one alone applies;
+// when neither is set, no type predicate is emitted at all.
 type Filter struct {
 	Type      string
 	Tag       string
 	AsOfEpoch *int
 	AsOfTime  *time.Time
 	Limit     int
+
+	// IncludeTypes, if non-empty, restricts results to concepts whose type is
+	// in this list. See the Filter doc comment above for how it combines
+	// with Type.
+	IncludeTypes []string
+	// ExcludeIDs, if non-empty, excludes these concept ids from results.
+	ExcludeIDs []string
+	// MinVecScore, if > 0, drops Vector() hits whose cosine score is below
+	// this threshold (0 = disabled, matching the "0 = disabled" convention
+	// used elsewhere in this codebase, e.g. rag.Options.MinScore). It has no
+	// effect on FTS — cosine score only exists on the vector arm. This is
+	// distinct from, and additive to, query.hybridCore's internal
+	// vecScoreFloor: that unexported constant filters the vector arm before
+	// RRF fusion on every Hybrid/HybridExplain call, while MinVecScore is a
+	// caller-configurable floor honored directly by Store.Vector itself,
+	// independent of whether the caller goes through Hybrid at all.
+	MinVecScore float64
 }
 
 // Hit is a single ranked search result.
@@ -91,13 +113,17 @@ func (s *Store) FTS(ctx context.Context, q string, f Filter) ([]Hit, error) {
 	// dilutes the real target down. The real lever is QUORUM/coverage ranking (rank
 	// by distinct query-terms matched, not length-normalized density) — see BACKLOG.
 	where := "WHERE fts @@ websearch_to_tsquery('pixpt', $1)"
-	if f.Type != "" {
-		args = append(args, f.Type)
-		where += fmt.Sprintf(" AND type = $%d", len(args))
+	if types := combinedTypes(f); len(types) > 0 {
+		args = append(args, types)
+		where += fmt.Sprintf(" AND type = ANY($%d)", len(args))
 	}
 	if f.Tag != "" {
 		args = append(args, f.Tag)
 		where += fmt.Sprintf(" AND tags @> ARRAY[$%d]::text[]", len(args))
+	}
+	if len(f.ExcludeIDs) > 0 {
+		args = append(args, f.ExcludeIDs)
+		where += fmt.Sprintf(" AND id != ALL($%d)", len(args))
 	}
 	if pred, ok := asOfConceptPredicate(&args, f); ok {
 		where += " AND " + pred
@@ -156,6 +182,24 @@ LIMIT $%d`, where, len(args))
 		return nil, fmt.Errorf("iterate fts rows: %w", err)
 	}
 	return hits, nil
+}
+
+// combinedTypes returns the set of type values FTS/Vector's type predicate
+// should match, applying Filter's Type/IncludeTypes OR interaction (see the
+// Filter doc comment): both set -> union of the two; only one set -> that one
+// alone; neither set -> nil, meaning the caller should emit no type predicate.
+func combinedTypes(f Filter) []string {
+	switch {
+	case f.Type == "" && len(f.IncludeTypes) == 0:
+		return nil
+	case f.Type == "":
+		return f.IncludeTypes
+	default:
+		out := make([]string, 0, len(f.IncludeTypes)+1)
+		out = append(out, f.Type)
+		out = append(out, f.IncludeTypes...)
+		return out
+	}
 }
 
 // asOfConceptPredicate appends an as-of bound parameter (epoch or timestamp)

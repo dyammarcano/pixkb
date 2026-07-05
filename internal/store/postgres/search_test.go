@@ -2,11 +2,14 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"pixkb/internal/embed"
 	"pixkb/internal/okf"
 )
 
@@ -172,4 +175,130 @@ VALUES ($1, $2, $3, $4, $5,
 	require.NoError(t, err)
 	require.Len(t, narrowed, 1)
 	require.Equal(t, "messages/pacs.008.md", narrowed[0].ID)
+}
+
+// TestFTS_IncludeTypesRestrictsResults proves the new IncludeTypes filter
+// narrows FTS to only the listed types. This package's integration tests
+// share one Postgres database with no truncation between tests (see
+// TestEmbeddingCoverage_CountsAndDetectsModelMix in health_test.go), so this
+// test uses a unique-per-run search term — never indexed by any pre-existing
+// row — plus unique-per-run concept ids/types, instead of truncating.
+func TestFTS_IncludeTypesRestrictsResults(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	suffix := time.Now().UnixNano()
+	term := fmt.Sprintf("zzzincludetypesterm%d", suffix)
+	typeA := fmt.Sprintf("TypeA%d", suffix)
+	typeB := fmt.Sprintf("TypeB%d", suffix)
+	idA := fmt.Sprintf("include-types-a-%d.md", suffix)
+	idB := fmt.Sprintf("include-types-b-%d.md", suffix)
+
+	seedConcept(t, s, idA, typeA, "Include Types A", term, nil, 1)
+	seedConcept(t, s, idB, typeB, "Include Types B", term, nil, 1)
+
+	// Without the filter both concepts match the unique term.
+	all, err := s.FTS(ctx, term, Filter{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+
+	// IncludeTypes restricts to typeA only.
+	narrowed, err := s.FTS(ctx, term, Filter{IncludeTypes: []string{typeA}, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, narrowed, 1)
+	assert.Equal(t, idA, narrowed[0].ID)
+}
+
+// TestFTS_ExcludeIDsExcludesSpecificID proves the new ExcludeIDs filter drops
+// a specific concept id from FTS results while leaving another concept
+// matching the same term untouched. Same unique-per-run, no-truncate
+// discipline as TestFTS_IncludeTypesRestrictsResults.
+func TestFTS_ExcludeIDsExcludesSpecificID(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	suffix := time.Now().UnixNano()
+	term := fmt.Sprintf("zzzexcludeidsterm%d", suffix)
+	typ := fmt.Sprintf("ExcludeType%d", suffix)
+	idA := fmt.Sprintf("exclude-ids-a-%d.md", suffix)
+	idB := fmt.Sprintf("exclude-ids-b-%d.md", suffix)
+
+	seedConcept(t, s, idA, typ, "Exclude Ids A", term, nil, 1)
+	seedConcept(t, s, idB, typ, "Exclude Ids B", term, nil, 1)
+
+	all, err := s.FTS(ctx, term, Filter{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+
+	narrowed, err := s.FTS(ctx, term, Filter{ExcludeIDs: []string{idA}, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, narrowed, 1)
+	assert.Equal(t, idB, narrowed[0].ID)
+}
+
+// TestVector_MinVecScoreDropsLowScoringHit proves the new MinVecScore filter
+// drops a vector hit whose cosine score falls below the threshold while
+// keeping a hit at/above it. IncludeTypes isolates this test's own two
+// concepts (a unique-per-run synthetic type) from every other embedding row
+// in this package's shared-uncleaned database, so pollution cannot crowd the
+// pair out of the exact-kNN scan.
+func TestVector_MinVecScoreDropsLowScoringHit(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	emb := embed.NewHashing(256)
+
+	suffix := time.Now().UnixNano()
+	typ := fmt.Sprintf("MinVecScoreType%d", suffix)
+	highID := fmt.Sprintf("min-vec-score-high-%d.md", suffix)
+	lowID := fmt.Sprintf("min-vec-score-low-%d.md", suffix)
+
+	seed := func(id, body string) []float32 {
+		c := okf.Concept{
+			ID: id, Type: typ, Title: id, Body: body,
+			ContentSHA: okf.ComputeSHA(body), Language: "en", Epoch: 0,
+		}
+		require.NoError(t, s.UpsertConcept(ctx, c))
+		vs, err := emb.Embed(ctx, []string{body})
+		require.NoError(t, err)
+		require.NoError(t, s.UpsertEmbedding(ctx, id, 0, emb.Name(), vs[0], time.Now().UTC()))
+		return vs[0]
+	}
+
+	queryVec := seed(highID, fmt.Sprintf("alpha bravo charlie %d", suffix))
+	seed(lowID, fmt.Sprintf("delta echo foxtrot golf hotel %d", suffix+1))
+
+	filt := Filter{IncludeTypes: []string{typ}, Limit: 10}
+	both, err := s.Vector(ctx, queryVec, filt)
+	require.NoError(t, err)
+	require.Len(t, both, 2, "both concepts of the isolated type must be visible before any score filter")
+
+	var highScore, lowScore float64
+	for _, h := range both {
+		switch h.ID {
+		case highID:
+			highScore = h.Score
+		case lowID:
+			lowScore = h.Score
+		}
+	}
+	require.Greater(t, highScore, lowScore, "the self-vocabulary hit must score strictly higher than the disjoint-vocabulary hit")
+
+	filt.MinVecScore = (highScore + lowScore) / 2
+	narrowed, err := s.Vector(ctx, queryVec, filt)
+	require.NoError(t, err)
+	require.Len(t, narrowed, 1)
+	assert.Equal(t, highID, narrowed[0].ID)
+	assert.Equal(t, 1, narrowed[0].Rank)
 }

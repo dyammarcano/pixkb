@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:055 -->
+<!-- rev:056 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -306,10 +306,21 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `AsOfEpoch`/`AsOfTime` shipped via `pixkb search --format`/`--as-of-epoch`/
   `--as-of-time` and the MCP `search` tool's `as_of_epoch`/`as_of_time` fields.
   Remaining, explicitly out of scope for that plan:
-  - **Include/exclude concept-id and concept-type list filters, and a
+  - ~~**Include/exclude concept-id and concept-type list filters, and a
     minimum-vector-score filter.** None of these exist on `postgres.Filter`
     today; adding them needs new SQL predicates in `FTS`/`Vector`/`Hybrid`/
-    `MultiHybrid` — a bigger unit of work deliberately deferred here.
+    `MultiHybrid` — a bigger unit of work deliberately deferred here.~~
+    **Resolved**: `postgres.Filter` gained `IncludeTypes` (OR's with `Type`),
+    `ExcludeIDs`, and `MinVecScore` (`internal/store/postgres/search.go`,
+    `vector.go`); `FTS`/`Vector` implement the new `type = ANY($n)`/
+    `id != ALL($n)` predicates directly (shared `combinedTypes` helper), and
+    `Vector` applies `MinVecScore` client-side before assigning `Rank` (score
+    is a computed SELECT-list expression, not a WHERE-able column). `Hybrid`/
+    `MultiHybrid` needed no changes — `Filter` flows through unmodified.
+    Wired to `pixkb search --include-type`/`--exclude-id`/`--min-vector-score`
+    and the MCP `search` tool's `include_types`/`exclude_ids`/
+    `min_vector_score` fields. Zero-value defaults preserve prior behavior
+    exactly.
   - **An HTTP `/search` format query param for `pixkb serve`** — this plan
     only touched the CLI (`--format`) and MCP surfaces, not `pixkb serve`.
 - **RAG retrieval upgrade follow-ups (Feature 5 of `docs/SEARCH-CAPABILITY-SPEC.md`

@@ -81,13 +81,16 @@ type hitOut struct {
 }
 
 type searchIn struct {
-	Query     string `json:"query" jsonschema:"natural-language or lexical query"`
-	Type      string `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
-	Mode      string `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
-	Explain   bool   `json:"explain,omitempty" jsonschema:"include per-hit ranking explanation (FTS/vector rank, scores, boosts, arm) — only supported with the default hybrid mode; ignored (best-effort) otherwise"`
-	AsOfEpoch *int   `json:"as_of_epoch,omitempty" jsonschema:"restrict results to the state as of this epoch (mutually exclusive with as_of_time)"`
-	AsOfTime  string `json:"as_of_time,omitempty" jsonschema:"RFC3339 timestamp: restrict results to the state as of this instant (mutually exclusive with as_of_epoch)"`
+	Query        string   `json:"query" jsonschema:"natural-language or lexical query"`
+	Type         string   `json:"type,omitempty" jsonschema:"optional concept-type filter (ApiEndpoint, ManualSection, PacsMessage, ...)"`
+	Limit        int      `json:"limit,omitempty" jsonschema:"max hits (default 10)"`
+	Mode         string   `json:"mode,omitempty" jsonschema:"retrieval mode: hybrid (default) or multi (expands the query into several deterministic subqueries for broader recall)"`
+	Explain      bool     `json:"explain,omitempty" jsonschema:"include per-hit ranking explanation (FTS/vector rank, scores, boosts, arm) — only supported with the default hybrid mode; ignored (best-effort) otherwise"`
+	AsOfEpoch    *int     `json:"as_of_epoch,omitempty" jsonschema:"restrict results to the state as of this epoch (mutually exclusive with as_of_time)"`
+	AsOfTime     string   `json:"as_of_time,omitempty" jsonschema:"RFC3339 timestamp: restrict results to the state as of this instant (mutually exclusive with as_of_epoch)"`
+	IncludeTypes []string `json:"include_types,omitempty" jsonschema:"restrict results to concepts whose type is in this list (ORs with type when both are set)"`
+	ExcludeIDs   []string `json:"exclude_ids,omitempty" jsonschema:"exclude these concept ids from results"`
+	MinVecScore  float64  `json:"min_vector_score,omitempty" jsonschema:"drop vector-arm hits scoring below this cosine similarity (0 = disabled)"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`
@@ -102,7 +105,10 @@ func registerSearch(s *mcp.Server, d Deps) {
 		if limit <= 0 {
 			limit = 10
 		}
-		f := postgres.Filter{Type: in.Type, Limit: limit}
+		f := postgres.Filter{
+			Type: in.Type, Limit: limit,
+			IncludeTypes: in.IncludeTypes, ExcludeIDs: in.ExcludeIDs, MinVecScore: in.MinVecScore,
+		}
 		if in.AsOfEpoch != nil && in.AsOfTime != "" {
 			return nil, searchOut{}, fmt.Errorf("set only one of as_of_epoch or as_of_time")
 		}
