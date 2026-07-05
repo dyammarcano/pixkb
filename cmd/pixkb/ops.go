@@ -17,7 +17,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"pixkb/internal/embed"
 	"pixkb/internal/ingest"
+	"pixkb/internal/output"
 	"pixkb/internal/query"
 	"pixkb/internal/store/postgres"
 	"pixkb/internal/watch"
@@ -176,7 +178,7 @@ func newServeCmd() *cobra.Command {
 	var dsn, addr string
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Read-only HTTP JSON search API over the KB (GET /search?q=...&mode=...)",
+		Short: "Read-only HTTP JSON search API over the KB (GET /search?q=...&type=...&format=...&explain=true)",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := loadConfig()
 			if dsn != "" {
@@ -194,20 +196,7 @@ func newServeCmd() *cobra.Command {
 			}
 
 			mux := http.NewServeMux()
-			mux.HandleFunc("/search", func(w http.ResponseWriter, req *http.Request) {
-				q := req.URL.Query().Get("q")
-				if q == "" {
-					http.Error(w, "missing q", http.StatusBadRequest)
-					return
-				}
-				hits, err := query.Hybrid(req.Context(), st, emb, q, postgres.Filter{Type: req.URL.Query().Get("type")})
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(hits)
-			})
+			mux.HandleFunc("/search", newSearchHandler(st, emb, cfg.BundleDir))
 			srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 			go func() { <-ctx.Done(); _ = srv.Close() }()
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "serving read-only search on %s (GET /search?q=...)\n", addr)
@@ -220,6 +209,69 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
 	cmd.Flags().StringVar(&addr, "addr", ":8080", "listen address")
 	return cmd
+}
+
+// newSearchHandler is `pixkb serve`'s /search handler, extracted as its own
+// function so it can be exercised directly with httptest (see ops_test.go)
+// instead of only through a live-listening server. GET /search?q=...
+// supports the same type/format/explain surface as `pixkb search` and MCP's
+// search tool: type= filters by concept type, format= (json|text|md|yaml,
+// default json — preserving this endpoint's original JSON-only contract
+// exactly when unset) mirrors `pixkb search --format` (internal/output),
+// and explain=true always returns JSON (matching the CLI/MCP explain
+// surfaces, which are also JSON-only) via the same printExplain helper
+// `pixkb search --explain` uses — http.ResponseWriter satisfies io.Writer.
+func newSearchHandler(st *postgres.Store, emb embed.Embedder, bundleDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		q := req.URL.Query().Get("q")
+		if q == "" {
+			http.Error(w, "missing q", http.StatusBadRequest)
+			return
+		}
+		f := postgres.Filter{Type: req.URL.Query().Get("type")}
+
+		if req.URL.Query().Get("explain") == "true" {
+			hits, explains, err := query.HybridExplain(req.Context(), st, emb, q, f)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if err := printExplain(w, hits, explains, q, bundleDir); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		hits, err := query.Hybrid(req.Context(), st, emb, q, f)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		format := req.URL.Query().Get("format")
+		if format == "" {
+			format = "json"
+		}
+		if format == "json" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(hits)
+			return
+		}
+		rendered, err := output.Render(format, hits)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		switch format {
+		case "md":
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		case "yaml":
+			w.Header().Set("Content-Type", "application/yaml")
+		default:
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		}
+		_, _ = fmt.Fprint(w, rendered)
+	}
 }
 
 func newDoctorCmd() *cobra.Command {

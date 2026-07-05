@@ -4,12 +4,18 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"fmt"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"pixkb/internal/okf"
 )
 
 // readTar opens a tar.gz and returns the set of entry names it contains.
@@ -76,6 +82,93 @@ func TestTarDir(t *testing.T) {
 			assert.Len(t, names, len(tt.wantNames))
 		})
 	}
+}
+
+// TestSearchHandler exercises `pixkb serve`'s /search handler directly via
+// httptest — added for the format=/explain= HTTP surface (/steps:next item
+// 10, 2026-07-04). Shares the same shared-uncleaned-test-DB discipline as
+// every other internal/store/postgres-backed test in this repo: a
+// unique-per-run term guarantees an unambiguous FTS hit regardless of what
+// other rows already exist.
+func TestSearchHandler(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PIXKB_TEST_DSN postgres")
+	}
+	dsn := os.Getenv("PIXKB_TEST_DSN")
+	if dsn == "" {
+		t.Skip("PIXKB_TEST_DSN not set")
+	}
+	if prod := os.Getenv("PIXKB_DSN"); prod != "" && prod == dsn {
+		t.Fatal("PIXKB_TEST_DSN equals PIXKB_DSN (prod KB) — use a throwaway database")
+	}
+
+	root := NewRootCmd()
+	root.SetArgs([]string{"db", "up", "--dsn", dsn})
+	require.NoError(t, root.ExecuteContext(context.Background()))
+
+	ctx := context.Background()
+	st, err := openStore(ctx, Config{DSN: dsn})
+	require.NoError(t, err)
+	defer st.Close()
+	emb, err := newEmbedder(Config{})
+	require.NoError(t, err)
+
+	term := fmt.Sprintf("httptest-marker-%d", time.Now().UnixNano())
+	id := fmt.Sprintf("httptest/%s.md", term)
+	title := "Search Handler Test Concept"
+	body := "Body mentioning " + term + " for an unambiguous FTS hit."
+	require.NoError(t, st.UpsertConcept(ctx, okf.Concept{
+		ID: id, Type: "Reference", Title: title, Body: body,
+		ContentSHA: "sha-" + term, Epoch: 1, Timestamp: time.Now(),
+	}))
+
+	// A bundle copy of the same concept, so printExplain's matched-fields
+	// lookup (which reads from the bundle, not Postgres) succeeds too.
+	bundleDir := t.TempDir()
+	require.NoError(t, okf.WriteConcept(bundleDir, okf.Concept{
+		ID: id, Type: "Reference", Title: title, Body: body, ContentSHA: "sha-" + term,
+	}))
+
+	handler := newSearchHandler(st, emb, bundleDir)
+
+	t.Run("default format is json", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/search?q="+term, nil)
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		require.Equal(t, 200, rec.Code)
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+		assert.Contains(t, rec.Body.String(), id)
+	})
+
+	t.Run("format=md renders a markdown table", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/search?q="+term+"&format=md", nil)
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		require.Equal(t, 200, rec.Code)
+		assert.Contains(t, rec.Header().Get("Content-Type"), "text/markdown")
+		assert.Contains(t, rec.Body.String(), "| rank | id | title | type | score |")
+		assert.Contains(t, rec.Body.String(), id)
+	})
+
+	t.Run("explain=true always returns json with matched fields", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/search?q="+term+"&format=md&explain=true", nil)
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		require.Equal(t, 200, rec.Code, rec.Body.String())
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"),
+			"explain=true must always be JSON regardless of format=")
+		body := rec.Body.String()
+		assert.Contains(t, body, id)
+		assert.True(t, strings.Contains(body, "matched_tokens") && strings.Contains(body, strings.Split(term, "-")[0]),
+			"explain output should include the matched-tokens annotation: %s", body)
+	})
+
+	t.Run("missing q is a 400", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/search", nil)
+		rec := httptest.NewRecorder()
+		handler(rec, req)
+		assert.Equal(t, 400, rec.Code)
+	})
 }
 
 // TestTarDir_SkipsOutputFile verifies the archive never contains itself, even
