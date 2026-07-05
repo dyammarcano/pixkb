@@ -1,4 +1,4 @@
-package agents_test
+package roster_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"pixkb/pkg/agents"
-	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
+	"github.com/inovacc/corral"
+	_ "github.com/inovacc/corral/all" // registers codex/claude/agy providers
 )
 
 // e2eConceptSchema mirrors the roster conceptSchema (OpenAI-strict: every
@@ -51,13 +51,16 @@ func firstAvailableProvider() string {
 }
 
 // TestAgency_RealAgentEmitsStructuredConcept is the live half of the fleet
-// round-trip: a real coding-agent CLI, driven through the Agency with a
+// round-trip: a real coding-agent CLI, driven through corral's Agency with a
 // conceptSchema, must return a parseable OKF concept. Combined with the MCP
 // concept_upsert->search round-trip (internal/kbmcp), this proves the
 // agent -> structured output -> write-back -> retrieve loop the Curator runs.
 //
 // Skipped under -short (it spends a real subscription turn) and when no provider
-// CLI is installed, so the default `-short` suite stays fast and offline.
+// CLI is installed, so the default `-short` suite stays fast and offline. Uses
+// an ad-hoc corral.Agent (not one from internal/roster's registered fleet) —
+// this test proves the Agency/Provider contract works end to end, independent
+// of any specific roster agent's content.
 func TestAgency_RealAgentEmitsStructuredConcept(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping live agent e2e in -short mode (spends a real subscription turn)")
@@ -67,13 +70,13 @@ func TestAgency_RealAgentEmitsStructuredConcept(t *testing.T) {
 		t.Skip("no codex/claude CLI on PATH")
 	}
 
-	ag, err := agents.NewAgency(prov, t.TempDir())
+	ag, err := corral.NewAgency(prov, t.TempDir())
 	if err != nil {
 		t.Fatalf("NewAgency(%s): %v", prov, err)
 	}
 	defer func() { _ = ag.Close() }()
 
-	agent := agents.Agent{
+	agent := corral.Agent{
 		Name:   "e2e-emitter",
 		Schema: e2eConceptSchema,
 		System: "You output ONLY the requested concept as JSON matching the schema. " +
