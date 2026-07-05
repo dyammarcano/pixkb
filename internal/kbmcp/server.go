@@ -20,7 +20,7 @@ import (
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
-	"pixkb/pkg/agents"
+	"github.com/inovacc/corral"
 )
 
 // Deps are the live KB dependencies the tools operate over.
@@ -29,7 +29,7 @@ type Deps struct {
 	Emb    embed.Embedder
 	Runner *epoch.Runner // may be nil for read-only servers
 	Bundle string
-	Agency *agents.Agency // may be nil; enables the kb_ask (RAG) tool when set
+	Agency *corral.Agency // may be nil; enables the kb_ask (RAG) tool when set
 }
 
 // Version is reported in the MCP server implementation handshake.

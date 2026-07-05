@@ -9,7 +9,7 @@ import (
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
-	"pixkb/pkg/agents"
+	"github.com/inovacc/corral"
 )
 
 // HybridRetriever adapts the hybrid search + edge graph to rag.Retriever. Thin
@@ -98,7 +98,7 @@ func (b BundleSource) Concept(_ context.Context, id string) (okf.Concept, error)
 
 // AgentGenerator runs the answerer agent through the fleet (air-gap-compliant:
 // generation spends one subscription turn, never a metered API).
-type AgentGenerator struct{ Agency *agents.Agency }
+type AgentGenerator struct{ Agency *corral.Agency }
 
 // Generate runs the answerer agent and returns its raw structured reply.
 func (a AgentGenerator) Generate(ctx context.Context, prompt string) (string, error) {
