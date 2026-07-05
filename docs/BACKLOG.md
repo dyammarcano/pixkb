@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:059 -->
+<!-- rev:060 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -537,6 +537,24 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   corpus grows enough that exact search latency becomes a problem.
 
 ## Shipped
+- **Migrated `pkg/agents` onto `github.com/inovacc/corral`** (2026-07-05).
+  Byte-level diff confirmed corral is pixkb's own agent-runtime, generalized
+  and published upstream; pixkb now keeps only the BACEN-charter roster
+  (`internal/roster`) and the pixkb-branded host installer
+  (`internal/agenthost`), with corral supplying Agency/Provider/Session/monitor
+  + the claude/codex/agy vendor packages. `pkg/agents` deleted entirely (final
+  task of the migration) after confirming zero remaining references outside
+  its own tree; full-repo build/vet/`-short` tests/lint all clean, plus a live
+  CLI smoke test confirming `agents install` still plans files under
+  `.../claude/pixkb/...` (not `.../claude/corral/...` — the specific
+  regression this migration was designed to avoid). go.mod bumped to
+  `go 1.26.3` for the dependency. Scope: 3 existing providers only (grok/kimi
+  deferred). **Known tradeoff, accepted by the user, not fixed here:** corral's
+  own go.mod lists `golangci-lint` and `goreleaser` as plain `require`s rather
+  than Go 1.24+ `tool` directives, forcing ~450 extra lines of transitive deps
+  onto every consumer of corral (including pixkb). This is a real fix that
+  belongs upstream in corral — worth reporting to corral's maintainer — but
+  out of scope for this migration.
 - **RAG layer — grounded, cited answer synthesis (`pixkb ask` / `kb_ask`).**
   `internal/rag`: retrieve+augment (`BuildGrounding` — hybrid top-k + optional
   related-graph expansion + token-budget assembly, each chunk tagged with concept

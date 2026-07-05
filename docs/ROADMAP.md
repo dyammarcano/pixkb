@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:010 -->
+<!-- rev:011 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -113,6 +113,13 @@ itself as the agents' self-contained tool surface.
   against the grounding, downgrade uncited/blank answers to refusals. RAG eval
   rubric (`eval/cases-rag.tsv`, `run-rag-judge.sh`) scores relevance, faithfulness,
   citation accuracy, correct-refusal (`7276aac`, `544473d`, `69fad4a`, `cabc7b4`).
+- [x] **Migrated `pkg/agents` onto `github.com/inovacc/corral`** (2026-07-05) —
+  confirmed via byte-level diff to be pixkb's own agent-runtime, generalized
+  and published upstream. pixkb keeps only the BACEN-charter roster
+  (`internal/roster`) and the pixkb-branded host installer
+  (`internal/agenthost`); `corral` supplies Agency/Provider/Session/monitor +
+  the claude/codex/agy vendor packages. Scope: 3 existing providers only
+  (grok/kimi deferred). go.mod bumped to `go 1.26.3` for the dependency.
 - [ ] **Scraper wired** — render JS BACEN SPA pages into canonical concepts.
   BACKLOG P2.
 
