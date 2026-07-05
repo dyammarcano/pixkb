@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/inovacc/corral"
+	_ "github.com/inovacc/corral/all" // registers codex/claude/agy providers
 	"pixkb/internal/curate"
 	"pixkb/internal/okf"
-	"pixkb/pkg/agents"
-	_ "pixkb/pkg/agents/all" // registers codex/claude/agy providers
+	_ "pixkb/internal/roster" // registers named roster agents
 )
 
 func firstProvider() string {
@@ -55,7 +56,7 @@ func TestCurate_RealFixerDryRun(t *testing.T) {
 	}
 
 	dir, _ := os.Getwd()
-	ag, err := agents.NewAgency(prov, dir)
+	ag, err := corral.NewAgency(prov, dir)
 	if err != nil {
 		t.Fatalf("NewAgency: %v", err)
 	}

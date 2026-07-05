@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/inovacc/corral"
 	"pixkb/internal/hygiene"
 	"pixkb/internal/okf"
-	"pixkb/pkg/agents"
 )
 
 // AgencyFixer is the production Fixer: it runs the named roster agent through
@@ -15,7 +15,7 @@ import (
 // itself reaches the KB through pixkb's MCP verbs; the Curator only hands it the
 // concept + the deterministic findings and reads back its proposal.
 type AgencyFixer struct {
-	Agency *agents.Agency
+	Agency *corral.Agency
 }
 
 // Fix runs one repair turn for the routed agent over a single concept.
