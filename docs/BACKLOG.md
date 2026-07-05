@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:058 -->
+<!-- rev:059 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -336,9 +336,13 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     `websearch_to_tsquery` matching, so a stemmed match (e.g. "cobranças"
     matching indexed "cobrança") may not be found here — acceptable for a
     presentation-layer explanation aid.
-  - **An HTTP `/explain` endpoint / `explain=true` query param for `pixkb
-    serve`** — not touched by this plan; only the CLI and MCP surfaces got
-    `--explain`/`explain: true`.
+  - ~~**An HTTP `/explain` endpoint / `explain=true` query param for `pixkb
+    serve`**~~ **Shipped** (`/steps:next`, 2026-07-04): `GET /search?...&
+    explain=true` always returns JSON (matching the CLI/MCP explain
+    surfaces) via the same `printExplain` helper `pixkb search --explain`
+    uses (`http.ResponseWriter` satisfies `io.Writer` — no duplicated
+    logic). Handler extracted to `newSearchHandler` for httptest coverage
+    (`cmd/pixkb/ops_test.go`); live-verified.
 - **Rich search filters/formats follow-ups (Feature 4 of
   `docs/SEARCH-CAPABILITY-SPEC.md`, as-of subset shipped; these are deliberately
   deferred).** `internal/output` (text/json/md/yaml rendering) plus
@@ -360,8 +364,12 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     and the MCP `search` tool's `include_types`/`exclude_ids`/
     `min_vector_score` fields. Zero-value defaults preserve prior behavior
     exactly.
-  - **An HTTP `/search` format query param for `pixkb serve`** — this plan
-    only touched the CLI (`--format`) and MCP surfaces, not `pixkb serve`.
+  - ~~**An HTTP `/search` format query param for `pixkb serve`**~~ **Shipped**
+    (`/steps:next`, 2026-07-04): `GET /search?...&format=json|text|md|yaml`
+    mirrors `pixkb search --format` (`internal/output.Render`); default
+    (unset/`json`) preserves the endpoint's original JSON-only contract
+    exactly, zero behavior change. Live-verified via httptest
+    (`TestSearchHandler`, `cmd/pixkb/ops_test.go`).
 - **RAG retrieval upgrade follow-ups (Feature 5 of `docs/SEARCH-CAPABILITY-SPEC.md`
   shipped; these are deliberately deferred).** `rag.BuildGrounding` gained opt-in
   `MultiQuery` (dispatches to `query.MultiHybrid` via the `MultiRetriever`
