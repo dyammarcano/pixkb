@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:057 -->
+<!-- rev:058 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -210,6 +210,34 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     written back to the canonical bundle files even when generated
     elsewhere. Worth a `search-health`-driven enrichment pass as a
     follow-up action, not just a report.
+    - FOLLOW-UP DONE (2026-07-04, `search-health`-driven enrich pass): ran
+      `curate --enrich --apply --ids ... --provider claude` on the 25
+      highest-priority missing-`intent_terms` concepts from
+      `search-health`'s recommendation list — the score-3
+      sparse-terms+noisy-title+sparse-graph manual sections
+      (`manuals/ii-manualdepadroesparainiciacaodopix/secao-*`). 25 applied,
+      0 rejected, 0 errored; committed in `kb-data`'s own git as `1a16e61`
+      ("epoch 1: enrich (~25 agent write-back)"). MEASURED before→after on
+      the deterministic harness (bundle reindexed to match first): precise
+      top@1 18/26 (69%) / top@5 25/26 (96%) / MRR 0.806→0.805 (flat — no
+      case left top@5, sub-rounding MRR move, NOT a regression); fuzzy top@1
+      2/17 (12%) / top@5 6/17 (35%) / MRR 0.198 UNCHANGED; `eval multi` 8/8;
+      `search-health` eval regressions 8/43 unchanged; missing `intent_terms`
+      243→218 of 255 (≈37 concepts now enriched). Precise held flat because
+      the enriched manual sections are not in the precise/fuzzy eval sets;
+      fuzzy did not move because on this shared prod state the hashing
+      embedder still indexes Title+Body only (does not read `intent_terms`).
+      The 8 remaining eval-regression concepts already HAVE rich
+      `intent_terms`, so their misses are a ranking problem (outranked, not
+      term-starved) — deliberately did NOT `--reenrich`-overwrite good terms
+      on a gamble (ADR 0002 re-tuning caution / measure-before-keep).
+      RECONCILE: as measured against the live prod KB during this pass,
+      `search-health` reported 218/255 still missing and fuzzy MRR 0.198 —
+      this does NOT match the "intent_terms rollout COMPLETE — 207/207" /
+      "embedder folds intent_terms, fuzzy 0.303" Shipped entries below, and
+      the shared `kb-data` bundle git history has no 207-concept commit.
+      Someone should reconcile which state is canonical before trusting
+      either number.
   - `pixkb search-health` reports counts/recommendations but never fails
     the process (`os.Exit(1)`) — intentional, matching `pixkb eval`'s own
     "measurement tool, not a CI gate" convention from Feature 6.
