@@ -101,7 +101,21 @@ func TestToSQL_TextContainsEscaped(t *testing.T) {
 	if where != `body ILIKE $1 ESCAPE '\'` {
 		t.Errorf("where = %q", where)
 	}
-	if len(args) != 1 || args[0] != `50\%\_x` {
+	if len(args) != 1 || args[0] != `%50\%\_x%` {
+		t.Errorf("args = %v", args)
+	}
+}
+
+func TestToSQL_TextContainsSubstring(t *testing.T) {
+	q := sqlMustParse(t, `title ~ "pix"`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `title ILIKE $1 ESCAPE '\'` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 1 || args[0] != "%pix%" {
 		t.Errorf("args = %v", args)
 	}
 }
@@ -207,7 +221,7 @@ func TestToSQL_IDContainsAllowed(t *testing.T) {
 	if where != `id ILIKE $1 ESCAPE '\'` {
 		t.Errorf("where = %q", where)
 	}
-	if len(args) != 1 || args[0] != "abc" {
+	if len(args) != 1 || args[0] != "%abc%" {
 		t.Errorf("args = %v", args)
 	}
 }

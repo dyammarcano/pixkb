@@ -144,7 +144,7 @@ func (b *sqlBuilder) textIDCmp(c *Comparison, f field) (string, error) {
 		if c.Value == nil {
 			return "", fmt.Errorf("hql: field %q needs a value", c.Field)
 		}
-		pat := escapeLike(c.Value.Raw)
+		pat := "%" + escapeLike(c.Value.Raw) + "%"
 		neg := ""
 		if c.Op == OpNotContains {
 			neg = "NOT "
