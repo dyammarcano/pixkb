@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,4 +54,30 @@ func TestGatherAll_SourceErrorPropagates(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, sentinel))
+}
+
+func TestTagDomain(t *testing.T) {
+	in := []okf.Concept{
+		{ID: "a", Tags: []string{"manual", "ii-manual"}},          // no domain -> default pix
+		{ID: "b", Tags: []string{"api", "tributos", "domain:tax"}}, // already tagged -> kept
+		{ID: "c", Tags: nil},                                       // nil tags -> pix
+	}
+	out := tagDomain(in)
+
+	assert.Contains(t, out[0].Tags, "domain:pix")
+	assert.Contains(t, out[1].Tags, "domain:tax")
+	assert.NotContains(t, out[1].Tags, "domain:pix", "must not double-tag an already-domained concept")
+	assert.Contains(t, out[2].Tags, "domain:pix")
+
+	// Idempotent: a second pass adds nothing.
+	again := tagDomain(out)
+	for i := range again {
+		n := 0
+		for _, tg := range again[i].Tags {
+			if strings.HasPrefix(tg, "domain:") {
+				n++
+			}
+		}
+		assert.Equalf(t, 1, n, "concept %s must have exactly one domain tag", again[i].ID)
+	}
 }
