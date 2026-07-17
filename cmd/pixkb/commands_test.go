@@ -31,6 +31,15 @@ func TestBuildSources_OmitsScoutCrawlWhenNotConfigured(t *testing.T) {
 	}
 }
 
+func TestBuildSources_IncludesOpenAPISpecsWhenConfigured(t *testing.T) {
+	cfg := Config{OpenAPISpecs: []OpenAPISpecConf{{File: "mirror/openapi/x.json", Domain: "tax"}}}
+	names := map[string]bool{}
+	for _, s := range buildSources(cfg) {
+		names[s.Name()] = true
+	}
+	assert.True(t, names["openapi"], "expected an openapi source when openapi_specs is set")
+}
+
 // TestSearchCmd_RichFilterFlagsWiring verifies `pixkb search` registers the
 // three rich-filter flags (docs/BACKLOG.md's "Include/exclude concept-id and
 // concept-type list filters, and a minimum-vector-score filter" follow-up)

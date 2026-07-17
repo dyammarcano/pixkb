@@ -55,6 +55,9 @@ func buildSources(cfg Config) []ingest.Source {
 		}
 		srcs = append(srcs, ingest.NewScoutCrawlSource(cfg.ScoutCrawlDir, baseURL))
 	}
+	for _, spec := range cfg.OpenAPISpecs {
+		srcs = append(srcs, ingest.NewOpenAPISourceWithDomain([]string{spec.File}, spec.Domain))
+	}
 	return srcs
 }
 

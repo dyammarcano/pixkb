@@ -185,3 +185,17 @@ func TestLoadConfig_LocalOverridesGlobal(t *testing.T) {
 	assert.Equal(t, "postgres://fromlocal@localhost/db", cfg.DSN, "local dsn overrides global")
 	assert.Equal(t, "global-kb", cfg.BundleDir, "global bundle_dir survives since local doesn't set it")
 }
+
+func TestLoadConfig_OpenAPISpecs(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir())
+	yaml := "openapi_specs:\n" +
+		"  - { file: mirror/openapi/tributos-consumo.json, domain: tax }\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pixkb.yaml"), []byte(yaml), 0o644))
+
+	cfg := loadConfig()
+	require.Len(t, cfg.OpenAPISpecs, 1)
+	assert.Equal(t, "mirror/openapi/tributos-consumo.json", cfg.OpenAPISpecs[0].File)
+	assert.Equal(t, "tax", cfg.OpenAPISpecs[0].Domain)
+}
