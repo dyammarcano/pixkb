@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -144,4 +145,34 @@ func keysOf(m map[string]okfConceptView) []string {
 		ks = append(ks, k)
 	}
 	return ks
+}
+
+func TestLegislationFixtureEndToEnd(t *testing.T) {
+	data, err := os.ReadFile("testdata/sample-statute.txt")
+	require.NoError(t, err)
+
+	concepts := legislationConcepts(parseStatute(string(data)), "LC214-2025.pdf", "lc-214-2025", "tax")
+	require.NotEmpty(t, concepts)
+
+	var articles, references int
+	for _, c := range concepts {
+		require.Contains(t, c.Tags, "domain:tax", "every legislation concept carries domain:tax")
+		require.Contains(t, c.Tags, "lei:lc-214-2025")
+		require.True(t, strings.HasPrefix(c.ID, "legislation/lc-214-2025/"))
+		switch c.Type {
+		case "LegalArticle":
+			articles++
+		case "Reference":
+			references++
+		}
+	}
+	require.GreaterOrEqual(t, articles, 5, "ementa + at least 5 articles")
+	require.GreaterOrEqual(t, references, 1, "at least one anexo Reference")
+
+	// No duplicate ids (the gather layer rejects them; catch it earlier here).
+	ids := map[string]bool{}
+	for _, c := range concepts {
+		require.False(t, ids[c.ID], "duplicate concept id %q", c.ID)
+		ids[c.ID] = true
+	}
 }
