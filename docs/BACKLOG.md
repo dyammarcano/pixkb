@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:070 -->
+<!-- rev:071 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -71,11 +71,16 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `pdf`/`legislation`/`markdown`/`scoutcrawl` adapters are all ready to receive
   them — the blocker is purely missing files (air-gap: nothing fetchable online).
   Phase D additionally needs `calculadora.zip` extracted + a source adapter for its
-  Flyway schema/controllers (not yet wired). **Phase A follow-up (P3, from the final review):**
+  Flyway schema/controllers (not yet wired). ~~**Phase A follow-up (P3, from the final review):**
   nothing validates a configured `domain` is in `{pix, tax}` — a typo like
   `domain: taxx` silently creates concepts invisible to both filters; add a
-  one-line validation warning in `buildSources`/`applyConfigFile` (or promote
-  domain to a first-class `okf.Concept` field, which the spec deferred).
+  one-line validation warning in `buildSources`/`applyConfigFile`.~~ **RESOLVED
+  (2026-07-17):** `buildSources` now calls `unknownConfiguredDomains(cfg)` and
+  `slog.Warn`s for every `openapi_specs:`/`legislation:` entry whose non-empty
+  `domain` is outside `{pix, tax}` (empty stays allowed — backfilled to
+  `domain:pix`). Pure helper unit-tested (`cmd/pixkb/domainval_test.go`).
+  Promoting domain to a first-class `okf.Concept` field remains the deferred
+  heavier alternative.
   Original direction (retained for context): Direction set by the user 2026-07-17: pixkb should cover both the
   payments rail (BACEN: Pix/SPB, already the whole current corpus) AND the tax
   domain (Receita Federal: the Reforma Tributária consumption taxes — **CBS**,

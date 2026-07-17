@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,9 +25,37 @@ func attachCommands(root *cobra.Command) {
 	root.AddCommand(newIngestCmd(), newSearchCmd(), newReindexCmd(), newDiffCmd(), newStatsCmd(), newRelatedCmd(), newSimilarCmd(), newAgentsCmd(), newConceptCmd(), newMCPCmd(), newHygieneCmd(), newCurateCmd(), newQRCmd(), newAskCmd(), newISPBCmd(), newEvalCmd(), newVocabCmd(), newSearchHealthCmd(), newEconIndexCmd(), newQueryCmd())
 }
 
+// knownDomains are the valid KB domain values. A configured domain outside this
+// set (e.g. the typo "taxx") silently produces a domain:<typo> tag that is
+// invisible to both the pix and tax domain filters, so buildSources warns.
+var knownDomains = map[string]bool{"pix": true, "tax": true}
+
+// unknownConfiguredDomains returns a human-readable label for every configured
+// source whose domain is neither empty nor a known KB domain. An empty domain is
+// allowed — it is backfilled to domain:pix by ingest.tagDomain — so only an
+// explicit, non-empty, unrecognized domain is reported.
+func unknownConfiguredDomains(cfg Config) []string {
+	var bad []string
+	check := func(domain, label string) {
+		if domain != "" && !knownDomains[domain] {
+			bad = append(bad, label+" (domain: "+domain+")")
+		}
+	}
+	for _, spec := range cfg.OpenAPISpecs {
+		check(spec.Domain, "openapi_specs:"+spec.File)
+	}
+	for _, l := range cfg.Legislation {
+		check(l.Domain, "legislation:"+l.File)
+	}
+	return bad
+}
+
 // buildSources assembles the ingest sources from config. The ISO-20022 message
 // set is always present; PDF and git-mirror sources are added when configured.
 func buildSources(cfg Config) []ingest.Source {
+	for _, b := range unknownConfiguredDomains(cfg) {
+		slog.Warn("configured domain is not a known KB domain (pix|tax); its concepts will be invisible to domain filters", "source", b)
+	}
 	srcs := []ingest.Source{ingest.NewISOSpecSource(ingest.DefaultMsgDefs())}
 	if len(cfg.PDFs) > 0 {
 		srcs = append(srcs, ingest.NewPDFSource(cfg.PDFs))
