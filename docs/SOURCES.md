@@ -1,5 +1,5 @@
 # pixkb Ingestion Sources
-<!-- rev:003 -->
+<!-- rev:004 -->
 
 Authoritative upstream BACEN/gov sources for the Pix/SPB knowledge base. Each row
 records the URL, kind, target ingest adapter, and status. New URLs are added here
@@ -25,6 +25,13 @@ re-ingest has run.
 | # | URL | Kind | Adapter | Status | Notes |
 |---|-----|------|---------|--------|-------|
 | 10 | https://www.gov.br/pt-br/servicos/emitir-relatorio-de-chaves-pix | HTML | web→markdown | ready (not yet ingested) | gov.br: emit Pix-keys report. Crawls cleanly (H1 "Emitir Relatórios de Chaves Pix"). The wrong-domain-`source_uri` blocker is resolved (2026-07-17, `7bb66cc`): set `scout_crawl_base_url: https://www.gov.br` for a gov.br crawl. Ingest via a separate scout-crawl dir configured with the gov.br base URL |
+
+## Receita Federal / tax legislation sources (domain:tax)
+
+| # | URL | Kind | Adapter | Status | Notes |
+|---|-----|------|---------|--------|-------|
+| 11 | https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/api-docs | OpenAPI | openapi (`openapi_specs:`) | ingested (Phase A) | CBS/IBS/IS consumption-tax calculator, 36 endpoints. Spec placed in the mirror dir; swagger-ui loads it dynamically (resolve via `scout eval <api-docs-url>`) |
+| 12 | https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm (consolidated PDF) | PDF | legislation (`legislation:`) | ready (Phase B; operator supplies PDF) | LC 214/2025 — Reforma Tributária consumption-tax law (CBS/IBS/IS + split payment). Ingested as article-level `LegalArticle` concepts by the statute-aware sectioner. Operator drops the PDF at `%LocalAppData%\PixKB\mirror\legislation\LC214-2025.pdf` (not vendored); add a `legislation:` entry and re-ingest. See the Phase B follow-ups in BACKLOG for real-PDF marker-robustness caveats |
 
 ## Not ingestable
 

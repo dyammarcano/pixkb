@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:001 -->
+<!-- rev:002 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,13 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **Phase B shipped to master** (merge `c1b7fa8`). Whole-branch
+  review returned READY-WITH-MINORS; decided to **fix findings 1+3 pre-merge**
+  (ANEXO false-positive guard + zero-article warning — they affect the real-PDF
+  ingest this phase exists for) and **defer findings 2+4 to backlog** as P3
+  real-PDF-validation follow-ups (tuning marker tolerance blind, with no LC 214
+  PDF on the checkout, would risk false positives). Also fixed a `strings.SplitSeq`
+  lint finding the per-task gate missed.
 - 2026-07-17 — **Charter committed on the `feat/kb-scope-phase-b` branch** rather
   than dancing back to `master` mid-SDD; it rides into `master` with the Phase B
   merge. Low-cost, auditable; avoids a disruptive branch switch during an active

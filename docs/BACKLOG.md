@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:067 -->
+<!-- rev:068 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -28,10 +28,33 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   247 concepts, `--tag domain:tax`/`domain:pix` isolate each domain, cross-domain
   free-text retrieval confirmed. Spec/plan:
   `docs/superpowers/{specs,plans}/2026-07-17-kb-scope-expansion-phase-a*`.
-  **Open — Phases B/C/D** (each its own spec→plan→SDD cycle): B = Reforma
-  Tributária legislation (LC 214/2025 split-payment rules); C = BACEN
+  **Phase B SHIPPED (2026-07-17, merge `c1b7fa8`):** LC 214/2025 (Reforma
+  Tributária consumption-tax law) ingested as article-level `LegalArticle`
+  concepts — a new statute-aware sectioner (`parseStatute`) + `legislation`
+  source (`internal/ingest/legislation.go`) emit one concept per *artigo* (plus
+  the ementa + one `Reference` per Anexo), tagged `domain:tax` and structural
+  `lei:`/`livro:`/`titulo:`/`capitulo:`/`secao:` tags, wired via a new
+  `legislation:` config key (mirrors Phase A `openapi_specs:`). No store
+  migration (`LegalArticle` is a new `Type` string). Built via
+  subagent-driven-development (4 TDD tasks + a fix pass); whole-branch review
+  READY-WITH-MINORS, findings 1+3 fixed pre-merge (ANEXO false-positive guard +
+  zero-article `slog.Warn`). Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-17-kb-scope-expansion-phase-b*`.
+  **Phase B follow-ups (P3, from the whole-branch review — deferred to the
+  real-PDF validation pass, no LC 214 PDF on the checkout):**
+  (i) *Marker robustness* — `reArt` is line-anchored (`^Art\.`); a real PDF that
+  wraps `Art.\n1º` or prefixes a running header (`LC 214/2025  Art. 5º`) misses
+  the marker and merges that article backward. Validate against the real PDF and
+  add running-header stripping / a line-join if needed; the zero-article warning
+  only catches a total miss, not a partial one.
+  (ii) *Same-`lei` multi-file* — each `legislation:` entry is its own source with
+  its own dup-id map, so the same statute split across two entries can emit
+  colliding article IDs that trip `GatherAll`'s hard duplicate-id error and abort
+  ingest. Fine for the one-file-per-lei model; either document it or let one
+  source take multiple files.
+  **Open — Phases C/D** (each its own spec→plan→SDD cycle): C = BACEN
   split-payment specs (the Pix-rail side); D = calculator source/schema (deep,
-  YAGNI until B/C prove value). **Phase A follow-up (P3, from the final review):**
+  YAGNI until C proves value). **Phase A follow-up (P3, from the final review):**
   nothing validates a configured `domain` is in `{pix, tax}` — a typo like
   `domain: taxx` silently creates concepts invisible to both filters; add a
   one-line validation warning in `buildSources`/`applyConfigFile` (or promote
