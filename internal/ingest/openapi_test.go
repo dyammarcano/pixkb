@@ -87,3 +87,18 @@ func TestOpenAPISource_BadSpecSkipped(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, cs)
 }
+
+func TestOpenAPISource_WithDomainTagsEndpoints(t *testing.T) {
+	dir := t.TempDir()
+	spec := `{"openapi":"3.0.0","info":{"title":"Tributos","version":"1"},` +
+		`"paths":{"/calcular":{"post":{"summary":"Calcula CBS/IBS"}}}}`
+	path := filepath.Join(dir, "tributos-consumo.json")
+	require.NoError(t, os.WriteFile(path, []byte(spec), 0o644))
+
+	cs, err := NewOpenAPISourceWithDomain([]string{path}, "tax").Fetch(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, cs)
+	assert.Equal(t, "ApiEndpoint", cs[0].Type)
+	assert.Contains(t, cs[0].Tags, "domain:tax")
+	assert.Contains(t, cs[0].Tags, "api")
+}

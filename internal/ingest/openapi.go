@@ -13,12 +13,21 @@ import (
 	"pixkb/internal/okf"
 )
 
-type openAPISource struct{ files []string }
+type openAPISource struct {
+	files  []string
+	domain string
+}
 
 // NewOpenAPISource builds a Source that parses OpenAPI/Swagger specs and emits
 // one ApiEndpoint concept per path+method operation. It is air-gap friendly:
 // it reads local spec files (e.g. from staged repo mirrors), never the network.
 func NewOpenAPISource(files []string) Source { return &openAPISource{files: files} }
+
+// NewOpenAPISourceWithDomain is NewOpenAPISource plus a domain: every emitted
+// ApiEndpoint concept gets a domain:<domain> tag. Empty domain == NewOpenAPISource.
+func NewOpenAPISourceWithDomain(files []string, domain string) Source {
+	return &openAPISource{files: files, domain: domain}
+}
 
 func (s *openAPISource) Name() string { return "openapi" }
 
@@ -137,6 +146,9 @@ func (s *openAPISource) Fetch(_ context.Context) ([]okf.Concept, error) {
 				title := method + " " + p
 				body := buildEndpointBody(title, api, spec.Info.Version, op)
 				tags := append([]string{"api", slug}, op.Tags...)
+				if s.domain != "" {
+					tags = append(tags, "domain:"+s.domain)
+				}
 				out = append(out, okf.Concept{
 					ID:          "api/" + slug + "/" + slugify(method+" "+p) + ".md",
 					Type:        "ApiEndpoint",
