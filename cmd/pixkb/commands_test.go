@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,4 +53,44 @@ func TestSearchCmd_RichFilterFlagsWiring(t *testing.T) {
 	minVectorScore := cmd.Flags().Lookup("min-vector-score")
 	require.NotNil(t, minVectorScore, "search missing --min-vector-score flag")
 	assert.Equal(t, "0", minVectorScore.DefValue)
+}
+
+// TestFormatFlagWiring verifies every command that renders through
+// internal/output exposes --format with the same name and "text" default
+// (docs/BACKLOG.md's "CLI output formats"). The "text" default is the
+// backwards-compat contract: an invocation with no --format keeps printing
+// exactly what it printed before the flag existed.
+func TestFormatFlagWiring(t *testing.T) {
+	t.Parallel()
+	for _, path := range [][]string{{"search"}, {"related"}, {"stats"}, {"ispb", "lookup"}} {
+		t.Run(strings.Join(path, " "), func(t *testing.T) {
+			t.Parallel()
+			root := NewRootCmd()
+			cmd, _, err := root.Find(path)
+			require.NoError(t, err)
+
+			format := cmd.Flags().Lookup("format")
+			require.NotNilf(t, format, "%s missing --format flag", cmd.CommandPath())
+			assert.Equal(t, "text", format.DefValue, "%s --format must default to text", cmd.CommandPath())
+			assert.Equal(t, "output format: text|json|md|yaml", format.Usage)
+		})
+	}
+}
+
+// TestFormatFlag_UnknownValueErrors checks an unsupported --format is
+// rejected. These commands all need a DSN, so the run fails before any
+// rendering — the assertion is only that the flag parses and is accepted by
+// cobra, with the format vocabulary itself covered by internal/output's tests.
+func TestFormatFlag_UnknownValueErrors(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir())
+	t.Setenv("PIXKB_DSN", "")
+
+	root := NewRootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"stats", "--format", "xml"})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "unknown flag", "--format must be a registered flag on stats")
 }

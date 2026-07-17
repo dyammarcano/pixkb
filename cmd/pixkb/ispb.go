@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/ispb"
+	"pixkb/internal/output"
 )
 
 func newISPBCmd() *cobra.Command {
@@ -303,7 +304,8 @@ func newISPBSearchCmd() *cobra.Command {
 }
 
 func newISPBLookupCmd() *cobra.Command {
-	return &cobra.Command{
+	var format string
+	cmd := &cobra.Command{
 		Use:   "lookup <ispb-code>",
 		Short: "Look up a participant by its 8-digit ISPB code",
 		Args:  cobra.ExactArgs(1),
@@ -323,26 +325,14 @@ func newISPBLookupCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
-			_, _ = fmt.Fprintf(out, "ISPB:          %s\n", p.ISPB)
-			_, _ = fmt.Fprintf(out, "Name:          %s\n", p.Name)
-			if p.LegalName != "" {
-				_, _ = fmt.Fprintf(out, "Legal name:    %s\n", p.LegalName)
+			rendered, err := output.RenderISPB(format, p)
+			if err != nil {
+				return err
 			}
-			if p.CompeCode != "" {
-				_, _ = fmt.Fprintf(out, "COMPE code:    %s\n", p.CompeCode)
-			}
-			if !p.STRSyncedAt.IsZero() {
-				_, _ = fmt.Fprintf(out, "Participates COMPE: %t\n", p.ParticipatesCompe)
-				_, _ = fmt.Fprintf(out, "Access type:   %s\n", p.AccessType)
-				_, _ = fmt.Fprintf(out, "STR synced:    %s\n", p.STRSyncedAt.Format(time.RFC3339))
-			}
-			if !p.PixSyncedAt.IsZero() {
-				_, _ = fmt.Fprintf(out, "CNPJ:          %s\n", p.CNPJ)
-				_, _ = fmt.Fprintf(out, "Pix authorized: %t\n", p.PixAuthorized)
-				_, _ = fmt.Fprintf(out, "Pix synced:    %s\n", p.PixSyncedAt.Format(time.RFC3339))
-			}
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), rendered)
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text|json|md|yaml")
+	return cmd
 }

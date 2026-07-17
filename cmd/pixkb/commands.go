@@ -282,7 +282,7 @@ func printMultiExplain(w io.Writer, mh []query.MultiHit) error {
 }
 
 func newRelatedCmd() *cobra.Command {
-	var dsn string
+	var dsn, format string
 	cmd := &cobra.Command{
 		Use:   "related <concept-id>",
 		Short: "List graph neighbours of a concept (out = links to, in = linked from)",
@@ -303,14 +303,16 @@ func newRelatedCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
-			for _, r := range rels {
-				_, _ = fmt.Fprintf(out, "%-3s %-34s  %s\n", r.Direction, r.ID, r.Title)
+			rendered, err := output.RenderRelated(format, rels)
+			if err != nil {
+				return err
 			}
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), rendered)
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text|json|md|yaml")
 	return cmd
 }
 
@@ -364,7 +366,7 @@ func newSimilarCmd() *cobra.Command {
 }
 
 func newStatsCmd() *cobra.Command {
-	var dsn string
+	var dsn, format string
 	cmd := &cobra.Command{
 		Use:   "stats",
 		Short: "Show KB size and health (concepts, embeddings, epochs)",
@@ -384,20 +386,16 @@ func newStatsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
-			_, _ = fmt.Fprintf(out, "concepts:    %d\n", s.Concepts)
-			_, _ = fmt.Fprintf(out, "embeddings:  %d\n", s.Embeddings)
-			_, _ = fmt.Fprintf(out, "epochs:      %d (latest: %d)\n", s.Epochs, s.LatestEpoch)
-			if len(s.TypeOrder) > 0 {
-				_, _ = fmt.Fprintln(out, "by type:")
-				for _, typ := range s.TypeOrder {
-					_, _ = fmt.Fprintf(out, "  %-16s %d\n", typ, s.ByType[typ])
-				}
+			rendered, err := output.RenderStats(format, s)
+			if err != nil {
+				return err
 			}
+			_, _ = fmt.Fprint(cmd.OutOrStdout(), rendered)
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
+	cmd.Flags().StringVar(&format, "format", "text", "output format: text|json|md|yaml")
 	return cmd
 }
 
