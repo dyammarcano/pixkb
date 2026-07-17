@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -36,7 +37,7 @@ var (
 	reSecao    = regexp.MustCompile(`(?i)^SE[ÇC][ÃA]O\s+(` + romanOrUnico + `)\b`)
 	reSubsecao = regexp.MustCompile(`(?i)^SUBSE[ÇC][ÃA]O\s+(` + romanOrUnico + `)\b`)
 	reArt      = regexp.MustCompile(`^Art\.\s*(\d+[º°]?(?:-[A-Za-z])?)`)
-	reAnexo    = regexp.MustCompile(`(?i)^ANEXO\s+(\S+)`)
+	reAnexo    = regexp.MustCompile(`^ANEXO\s+(` + romanOrUnico + `|\d+)\b`)
 )
 
 // parseStatute splits Brazilian statute plain text into sections. It tracks the
@@ -177,7 +178,17 @@ func (s *legislationSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 		if err != nil {
 			return nil, fmt.Errorf("legislation %s: %w", f, err)
 		}
-		out = append(out, legislationConcepts(parseStatute(text), f, s.lei, s.domain)...)
+		secs := parseStatute(text)
+		articleN := 0
+		for _, sec := range secs {
+			if sec.Kind == "article" {
+				articleN++
+			}
+		}
+		if articleN == 0 {
+			slog.Warn("legislation: no articles parsed from statute", "path", f)
+		}
+		out = append(out, legislationConcepts(secs, f, s.lei, s.domain)...)
 	}
 	return out, nil
 }

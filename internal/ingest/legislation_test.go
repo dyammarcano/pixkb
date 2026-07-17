@@ -87,6 +87,47 @@ func TestParseStatute(t *testing.T) {
 	require.Contains(t, anexos[0].Body, "TABELA DE ALÍQUOTAS")
 }
 
+func TestParseStatuteAnexoStrict(t *testing.T) {
+	text := `Art. 1º Ficam instituídos o IBS e a CBS.
+
+Anexo I é parte integrante desta Lei.
+
+Art. 2º Considera-se operação onerosa.
+
+ANEXO II
+TABELA DE ALÍQUOTAS
+Produto A - 10%
+`
+	secs := parseStatute(text)
+
+	arts := map[string]statuteSection{}
+	var anexos []statuteSection
+	for _, s := range secs {
+		switch s.Kind {
+		case "article":
+			arts[s.Number] = s
+		case "anexo":
+			anexos = append(anexos, s)
+		}
+	}
+
+	// The title-case "Anexo I ..." body line must not trigger anexo mode.
+	a1, ok := arts["1º"]
+	require.True(t, ok, "Art. 1º must be parsed")
+	require.Contains(t, a1.Body, "Anexo I é parte integrante desta Lei.",
+		"the false-positive anexo line must be folded into Art. 1º body, not swallow it")
+
+	// Art. 2º must still be parsed as a distinct article, not folded into an anexo.
+	a2, ok := arts["2º"]
+	require.True(t, ok, "Art. 2º must not be swallowed by the false-positive anexo line")
+	require.Contains(t, a2.Body, "Considera-se operação onerosa")
+
+	// Only the real uppercase ANEXO II heading produces an anexo section.
+	require.Len(t, anexos, 1, "only the uppercase ANEXO II heading must produce an anexo section")
+	require.Contains(t, anexos[0].Title, "ANEXO II")
+	require.Contains(t, anexos[0].Body, "TABELA DE ALÍQUOTAS")
+}
+
 func TestParseStatuteEmpty(t *testing.T) {
 	require.Empty(t, parseStatute("just some prose with no articles at all"),
 		"text with no Art. markers and no anexo yields no article/anexo sections")
