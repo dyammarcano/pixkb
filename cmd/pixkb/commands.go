@@ -58,6 +58,9 @@ func buildSources(cfg Config) []ingest.Source {
 	for _, spec := range cfg.OpenAPISpecs {
 		srcs = append(srcs, ingest.NewOpenAPISourceWithDomain([]string{spec.File}, spec.Domain))
 	}
+	for _, l := range cfg.Legislation {
+		srcs = append(srcs, ingest.NewLegislationSource([]string{l.File}, l.Lei, l.Domain))
+	}
 	return srcs
 }
 

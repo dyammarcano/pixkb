@@ -199,3 +199,18 @@ func TestLoadConfig_OpenAPISpecs(t *testing.T) {
 	assert.Equal(t, "mirror/openapi/tributos-consumo.json", cfg.OpenAPISpecs[0].File)
 	assert.Equal(t, "tax", cfg.OpenAPISpecs[0].Domain)
 }
+
+func TestApplyConfigFileLegislation(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pixkb.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(
+		"legislation:\n  - { file: mirror/legislation/LC214-2025.pdf, lei: lc-214-2025, domain: tax }\n"), 0o644))
+
+	var cfg Config
+	applyConfigFile(&cfg, path)
+
+	require.Len(t, cfg.Legislation, 1)
+	require.Equal(t, "mirror/legislation/LC214-2025.pdf", cfg.Legislation[0].File)
+	require.Equal(t, "lc-214-2025", cfg.Legislation[0].Lei)
+	require.Equal(t, "tax", cfg.Legislation[0].Domain)
+}
