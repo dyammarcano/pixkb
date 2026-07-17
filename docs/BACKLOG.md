@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:063 -->
+<!-- rev:064 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -19,6 +19,36 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   re-implemented.
 
 ## P2
+- **SCOPE EXPANSION — grow the KB from BACEN/Pix-SPB to BACEN + Receita Federal
+  (tax).** Direction set by the user 2026-07-17: pixkb should cover both the
+  payments rail (BACEN: Pix/SPB, already the whole current corpus) AND the tax
+  domain (Receita Federal: the Reforma Tributária consumption taxes — **CBS**,
+  **IBS**, **Imposto Seletivo** — and NFS-e). The two connect through the
+  reform's Pix **split-payment** model, where CBS/IBS are computed and split at
+  payment time, so tax is adjacent to, not disjoint from, the Pix charge flows
+  already in the KB. This is a domain expansion, not a one-file add: it wants a
+  **brainstorm → spec → plan** first (new concept types / tags for tax vs.
+  payments, source catalogue, whether it stays one KB or splits by domain), the
+  same discipline as the "KB standardized in English" item. Concrete Receita
+  Federal seeds already in hand (offline, air-gap-friendly — matches pixkb's own
+  model):
+  - **Consumption-tax calculator API (OpenAPI).** Live spec:
+    `https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/api-docs`
+    (the swagger-ui page loads it dynamically — `scout swagger` on the UI URL
+    returns "no spec found"; resolved from a scout capture 2026-07-17). Fits the
+    existing `apidoc` adapter → `ApiEndpoint` concepts, same path as API-DICT.
+  - **Full OFFLINE distribution** (`calculadora.zip`, provided 2026-07-17): a
+    266 MB app bundle + `codigo-fonte-backend.zip` (a Java/Spring Boot service —
+    Maven, Flyway migrations, 993 files; controllers for tax calc, NFS-e, toll,
+    open data, offline version) + Windows/Linux install scripts + Python example
+    scripts. Because it runs fully offline it can seed an air-gapped tax KB
+    without any live gov.br dependency — the OpenAPI spec, the Flyway schema, and
+    the example scripts are all ingestable locally. Decide during the spec how
+    deep to go (just ingest the API contract, vs. also model the calculation
+    domain from the source).
+  - **Open decision for the user:** one unified KB (Pix + tax, tagged by domain)
+    vs. a sibling `tributoskb`. Recommend unified with a `domain: {pix,tax}` tag
+    so cross-domain split-payment questions resolve in one retrieval.
 - **Search evaluation expansion follow-ups (Feature 6 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
   `internal/evalkit` (case loaders + pure metrics) and `pixkb eval
@@ -563,24 +593,6 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   (`ODE ESTÁTICO PARA PACS`) — a junk-title hygiene target, fix via `curate`.
 
 ## P3
-- **Ingest the gov.br consumption-tax calculation API (Reforma Tributária).**
-  `https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/swagger-ui/index.html`
-  — the official calculator for Brazil's tax-reform consumption taxes (**CBS**,
-  **IBS**, **Imposto Seletivo**). Relevant to pixkb via the reform's Pix
-  **split-payment** model, where CBS/IBS are computed and split at payment time,
-  so the calculation contract sits adjacent to the Pix/SPB charge flows the KB
-  already covers. It exposes an OpenAPI spec, so it fits the existing `apidoc`
-  adapter (same path as API-DICT). Concrete inputs already resolved:
-  - **Spec (OpenAPI JSON), not the swagger-ui page:**
-    `https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/api-docs`
-    (resolved 2026-07-17 from a scout capture; the swagger-ui page loads it
-    dynamically, so `scout swagger` on the UI URL returns "no spec URL found").
-  - **Ingest path:** add it to `SOURCES.md` as an `apidoc` source (`api_docs:`
-    in `pixkb.yaml`), fetch the `api-docs` JSON, ingest to `ApiEndpoint`
-    concepts, reindex.
-  - **Open question before scheduling:** confirm this is in-scope for a Pix/SPB
-    KB vs. a separate tax-reform KB — it is adjacent, not core Pix. Adjacent-
-    domain (tax) rather than payment-rail (Pix), hence P3.
 - **HNSW-on-typed-vector revisit.** Current vector search is exact-cosine.
   Revisit an HNSW (approximate) index on the typed vector column only if the
   corpus grows enough that exact search latency becomes a problem.
