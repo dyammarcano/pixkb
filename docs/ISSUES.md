@@ -1,5 +1,5 @@
 # pixkb Known Issues & Limitations
-<!-- rev:014 -->
+<!-- rev:015 -->
 
 Current known limitations.
 
@@ -27,6 +27,25 @@ Current known limitations.
   rejoining dropcaps without merging + TOC-skip would MULTIPLY the fragment
   headings, not remove them. `hygiene` already flags the symptoms; the extractor
   is the fix site.
+  **Attempt 1 (2026-07-17) — reverted, findings recorded.** Implemented dropcap
+  rejoin + uppercase-fragment merge + bare-number attach + drop sections whose
+  body is only a dot-leader+page-number (`isTOCBody`). Re-ingested the real PDF
+  locally. Result: titles DID reconstruct correctly (`MAPEAMENTO DA RESPOSTA A UM
+  CANCELAMENTO...`, `SERVIÇO DE INICIAÇÃO...` — the core mangling is fixable), but
+  overall a NET REGRESSION by the metrics (junk-title 51→68, duplicate 27→46,
+  ManualSection 93→96), so it was reverted. Three concrete gaps the next attempt
+  must close: (1) **incomplete merges** — `QR CODE ESTÁTICO` still lost `QR`
+  (some fragments don't sit consecutively as modeled); (2) **page-number
+  mis-attach** — the number-attach grabbed page numbers (`65 ANEXO II`), so only
+  attach a preceding number if it is a real section number (has a dot, e.g.
+  `3.2.`, not a bare page number); (3) **TOC entries still duplicated the body**
+  — `isTOCBody` didn't catch every TOC entry, so dedup needs a stronger signal
+  (e.g. suppress the whole front-TOC region, and drop a title that also appears
+  as a body section). Also note `hygiene`'s junk-title check flags legitimate
+  ALL-CAPS headings (the manual really uses them), so it over-counts — the real
+  target is correct/de-duplicated titles, not zero all-caps. The PDF's text layer
+  is chaotic (per-word dropcaps, interleaved dot-leaders, 25k fragment lines):
+  budget for iterative measurement against a re-ingest diff, not a one-shot fix.
 
 ## Search quality
 - **FTS recall arm ANDs every query word (`websearch_to_tsquery`) — defeats
