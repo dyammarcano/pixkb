@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:061 -->
+<!-- rev:062 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -478,13 +478,36 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `SOURCES.md` catalogue lists 10 URLs, and 50 JS-rendered pages are present
   under `mirrors/bcb/knowledge/pages` (all 5 `ScoutCrawl` tests green). Note the
   `scout` CLI is installed and is the CLI-first path; the MCP browser is not
-  required. **Follow-up (open, P2 — re-target the crawl):** that crawl captured
-  the general `bcb.gov.br` tree (`acessoinformacao`, `agendaautoridades`, …),
-  NOT the Pix pages. `SOURCES.md` #2,3,5,6,7,10 (pix-seguranca, pix-normas,
-  pix-cobranca, pix-automatico, SPI overview, gov.br keys report) are still
-  `pending`. Re-run the crawl against those URLs, curate to Markdown per the
-  SOURCES.md ingestion notes, and promote each row to `ingested`. This targets
-  the weak `seguranca` / `recorrencia` / `liquidacao-spi` eval cases.
+  required. ~~**Follow-up (P2 — re-target the crawl):** that crawl captured the
+  general `bcb.gov.br` tree, NOT the Pix pages.~~ **Largely resolved (2026-07-17,
+  `/steps:next` item 4)**: re-crawled the 6 Pix URLs with `scout knowledge
+  --depth 0` (no link-wandering), regenerated the bundle's `web/` concepts, and
+  reindexed **prod** (`192.168.15.100`) — validated first against the local
+  throwaway DB. Prod went 255→211 concepts, WebPage 47→3; the 47 off-topic
+  `acessoinformacao` pages are gone. The `seguranca` query that returned 2 junk
+  hits in its top-5 now returns 0, with "Segurança no Pix" at #2. Pages #2/#5/#6
+  (pix-seguranca / pix-cobranca / pix-automatico) are ingested. **Residual (open,
+  P3):** #3 pix-normas and #7 SPI render as link-only shells with no `# ` H1, so
+  the extraction rule skips them — ingest their linked PDFs instead; #10 gov.br
+  keys page crawls fine but needs a gov.br-`baseURL` source (see new blocker
+  below) before it can be ingested with an honest `source_uri`.
+- **`ingest` is not runnable without the manual PDF (portability blocker, P2).**
+  `pixkb.yaml` pins an absolute `pdfs:` path
+  (`C:/Users/dyamm/Downloads/II_ManualdePadroesparaIniciacaodoPix.pdf`) that does
+  not exist on every checkout. `pixkb ingest` runs `GatherAll` over ALL sources
+  and aborts the whole run if any source file is missing, so a checkout without
+  that exact PDF cannot re-ingest at all — the 2026-07-17 web re-ingest had to go
+  through `reindex` from a hand-regenerated bundle instead. The PDF itself is not
+  lost — 5 identical copies (3,074,898 bytes) live under
+  `D:/weaver-sync/.../rsfn-arq-connect/discovery/` — it is only absent from the
+  hardcoded `Downloads` path, so fix (b) is concrete. Fixes to consider:
+  (a) make a missing optional source a warning that skips only that source's
+  concepts (careful — the epoch diff would then *remove* those concepts), (b)
+  vendor the manual PDF at a repo-relative path and point `pixkb.yaml` at it
+  (relative, not absolute), or (c) add a `pixkb ingest --only <source>` flag so a
+  single source can be re-gathered without touching the rest. Related: the scout-crawl `baseURL` is hardcoded to
+  `https://www.bcb.gov.br` in `buildSources`, which blocks ingesting the gov.br
+  keys page (#10) with a correct source URL — make `baseURL` per-source config.
 - **Fuzzy recall ceiling is the VECTOR arm + en/pt config, NOT FTS (re-scoped).**
   UPDATE (2026-07-04, `/steps:next` item 4): lever (b) — targeted
   `curate --enrich --apply --ids ...` against exactly the 10 concepts
