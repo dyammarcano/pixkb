@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:002 -->
+<!-- rev:003 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,16 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **Phases C/D blocked → pivot to HQL (P2).** A read-only source
+  inventory found no offline BACEN split-payment / Pix-rail material on the
+  machine (nav-boilerplate only; the calculadora backend is the tax calculator
+  with no split component; the SPI/LC-214 PDFs were never downloaded). Per the
+  charter scope (whole roadmap *until blocked* → skip the blocked item, continue),
+  decided to **pivot to the HQL structured-query DSL (BACKLOG P2)** — the
+  highest-priority non-blocked item, fully self-contained (a port of herald's
+  `internal/hql`, no external sources), and it now has real Phase A/B data to
+  query. Logged the exact missing files in BACKLOG so the operator can unblock
+  C/D by dropping PDFs in the mirror dir; I'll resume C/D when they appear.
 - 2026-07-17 — **Phase B shipped to master** (merge `c1b7fa8`). Whole-branch
   review returned READY-WITH-MINORS; decided to **fix findings 1+3 pre-merge**
   (ANEXO false-positive guard + zero-article warning — they affect the real-PDF

@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:068 -->
+<!-- rev:069 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -52,9 +52,26 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   colliding article IDs that trip `GatherAll`'s hard duplicate-id error and abort
   ingest. Fine for the one-file-per-lei model; either document it or let one
   source take multiple files.
-  **Open — Phases C/D** (each its own spec→plan→SDD cycle): C = BACEN
-  split-payment specs (the Pix-rail side); D = calculator source/schema (deep,
-  YAGNI until C proves value). **Phase A follow-up (P3, from the final review):**
+  **Open — Phases C/D — BLOCKED on operator-supplied offline sources (verified
+  2026-07-17 by a source inventory).** C = BACEN split-payment specs (the Pix-rail
+  side); D = calculator source/schema (deep, YAGNI until C proves value). There is
+  currently **no offline BACEN split-payment / Pix-rail settlement material on the
+  machine**: the `mirrors/bcb` crawl holds only nav-boilerplate mentions of
+  split/recolhimento/liquidação; the offline `calculadora.zip` backend is the tax
+  *calculator* (controllers for calc/NFS-e/pedágio/dados-abertos, Flyway tax
+  tables) with **no split-payment component**; and the SPI/LC-214 PDFs referenced
+  in `SOURCES.md` (#8 SPI participants, #12 LC 214/2025) were never downloaded —
+  even `%LocalAppData%\PixKB\mirror\legislation\LC214-2025.pdf` does not exist, so
+  Phase B's own real-PDF validation is likewise pending. **To unblock, the operator
+  must drop into `%LocalAppData%\PixKB\mirror\`:** (1) the **LC 214/2025 consolidated
+  PDF** (`legislation/LC214-2025.pdf` — carries the split-payment articles; also
+  completes Phase B validation); (2) the **BACEN normative act(s) governing SPI
+  split-payment operation** ("recolhimento na liquidação" over the SPI arrangement)
+  as PDF; (3) the **SPI manuals / Regulamento SPI PDFs** (`pdf` adapter). The
+  `pdf`/`legislation`/`markdown`/`scoutcrawl` adapters are all ready to receive
+  them — the blocker is purely missing files (air-gap: nothing fetchable online).
+  Phase D additionally needs `calculadora.zip` extracted + a source adapter for its
+  Flyway schema/controllers (not yet wired). **Phase A follow-up (P3, from the final review):**
   nothing validates a configured `domain` is in `{pix, tax}` — a typo like
   `domain: taxx` silently creates concepts invisible to both filters; add a
   one-line validation warning in `buildSources`/`applyConfigFile` (or promote
