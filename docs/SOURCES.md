@@ -1,5 +1,5 @@
 # pixkb Ingestion Sources
-<!-- rev:002 -->
+<!-- rev:003 -->
 
 Authoritative upstream BACEN/gov sources for the Pix/SPB knowledge base. Each row
 records the URL, kind, target ingest adapter, and status. New URLs are added here
@@ -24,7 +24,7 @@ re-ingest has run.
 
 | # | URL | Kind | Adapter | Status | Notes |
 |---|-----|------|---------|--------|-------|
-| 10 | https://www.gov.br/pt-br/servicos/emitir-relatorio-de-chaves-pix | HTML | web→markdown | blocked (domain) | gov.br: emit Pix-keys report. Crawls cleanly (H1 "Emitir Relatórios de Chaves Pix"), but `buildSources` hardcodes `baseURL=https://www.bcb.gov.br`, so ingesting it under the scout-crawl source records a wrong-domain `source_uri`. Needs a gov.br-based crawl source before it can be ingested with honest provenance |
+| 10 | https://www.gov.br/pt-br/servicos/emitir-relatorio-de-chaves-pix | HTML | web→markdown | ready (not yet ingested) | gov.br: emit Pix-keys report. Crawls cleanly (H1 "Emitir Relatórios de Chaves Pix"). The wrong-domain-`source_uri` blocker is resolved (2026-07-17, `7bb66cc`): set `scout_crawl_base_url: https://www.gov.br` for a gov.br crawl. Ingest via a separate scout-crawl dir configured with the gov.br base URL |
 
 ## Not ingestable
 

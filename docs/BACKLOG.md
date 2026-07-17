@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:065 -->
+<!-- rev:066 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -566,9 +566,12 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   concepts (careful — the epoch diff would then *remove* those concepts), (b)
   vendor the manual PDF at a repo-relative path and point `pixkb.yaml` at it
   (relative, not absolute), or (c) add a `pixkb ingest --only <source>` flag so a
-  single source can be re-gathered without touching the rest. Related: the scout-crawl `baseURL` is hardcoded to
-  `https://www.bcb.gov.br` in `buildSources`, which blocks ingesting the gov.br
-  keys page (#10) with a correct source URL — make `baseURL` per-source config.
+  single source can be re-gathered without touching the rest. ~~Related: the
+  scout-crawl `baseURL` is hardcoded, blocking the gov.br keys page (#10).~~
+  **baseURL resolved (2026-07-17, `7bb66cc`):** added a `scout_crawl_base_url`
+  config field (defaults to the BCB origin), so a gov.br crawl records an honest
+  `source_uri`. #10 is now ingestable once its pages are crawled. The PDF/
+  all-or-nothing portability blocker (fixes a/b/c above) is still open.
 - **Fuzzy recall ceiling is the VECTOR arm + en/pt config, NOT FTS (re-scoped).**
   UPDATE (2026-07-04, `/steps:next` item 4): lever (b) — targeted
   `curate --enrich --apply --ids ...` against exactly the 10 concepts
