@@ -92,7 +92,10 @@ func renderMsgBody(d MsgDef) string {
 	if len(d.Links) > 0 {
 		b.WriteString("## Related messages\n\n")
 		for _, l := range d.Links {
-			fmt.Fprintf(&b, "- [%s](%s.md)\n", l, l)
+			// Link target must be the bundle-relative concept id (messages/<id>.md)
+			// so hygiene resolves it against the messages/-prefixed ids; the link
+			// text stays the bare message name for readability.
+			fmt.Fprintf(&b, "- [%s](messages/%s.md)\n", l, l)
 		}
 		b.WriteString("\n")
 	}

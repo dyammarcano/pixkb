@@ -33,6 +33,10 @@ func TestISOSpecSource_DefaultDefs(t *testing.T) {
 	// cross-links resolved to bundle-relative ids via ParseLinks
 	assert.Contains(t, c.Links, "messages/pacs.002.md")
 	assert.Contains(t, c.Links, "messages/pacs.004.md")
+	// body "Related messages" links must be bundle-relative too, so hygiene can
+	// resolve them against the messages/-prefixed concept ids (not bare filenames).
+	assert.Contains(t, c.Body, "[pacs.002](messages/pacs.002.md)")
+	assert.NotContains(t, c.Body, "](pacs.002.md)")
 
 	camt, ok := byID["messages/camt.056.md"]
 	require.True(t, ok)
