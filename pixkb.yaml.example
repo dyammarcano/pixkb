@@ -32,7 +32,6 @@ repos:
   - { owner: "bacen", name: "pix-api" }
   - { owner: "bacen", name: "pix-dict-api" }
 
-
 # Standalone OpenAPI/Swagger specs (outside the repo mirrors), each tagged with a
 # KB domain. Place the spec file under the per-user mirror dir (see pdfs: note).
 # The Receita Federal consumption-tax calculator's spec is at
