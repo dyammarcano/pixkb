@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:064 -->
+<!-- rev:065 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -49,6 +49,37 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   - **Open decision for the user:** one unified KB (Pix + tax, tagged by domain)
     vs. a sibling `tributoskb`. Recommend unified with a `domain: {pix,tax}` tag
     so cross-domain split-payment questions resolve in one retrieval.
+- **Structured query DSL for rich search (HQL-style), ported from herald.** Add a
+  JQL/HQL-style structured query language over the concept store so users can
+  express precise boolean/field queries instead of only the current flag filters
+  (`--type`, `--tag`, `--include-type`, `--exclude-id`, `--min-vector-score`,
+  `--as-of-*`). Example intent:
+  `type = ApiEndpoint AND domain = tax AND (tag ~ "cobranca" OR text ~ "split")
+  ORDER BY epoch DESC`. **Proven reference to port/adapt:** herald's
+  `internal/hql` (lexer + parser + ast + schema + sql + eval) and its design spec
+  `D:/weaver-sync/development/personal/projects/herald/docs/superpowers/specs/2026-07-08-hql-engine-design.md`
+  (status: implemented). Carry over its best ideas:
+  - **Transport-agnostic AST with two backends:** `ToSQL(ctx)` → a parameterized
+    Postgres `WHERE`/`ORDER BY` over the concept store (every value a `$N`
+    placeholder, `~`/`!~` = `ILIKE` with metachars escaped — no interpolation),
+    and `Match(ctx, concept)` → a Go predicate over one `okf.Concept`. The second
+    backend is the multiplier: the same query language can drive the **watch**
+    daemon's rules, `curate`/`hygiene` target selection, and eval case filters.
+  - **A `schema.go` field map** (DSL field → source, with kind = text/id/bool/
+    date/enum and per-kind operator validation) is where "adapt to pixkb"
+    happens. Candidate fields: `text`/`body` (content, `~` ILIKE), `title`,
+    `type` (enum: ManualSection|ApiEndpoint|Reference|…), `tag`, `domain`
+    (`{pix,tax}` — ties into the scope-expansion item above), `source_uri`,
+    `epoch`/`time` (bitemporal — maps to the existing `--as-of-epoch`/`--as-of-
+    time`), `id`, `intent_terms`.
+  - Grammar: `field OP value`, `AND`/`OR`/`NOT`, parens, `IN`/lists,
+    `IS [NOT] EMPTY`, `ORDER BY`, functions (`now()`, `today()`); precedence
+    `NOT > AND > OR`; case-insensitive.
+  - **Composition, not replacement:** HQL is the structured filter/boolean layer;
+    it should FEED the existing hybrid FTS+vector RRF ranking (HQL narrows the
+    candidate set, RRF still ranks), and surface via a new `pixkb query "<hql>"`
+    command + an MCP verb, alongside `search`. Medium-large — wants its own
+    spec→plan. Relates to the deferred "richer CLI/MCP filters (Feature 4)" note.
 - **Search evaluation expansion follow-ups (Feature 6 of
   `docs/SEARCH-CAPABILITY-SPEC.md` shipped; these are deliberately deferred).**
   `internal/evalkit` (case loaders + pure metrics) and `pixkb eval
