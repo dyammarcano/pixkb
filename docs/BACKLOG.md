@@ -20,7 +20,23 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 
 ## P2
 - **SCOPE EXPANSION — grow the KB from BACEN/Pix-SPB to BACEN + Receita Federal
-  (tax).** Direction set by the user 2026-07-17: pixkb should cover both the
+  (tax).** **Phase A SHIPPED (2026-07-17, merge `bffae5b`):** unified domain
+  model (`domain:pix` / `domain:tax` tag on every concept, backfilled by a
+  post-gather `tagDomain` pass) + the tax **CBS/IBS/IS OpenAPI contract** ingested
+  via a new `openapi_specs` config key + `NewOpenAPISourceWithDomain`. Validated
+  end-to-end on a local DB with the REAL calculator spec (36 endpoints): ingest
+  247 concepts, `--tag domain:tax`/`domain:pix` isolate each domain, cross-domain
+  free-text retrieval confirmed. Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-17-kb-scope-expansion-phase-a*`.
+  **Open — Phases B/C/D** (each its own spec→plan→SDD cycle): B = Reforma
+  Tributária legislation (LC 214/2025 split-payment rules); C = BACEN
+  split-payment specs (the Pix-rail side); D = calculator source/schema (deep,
+  YAGNI until B/C prove value). **Phase A follow-up (P3, from the final review):**
+  nothing validates a configured `domain` is in `{pix, tax}` — a typo like
+  `domain: taxx` silently creates concepts invisible to both filters; add a
+  one-line validation warning in `buildSources`/`applyConfigFile` (or promote
+  domain to a first-class `okf.Concept` field, which the spec deferred).
+  Original direction (retained for context): Direction set by the user 2026-07-17: pixkb should cover both the
   payments rail (BACEN: Pix/SPB, already the whole current corpus) AND the tax
   domain (Receita Federal: the Reforma Tributária consumption taxes — **CBS**,
   **IBS**, **Imposto Seletivo** — and NFS-e). The two connect through the
