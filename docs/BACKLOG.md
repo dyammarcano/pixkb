@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:060 -->
+<!-- rev:061 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -97,22 +97,20 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     tradeoff already tracked as the QUORUM/coverage-ranking item, not a new
     bug, and reformulating a `--provider claude`-costed eval question was the
     smallest safe fix available.
-    **New known limitation surfaced during this follow-up** (not fixed,
-    tracked here for visibility): re-running `pixkb eval rag-diversity`
-    intermittently hit `pixkb: ask "diversity-cobranca-fluxo": parse
-    answerer reply: invalid character 'E' after object key:value pair` —
-    an occasional malformed-JSON answerer reply that `rag.Synthesize`'s
-    `extractJSON` (`internal/rag/answer.go`) mishandles (its first-`{`-to-
-    last-`}` span assumes exactly one JSON object in the reply; trailing
-    prose containing its own `}` can extend the span past the real object).
-    The error also drops the raw agent reply, so the exact malformed shape
-    was not captured. Re-running immediately succeeded (LLM sampling
-    variance, not deterministic), so this is a robustness gap in the
-    answerer-reply parser, not a regression from today's fix. Left
-    unfixed pending a captured repro; a fix should (a) log/wrap the raw
-    reply on parse failure and (b) make `extractJSON` robust to trailing
-    content after a balanced first JSON object (e.g. brace-depth matching
-    from the first `{` instead of `LastIndexByte` for the last `}`).
+    ~~**New known limitation surfaced during this follow-up**: re-running
+    `pixkb eval rag-diversity` intermittently hit `pixkb: ask
+    "diversity-cobranca-fluxo": parse answerer reply: invalid character 'E'
+    after object key:value pair` — an occasional malformed-JSON answerer
+    reply that `rag.Synthesize`'s `extractJSON` (`internal/rag/answer.go`)
+    mishandles (its first-`{`-to-last-`}` span assumes exactly one JSON
+    object in the reply; trailing prose containing its own `}` can extend
+    the span past the real object). The error also drops the raw agent
+    reply, so the exact malformed shape was not captured.~~ **Resolved
+    (2026-07-17, `a26717b`)**: `extractJSON` now brace-depth
+    matches from the first `{` to its balanced close, ignoring braces
+    inside string literals, so trailing prose cannot extend the span; and
+    the parse error now wraps the raw reply (`parse answerer reply %q`)
+    instead of discarding it. Both remedies this entry prescribed.
   - Feature 8 (Search Quality Operations) has since shipped — see its own
     backlog block below.
   - ~~**`pixkb eval`'s six subcommands report numbers but never fail the
@@ -472,11 +470,21 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   API (`olinda.bcb.gov.br/olinda/servico/PTAX`) for compra/abertura/fechamento
   quotes beyond the SGS venda series; no MCP tool / concept-store integration
   yet (same deferral as ISPB's own v1).
-- **Scraper wired to a headless renderer.** Render the JS-rendered BACEN SPA
-  pages into BACEN-canonical concepts via the scraper agent. BLOCKED on two
-  prerequisites: (1) Scout MCP browser must be connected (it was down this run),
-  and (2) a catalogued list of target BACEN SPA URLs (`SOURCES.md`, pending). The
-  scraper agent + conceptSchema already exist; this is wiring + inputs, not new code.
+- ~~**Scraper wired to a headless renderer.** BLOCKED on (1) Scout MCP browser
+  connected and (2) a catalogued list of target BACEN SPA URLs.~~ **Resolved
+  (2026-07-17)**: both prerequisites were already met and the wiring already
+  shipped — `ingest.NewScoutCrawlSource` is registered from `cfg.ScoutCrawlDir`
+  (`cmd/pixkb/commands.go:51`), `scout_crawl_dir` is live in `pixkb.yaml`, the
+  `SOURCES.md` catalogue lists 10 URLs, and 50 JS-rendered pages are present
+  under `mirrors/bcb/knowledge/pages` (all 5 `ScoutCrawl` tests green). Note the
+  `scout` CLI is installed and is the CLI-first path; the MCP browser is not
+  required. **Follow-up (open, P2 — re-target the crawl):** that crawl captured
+  the general `bcb.gov.br` tree (`acessoinformacao`, `agendaautoridades`, …),
+  NOT the Pix pages. `SOURCES.md` #2,3,5,6,7,10 (pix-seguranca, pix-normas,
+  pix-cobranca, pix-automatico, SPI overview, gov.br keys report) are still
+  `pending`. Re-run the crawl against those URLs, curate to Markdown per the
+  SOURCES.md ingestion notes, and promote each row to `ingested`. This targets
+  the weak `seguranca` / `recorrencia` / `liquidacao-spi` eval cases.
 - **Fuzzy recall ceiling is the VECTOR arm + en/pt config, NOT FTS (re-scoped).**
   UPDATE (2026-07-04, `/steps:next` item 4): lever (b) — targeted
   `curate --enrich --apply --ids ...` against exactly the 10 concepts

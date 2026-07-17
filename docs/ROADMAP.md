@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:011 -->
+<!-- rev:012 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -68,8 +68,8 @@ schemas and status codes (searchable by schema name / status). Local throwaway
 test DB (`deploy/local-testdb.sh`, `task testdb:up`) → full suite green.
 KB now 275 concepts (181 manual, 83 API, 9 ISO).
 
-## Phase 8 — Agent Fleet [~]
-IN PROGRESS. A subscription-coding-agent fleet that curates the KB, with pixkb
+## Phase 8 — Agent Fleet [x]
+DONE. A subscription-coding-agent fleet that curates the KB, with pixkb
 itself as the agents' self-contained tool surface.
 - [x] `pkg/agents` host — Provider/Agent/Session/SessionPool/Agency + lazy
   provider registry; vendor-split packages **agy** (Antigravity, ConPTY),
@@ -120,8 +120,12 @@ itself as the agents' self-contained tool surface.
   (`internal/agenthost`); `corral` supplies Agency/Provider/Session/monitor +
   the claude/codex/agy vendor packages. Scope: 3 existing providers only
   (grok/kimi deferred). go.mod bumped to `go 1.26.3` for the dependency.
-- [ ] **Scraper wired** — render JS BACEN SPA pages into canonical concepts.
-  BACKLOG P2.
+- [x] **Scraper wired** — render JS BACEN SPA pages into canonical concepts.
+  `ingest.NewScoutCrawlSource` is registered from `cfg.ScoutCrawlDir`
+  (`cmd/pixkb/commands.go`), the `scout_crawl_dir` key is live in `pixkb.yaml`,
+  and 50 JS-rendered pages sit under `mirrors/bcb/knowledge/pages`. Residual:
+  that crawl captured the general bcb.gov.br tree, not the Pix pages SOURCES.md
+  still lists `pending` (#2,3,5,6,7,10) — re-targeting tracked in BACKLOG.
 
 ## Phase 9 — Search Capability Upgrade [x]
 Implemented all 8 features of `docs/SEARCH-CAPABILITY-SPEC.md`: multi-query
