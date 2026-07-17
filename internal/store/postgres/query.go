@@ -13,8 +13,8 @@ import (
 // conceptColumns is the full concept-row column list, in scan order, shared
 // by QueryConcepts. Kept in one place so the SELECT list and scanConcept
 // stay in lockstep.
-const conceptColumns = "id, type, title, description, resource, tags, language, body, " +
-	"content_sha, source_uri, first_epoch, last_epoch, updated_at, intent_terms"
+const conceptColumns = "id, type, coalesce(title,''), coalesce(description,''), resource, tags, language, body, " +
+	"content_sha, coalesce(source_uri,''), first_epoch, last_epoch, updated_at, coalesce(intent_terms,'')"
 
 // scanConcept scans one concept row selected via conceptColumns into an
 // okf.Concept. first_epoch is read but discarded onto Epoch alongside

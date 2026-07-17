@@ -96,3 +96,40 @@ func TestQueryConcepts_FiltersOrdersAndLimits(t *testing.T) {
 	require.True(t, found[endpointID])
 	require.True(t, found[manualID])
 }
+
+// TestQueryConcepts_ScansNullableTextColumns proves scanConcept tolerates a
+// genuine SQL NULL in the nullable TEXT columns (title, description,
+// source_uri, intent_terms) rather than failing the scan, matching the
+// coalesce(...) pattern already used in search.go. UpsertConcept always
+// writes non-NULL values for these columns, so this seeds the row with a
+// direct INSERT leaving description, source_uri, and intent_terms as NULL.
+func TestQueryConcepts_ScansNullableTextColumns(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+
+	nullID := fmt.Sprintf("query-null-%d.md", time.Now().UnixNano())
+	ts := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
+
+	// title is left NULL too by omitting it; description and source_uri are
+	// explicitly NULL; intent_terms is omitted (also NULL) since 0002 adds it
+	// as a nullable column with no default.
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO concept (id, type, description, resource, tags, language, body, content_sha, source_uri, first_epoch, last_epoch, updated_at)
+		VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, NULL, $8, $9, $10)`,
+		nullID, "ManualSection", "", []string{"domain:null-test"}, "pt", "null concept body", "sha-null", 1, 1, ts,
+	)
+	require.NoError(t, err)
+
+	got, err := s.QueryConcepts(ctx, "id = $1", []any{nullID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, nullID, got[0].ID)
+	require.Equal(t, "", got[0].Title)
+	require.Equal(t, "", got[0].Description)
+	require.Equal(t, "", got[0].SourceURI)
+	require.Equal(t, "", got[0].IntentTerms)
+}
