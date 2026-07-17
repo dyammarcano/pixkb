@@ -20,17 +20,22 @@ import (
 // environment variables (PIXKB_*). A --dsn flag overrides DSN on commands
 // that expose one.
 type Config struct {
-	DSN           string     `yaml:"dsn"`
-	BundleDir     string     `yaml:"bundle_dir"`
-	IngestDir     string     `yaml:"ingest_dir"`
-	Embedder      string     `yaml:"embedder"`
-	PDFs          []string   `yaml:"pdfs"`            // PDF files to ingest as ManualSection concepts
-	Markdown      []string   `yaml:"markdown"`        // curated Markdown reference docs (H2 → Reference concepts)
-	MirrorDir     string     `yaml:"mirror_dir"`      // dir holding pre-staged repo mirrors
-	Repos         []RepoConf `yaml:"repos"`           // git repos (mirror under MirrorDir/<name>)
-	APIDocs       []string   `yaml:"api_docs"`        // local API-DICT HTML files
-	ScoutCrawlDir string     `yaml:"scout_crawl_dir"` // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
+	DSN               string     `yaml:"dsn"`
+	BundleDir         string     `yaml:"bundle_dir"`
+	IngestDir         string     `yaml:"ingest_dir"`
+	Embedder          string     `yaml:"embedder"`
+	PDFs              []string   `yaml:"pdfs"`                 // PDF files to ingest as ManualSection concepts
+	Markdown          []string   `yaml:"markdown"`             // curated Markdown reference docs (H2 → Reference concepts)
+	MirrorDir         string     `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
+	Repos             []RepoConf `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
+	APIDocs           []string   `yaml:"api_docs"`             // local API-DICT HTML files
+	ScoutCrawlDir     string     `yaml:"scout_crawl_dir"`      // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
+	ScoutCrawlBaseURL string     `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
 }
+
+// defaultScoutCrawlBaseURL is the origin a scout-crawl's page paths resolve
+// against when scout_crawl_base_url is unset — the BCB site the crawler targets.
+const defaultScoutCrawlBaseURL = "https://www.bcb.gov.br"
 
 // RepoConf names a repository whose staged mirror is ingested.
 type RepoConf struct {
@@ -125,6 +130,9 @@ func applyConfigFile(cfg *Config, path string) {
 	}
 	if fromFile.ScoutCrawlDir != "" {
 		cfg.ScoutCrawlDir = fromFile.ScoutCrawlDir
+	}
+	if fromFile.ScoutCrawlBaseURL != "" {
+		cfg.ScoutCrawlBaseURL = fromFile.ScoutCrawlBaseURL
 	}
 }
 

@@ -13,7 +13,7 @@ import (
 // TestLoadConfig_Defaults confirms the built-in defaults apply when no
 // pixkb.yaml and no PIXKB_* env vars are present.
 func TestLoadConfig_Defaults(t *testing.T) {
-	t.Chdir(t.TempDir()) // empty dir: no pixkb.yaml
+	t.Chdir(t.TempDir())                      // empty dir: no pixkb.yaml
 	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	t.Setenv("PIXKB_DSN", "")
 	t.Setenv("PIXKB_BUNDLE", "")
@@ -109,6 +109,24 @@ func TestLoadConfig_ScoutCrawlDir_DefaultsEmpty(t *testing.T) {
 	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
 	cfg := loadConfig()
 	assert.Empty(t, cfg.ScoutCrawlDir)
+}
+
+func TestLoadConfig_ScoutCrawlBaseURL(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
+	yaml := "scout_crawl_base_url: https://www.gov.br\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "pixkb.yaml"), []byte(yaml), 0o644))
+
+	cfg := loadConfig()
+	assert.Equal(t, "https://www.gov.br", cfg.ScoutCrawlBaseURL)
+}
+
+func TestLoadConfig_ScoutCrawlBaseURL_DefaultsEmpty(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir()) // isolate from any real global config
+	cfg := loadConfig()
+	assert.Empty(t, cfg.ScoutCrawlBaseURL) // buildSources falls back to defaultScoutCrawlBaseURL
 }
 
 // TestGlobalConfigPath_UsesConfigDirOverride confirms PIXKB_CONFIG_DIR is a

@@ -49,7 +49,11 @@ func buildSources(cfg Config) []ingest.Source {
 		srcs = append(srcs, ingest.NewAPIDocSource(cfg.APIDocs))
 	}
 	if cfg.ScoutCrawlDir != "" {
-		srcs = append(srcs, ingest.NewScoutCrawlSource(cfg.ScoutCrawlDir, "https://www.bcb.gov.br"))
+		baseURL := cfg.ScoutCrawlBaseURL
+		if baseURL == "" {
+			baseURL = defaultScoutCrawlBaseURL
+		}
+		srcs = append(srcs, ingest.NewScoutCrawlSource(cfg.ScoutCrawlDir, baseURL))
 	}
 	return srcs
 }
