@@ -2,7 +2,6 @@ package output
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,6 +20,13 @@ func fixtureHits() []postgres.Hit {
 	}
 }
 
+// wantHitsText pins renderText's exact output for fixtureHits() as a literal, so
+// a change to renderText's layout fails the test. Deriving `want` from the same
+// fmt verbs renderText uses would be tautological — a reviewer could "fix" the
+// test by copying the new verbs and never notice the output changed.
+const wantHitsText = " 1  concept-001                         First Concept\n" +
+	" 2  concept-002                         Second Concept\n"
+
 func TestRender(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -32,11 +38,8 @@ func TestRender(t *testing.T) {
 			name:   "text",
 			format: "text",
 			check: func(t *testing.T, got string) {
-				hits := fixtureHits()
-				want := fmt.Sprintf("%2d  %-34s  %s\n", hits[0].Rank, hits[0].ID, hits[0].Title) +
-					fmt.Sprintf("%2d  %-34s  %s\n", hits[1].Rank, hits[1].ID, hits[1].Title)
-				if got != want {
-					t.Errorf("text output mismatch\ngot:  %q\nwant: %q", got, want)
+				if got != wantHitsText {
+					t.Errorf("text output mismatch\ngot:  %q\nwant: %q", got, wantHitsText)
 				}
 			},
 		},
@@ -44,11 +47,8 @@ func TestRender(t *testing.T) {
 			name:   "default format (empty string) matches text",
 			format: "",
 			check: func(t *testing.T, got string) {
-				hits := fixtureHits()
-				want := fmt.Sprintf("%2d  %-34s  %s\n", hits[0].Rank, hits[0].ID, hits[0].Title) +
-					fmt.Sprintf("%2d  %-34s  %s\n", hits[1].Rank, hits[1].ID, hits[1].Title)
-				if got != want {
-					t.Errorf("default output mismatch\ngot:  %q\nwant: %q", got, want)
+				if got != wantHitsText {
+					t.Errorf("default output mismatch\ngot:  %q\nwant: %q", got, wantHitsText)
 				}
 			},
 		},
