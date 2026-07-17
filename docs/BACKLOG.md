@@ -407,7 +407,7 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   English. Three surfaces, one now done:
   - ~~**Agent SYSTEM PROMPTS audited/translated to English**~~ DONE
     (2026-07-04, `agents: add English-commentary language note to
-    content-producing prompts`, `pkg/agents/roster.go`). Audited every
+    content-producing prompts`, `internal/roster/`). Audited every
     roster agent's `System` prompt string for Portuguese instructional
     text — none was found; all were already English prose wrapping
     verbatim BACEN normative terms. Added one explicit line to each of the
