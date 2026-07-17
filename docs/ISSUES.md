@@ -1,7 +1,32 @@
 # pixkb Known Issues & Limitations
-<!-- rev:013 -->
+<!-- rev:014 -->
 
 Current known limitations.
+
+## Content quality
+- **PDF table-of-contents entries leak in as junk `ManualSection` titles
+  (51 flagged by `hygiene`), plus ~27 duplicate titles.** Root-caused 2026-07-17.
+  The BCB manual's main TOC and per-chapter mini-TOCs are extracted by
+  `internal/ingest/pdf.go`, and the PDF renders each TOC entry with **every
+  word's first letter split onto its own line** (a small-caps/dropcap style):
+  `"3.2." / "S" / "ERVIÇO DE " / "I" / "NICIAÇÃO DE " / "T" / "RANSAÇÃO DE " /
+  "P" / "AGAMENTO"` then a dot-leader line (`"........"`) and a page number
+  (`"38"`). `splitSections` treats each fragment line as its own heading, so a
+  single TOC entry yields several mangled all-caps fragment titles missing their
+  first letter (`ERVIÇO DE`, `ECOMENDAÇÕES DE SEGURANÇA`, `ODE ESTÁTICO PARA
+  PACS`). Because every section appears in both the TOC and the body, this also
+  produces the duplicate-title findings.
+  **Fix design (spec-worthy — regression risk to the 93 real sections):**
+  (1) a text-normalization pass that rejoins a lone single-uppercase-letter line
+  with the following continuation (`"S"+"ERVIÇO DE "` → `"SERVIÇO DE "`) and
+  merges consecutive uppercase continuation lines into one heading;
+  (2) detect and drop TOC regions — an entry whose reconstructed heading is
+  followed by a dot-leader line + bare page number is a TOC entry, not content;
+  (3) re-ingest (now runnable, `08b7ec0`) and diff section count/titles before/
+  after to prove the real sections survive. Do NOT ship a partial heuristic:
+  rejoining dropcaps without merging + TOC-skip would MULTIPLY the fragment
+  headings, not remove them. `hygiene` already flags the symptoms; the extractor
+  is the fix site.
 
 ## Search quality
 - **FTS recall arm ANDs every query word (`websearch_to_tsquery`) — defeats
