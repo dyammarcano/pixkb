@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:062 -->
+<!-- rev:063 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -563,6 +563,24 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   (`ODE ESTÁTICO PARA PACS`) — a junk-title hygiene target, fix via `curate`.
 
 ## P3
+- **Ingest the gov.br consumption-tax calculation API (Reforma Tributária).**
+  `https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/swagger-ui/index.html`
+  — the official calculator for Brazil's tax-reform consumption taxes (**CBS**,
+  **IBS**, **Imposto Seletivo**). Relevant to pixkb via the reform's Pix
+  **split-payment** model, where CBS/IBS are computed and split at payment time,
+  so the calculation contract sits adjacent to the Pix/SPB charge flows the KB
+  already covers. It exposes an OpenAPI spec, so it fits the existing `apidoc`
+  adapter (same path as API-DICT). Concrete inputs already resolved:
+  - **Spec (OpenAPI JSON), not the swagger-ui page:**
+    `https://consumo.tributos.gov.br/servico/calcular-tributos-consumo/api/api-docs`
+    (resolved 2026-07-17 from a scout capture; the swagger-ui page loads it
+    dynamically, so `scout swagger` on the UI URL returns "no spec URL found").
+  - **Ingest path:** add it to `SOURCES.md` as an `apidoc` source (`api_docs:`
+    in `pixkb.yaml`), fetch the `api-docs` JSON, ingest to `ApiEndpoint`
+    concepts, reindex.
+  - **Open question before scheduling:** confirm this is in-scope for a Pix/SPB
+    KB vs. a separate tax-reform KB — it is adjacent, not core Pix. Adjacent-
+    domain (tax) rather than payment-rail (Pix), hence P3.
 - **HNSW-on-typed-vector revisit.** Current vector search is exact-cosine.
   Revisit an HNSW (approximate) index on the typed vector column only if the
   corpus grows enough that exact search latency becomes a problem.
