@@ -1,4 +1,22 @@
-# Shell scripts and SQL must stay LF even on Windows checkouts: a CRLF shebang
-# breaks container initdb hooks (exit 127 "bad interpreter").
+# Normalize ALL text files to LF in the repository. Without this, a Windows
+# checkout/edit can rewrite a whole file to CRLF and a careless `git add` bakes
+# the line-ending flip into history — wiping blame and burying real diffs under
+# thousands of phantom lines (this happened 2026-07-17; see commits amended that
+# day). `* text=auto eol=lf` makes Git store LF regardless of the working-tree
+# form, so the trap cannot recur.
+* text=auto eol=lf
+
+# Shell scripts and SQL are LF-critical: a CRLF shebang breaks container initdb
+# hooks (exit 127 "bad interpreter"). Kept explicit for clarity even though the
+# rule above already covers them.
 *.sh   text eol=lf
 *.sql  text eol=lf
+
+# Binary types Git must never touch (belt-and-suspenders against `text=auto`
+# misdetecting a small binary as text).
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.gz   binary
+*.zip  binary

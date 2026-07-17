@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:012 -->
+<!-- rev:013 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -40,8 +40,12 @@ index is a fully derived, rebuildable artifact.
   `doctor`, `export-bundle`, `db`.
 - `watch`: fsnotify debounce runner over the ingest drop-dir.
 
-## Phase 7 — Hardening & Delivery [~]
-IN PROGRESS. Production-readiness and distribution work.
+## Phase 7 — Hardening & Delivery [x]
+DONE. Production-readiness and distribution work. Full CI pipeline verified
+green locally 2026-07-17 (`b4e12fe`): `go build`, `go vet`,
+`go test -short -race ./...` (24 packages, race detector clean), and
+`golangci-lint run` (0 issues). Only the pgvector integration job is excluded
+(needs a live Postgres).
 - [x] Air-gap container image — builds AND runs end-to-end: `docker run` →
   initdb applies schema → `pixkb reindex` rebuilds 275 concepts from the baked
   `/kb` bundle. Internal-registry push path (`deploy/push-image.sh`) for corp nets.
