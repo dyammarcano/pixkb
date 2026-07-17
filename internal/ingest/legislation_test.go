@@ -66,16 +66,16 @@ func TestParseStatute(t *testing.T) {
 	a1 := arts["1º"]
 	require.Equal(t, "article", a1.Kind)
 	require.Contains(t, a1.Body, "Ficam instituídos")
-	require.Contains(t, a1.Body, "com serviços")          // inciso accumulated
+	require.Contains(t, a1.Body, "com serviços") // inciso accumulated
 	require.Equal(t, "I", a1.Livro)
 	require.Equal(t, "I", a1.Titulo)
 	require.Equal(t, "I", a1.Capitulo)
 
 	a2 := arts["2º"]
-	require.Contains(t, a2.Body, "Parágrafo único")       // parágrafo único folded in
+	require.Contains(t, a2.Body, "Parágrafo único") // parágrafo único folded in
 
 	a31 := arts["31"]
-	require.Equal(t, "II", a31.Capitulo)                  // capítulo context advanced
+	require.Equal(t, "II", a31.Capitulo) // capítulo context advanced
 	require.Contains(t, a31.Body, "liquidação financeira")
 
 	_, ok := arts["31-A"]
