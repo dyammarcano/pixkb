@@ -1,0 +1,66 @@
+LEI COMPLEMENTAR Nº 214, DE 16 DE JANEIRO DE 2025
+
+Institui o Imposto sobre Bens e Serviços (IBS) e a Contribuição Social sobre Bens e Serviços (CBS), uniformiza a legislação tributária relativa ao consumo de bens e serviços no território nacional, altera a Constituição Federal, revoga a Lei Complementar nº 87, de 13 de dezembro de 1996, a Lei nº 9.363, de 29 de dezembro de 1996, a Lei Complementar nº 99, de 21 de dezembro de 1999, e dá outras providências.
+
+LIVRO I
+NORMAS GERAIS
+
+TÍTULO I
+DISPOSIÇÕES PRELIMINARES
+
+CAPÍTULO I
+DO FATO GERADOR
+
+Art. 1º Ficam instituídos o Imposto sobre Bens e Serviços (IBS) e a Contribuição Social sobre Bens e Serviços (CBS), impostos sobre o valor adicionado de abrangência nacional, seletivos por essencialidade do produto.
+§ 1º O IBS é imposto de competência dos Estados e do Distrito Federal, incidente sobre operações relativas à circulação de mercadorias e sobre prestações de serviços.
+§ 2º A CBS é contribuição social de competência da União, incidente sobre operações relativas à circulação de mercadorias e sobre prestações de serviços.
+I - com bens materiais;
+II - com serviços;
+III - com direitos sobre bens.
+
+Art. 2º Considera-se operação onerosa a circulação de mercadoria ou a prestação de serviço realizada mediante contraprestação, em dinheiro ou seu equivalente.
+Parágrafo único. Aplica-se aos bens importados do exterior, ainda que destinados à integração de outros bens.
+
+CAPÍTULO II
+DA BASE DE CÁLCULO
+
+Art. 3º A base de cálculo do IBS e da CBS é o valor total da operação, incluindo impostos, contribuições, custos e despesas necessárias à realização da venda.
+
+TÍTULO II
+DO REGIME DE APURAÇÃO
+
+CAPÍTULO I
+DO REGIME COMUM
+
+Art. 4º No regime comum, o contribuinte apura o IBS e a CBS devidos em cada período de apuração, mediante a sistemática de débitos e créditos.
+§ 1º O período de apuração será mensal.
+§ 2º O contribuinte fará jus ao crédito integral do imposto incidente sobre:
+I - bens e serviços utilizados como insumos na produção ou comercialização de bens e serviços por ele realizada;
+II - bens e serviços utilizados para a produção ou comercialização de bens e serviços que resultarem em operação beneficiária de isenção;
+III - bens e serviços utilizados no desempenho de atividades que resultarem em operação não tributada.
+
+Art. 5º O recolhimento do imposto devido ocorre na liquidação financeira da transação, observado o disposto no art. 127.
+Parágrafo único. Para fins desta Lei Complementar, considera-se liquidação financeira da transação o recebimento do valor da operação ou, no caso de operações com prazo, a data do vencimento previsto na operação original.
+
+Art. 6º-A O split payment aplica-se obrigatoriamente às operações realizadas por meio da rede de pagamentos do arranjo Pix, sem prejuízo de sua aplicação a outros arranjos de pagamento.
+
+CAPÍTULO II
+DO REGIME DE SUBSTITUIÇÃO TRIBUTÁRIA
+
+Art. 7º Fica instituído o regime de substituição tributária do IBS e da CBS nas operações em que o contribuinte substituto recolherá os impostos pelas operações anteriores e subsequentes ao seu faturamento.
+
+ANEXO I
+TABELA DE ALÍQUOTAS PADRÃO
+
+Alimentos básicos - 0%
+Medicamentos - 0%
+Livros - 0%
+Hortifrutigranjeiros - 0%
+Carnes - 0%
+Leite - 0%
+Pão - 0%
+Operações gerais - 8%
+Bens duráveis - 10%
+Serviços diversos - 12%
+Bebidas alcoólicas - 20%
+Cigarro e derivados do tabaco - 30%

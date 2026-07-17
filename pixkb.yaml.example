@@ -39,3 +39,10 @@ repos:
 # (also inside the offline calculadora distribution). domain must be pix or tax.
 openapi_specs:
   - { file: "C:/Users/you/AppData/Local/PixKB/mirror/openapi/tributos-consumo.json", domain: tax }
+
+# Offline statute PDFs ingested as article-level LegalArticle concepts (one per
+# artigo), tagged with the statute (lei:) and a KB domain. Place the PDF under
+# the per-user mirror dir (see pdfs: note). LC 214/2025 is the Reforma Tributária
+# consumption-tax law (CBS/IBS/IS + split payment). domain must be pix or tax.
+legislation:
+  - { file: "C:/Users/you/AppData/Local/PixKB/mirror/legislation/LC214-2025.pdf", lei: lc-214-2025, domain: tax }

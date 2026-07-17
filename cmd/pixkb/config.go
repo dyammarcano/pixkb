@@ -20,18 +20,19 @@ import (
 // environment variables (PIXKB_*). A --dsn flag overrides DSN on commands
 // that expose one.
 type Config struct {
-	DSN               string     `yaml:"dsn"`
-	BundleDir         string     `yaml:"bundle_dir"`
-	IngestDir         string     `yaml:"ingest_dir"`
-	Embedder          string     `yaml:"embedder"`
-	PDFs              []string   `yaml:"pdfs"`                 // PDF files to ingest as ManualSection concepts
-	Markdown          []string   `yaml:"markdown"`             // curated Markdown reference docs (H2 → Reference concepts)
-	MirrorDir         string              `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
-	Repos             []RepoConf          `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
-	APIDocs           []string            `yaml:"api_docs"`             // local API-DICT HTML files
-	ScoutCrawlDir     string              `yaml:"scout_crawl_dir"`      // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
-	ScoutCrawlBaseURL string              `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
-	OpenAPISpecs      []OpenAPISpecConf   `yaml:"openapi_specs"`        // standalone OpenAPI specs (e.g. the tax calculator), each with a domain tag
+	DSN               string            `yaml:"dsn"`
+	BundleDir         string            `yaml:"bundle_dir"`
+	IngestDir         string            `yaml:"ingest_dir"`
+	Embedder          string            `yaml:"embedder"`
+	PDFs              []string          `yaml:"pdfs"`                 // PDF files to ingest as ManualSection concepts
+	Markdown          []string          `yaml:"markdown"`             // curated Markdown reference docs (H2 → Reference concepts)
+	MirrorDir         string            `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
+	Repos             []RepoConf        `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
+	APIDocs           []string          `yaml:"api_docs"`             // local API-DICT HTML files
+	ScoutCrawlDir     string            `yaml:"scout_crawl_dir"`      // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
+	ScoutCrawlBaseURL string            `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
+	OpenAPISpecs      []OpenAPISpecConf `yaml:"openapi_specs"`        // standalone OpenAPI specs (e.g. the tax calculator), each with a domain tag
+	Legislation       []LegislationConf `yaml:"legislation"`          // offline statute PDFs (e.g. LC 214/2025), each with a lei slug + domain
 }
 
 // defaultScoutCrawlBaseURL is the origin a scout-crawl's page paths resolve
@@ -48,6 +49,14 @@ type RepoConf struct {
 // outside the staged repo mirrors) and the KB domain its endpoints belong to.
 type OpenAPISpecConf struct {
 	File   string `yaml:"file"`
+	Domain string `yaml:"domain"`
+}
+
+// LegislationConf names an offline statute PDF to ingest as LegalArticle
+// concepts, the statute slug (lei:) tagged onto every article, and the KB domain.
+type LegislationConf struct {
+	File   string `yaml:"file"`
+	Lei    string `yaml:"lei"`
 	Domain string `yaml:"domain"`
 }
 
@@ -144,6 +153,9 @@ func applyConfigFile(cfg *Config, path string) {
 	}
 	if len(fromFile.OpenAPISpecs) > 0 {
 		cfg.OpenAPISpecs = fromFile.OpenAPISpecs
+	}
+	if len(fromFile.Legislation) > 0 {
+		cfg.Legislation = fromFile.Legislation
 	}
 }
 
