@@ -47,7 +47,7 @@ func Synthesize(ctx context.Context, gen Generator, g Grounding) (Answer, error)
 	}
 	var a Answer
 	if err := json.Unmarshal([]byte(extractJSON(raw)), &a); err != nil {
-		return Answer{}, fmt.Errorf("parse answerer reply: %w", err)
+		return Answer{}, fmt.Errorf("parse answerer reply %q: %w", raw, err)
 	}
 
 	a.Citations = validCitations(a.Citations, g)
@@ -99,7 +99,9 @@ func validCitations(cited []string, g Grounding) []string {
 
 // extractJSON pulls the JSON object out of an agent reply that may wrap it in
 // markdown fences or prose (mirrors curate.extractJSON — kept local so rag has no
-// cross-package coupling). Returns the span from the first '{' to the last '}'.
+// cross-package coupling). It brace-depth matches from the first '{' to its
+// balanced close so trailing prose after the object — or a stray '}' inside it —
+// does not corrupt the span. Braces inside string literals are ignored.
 func extractJSON(raw string) string {
 	s := strings.TrimSpace(raw)
 	if f := strings.Index(s, "```"); f >= 0 {
@@ -112,9 +114,29 @@ func extractJSON(raw string) string {
 		}
 		s = strings.TrimSpace(rest)
 	}
-	i, j := strings.IndexByte(s, '{'), strings.LastIndexByte(s, '}')
-	if i >= 0 && j > i {
-		return s[i : j+1]
+	i := strings.IndexByte(s, '{')
+	if i < 0 {
+		return s
+	}
+	var depth int
+	var inStr, esc bool
+	for j := i; j < len(s); j++ {
+		switch c := s[j]; {
+		case esc:
+			esc = false
+		case inStr && c == '\\':
+			esc = true
+		case c == '"':
+			inStr = !inStr
+		case inStr:
+			// Braces inside a string literal are data, not structure.
+		case c == '{':
+			depth++
+		case c == '}':
+			if depth--; depth == 0 {
+				return s[i : j+1]
+			}
+		}
 	}
 	return s
 }
