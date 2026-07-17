@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:003 -->
+<!-- rev:004 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,13 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **HQL DSL v1 shipped to master** (merge `7ad5233`). Built via SDD
+  (6 TDD tasks + fixes). Forks settled autonomously in the spec (standalone filter
+  not RRF-folded; `Match` deferred; `epoch`/`updated`→real columns; no MCP verb in
+  v1). Whole-branch review confirmed zero injection surface and caught one must-fix
+  (`~`/`!~` was exact-match not substring) — fixed pre-merge (`46ab4b1`). Also
+  fixed a Task-5 nullable-column scan bug pre-merge. v2 follow-ups (RRF fold-in,
+  MCP verb, Match, bitemporal field, test-coverage minors) logged to BACKLOG.
 - 2026-07-17 — **Phases C/D blocked → pivot to HQL (P2).** A read-only source
   inventory found no offline BACEN split-payment / Pix-rail material on the
   machine (nav-boilerplate only; the calculadora backend is the tax calculator

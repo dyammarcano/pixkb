@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:069 -->
+<!-- rev:070 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -105,7 +105,34 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   - **Open decision for the user:** one unified KB (Pix + tax, tagged by domain)
     vs. a sibling `tributoskb`. Recommend unified with a `domain: {pix,tax}` tag
     so cross-domain split-payment questions resolve in one retrieval.
-- **Structured query DSL for rich search (HQL-style), ported from herald.** Add a
+- **Structured query DSL for rich search (HQL-style), ported from herald.**
+  **v1 SHIPPED (2026-07-17, merge `7ad5233`):** `pixkb query "<hql>"` — a
+  parameterized boolean/field filter over the concept store, ported from herald's
+  `internal/hql` (lexer/ast/parser/functions near-verbatim; `schema.go`/`sql.go`
+  rewritten for pixkb + a new `tagPrefix` field kind so `domain`/`lei`/`livro`/
+  `titulo`/`capitulo`/`secao`/`tag` lower to `tags @> ARRAY[...]` containment).
+  Fields: `text`/`body`/`title`/`description`/`intent_terms`/`source_uri` (ILIKE
+  substring via `~`/`!~`), `type`/`id`/`language`, the tagPrefix set, `epoch`
+  (`last_epoch`), `updated` (`updated_at`); `AND`/`OR`/`NOT`, `IN`/`NOT IN`,
+  `IS [NOT] EMPTY`, `ORDER BY`, `LIMIT`. Compiles to a parameterized WHERE via
+  `Query.ToSQL` → new `Store.QueryConcepts` (standalone filter path, RRF
+  untouched). Built via subagent-driven-development (6 TDD tasks + 2 fix passes);
+  whole-branch review confirmed **zero SQL-injection surface** (every value a `$N`
+  arg; `~`/`!~` escape metachars) and caught a must-fix (`~` was exact not
+  substring) fixed pre-merge. Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-17-hql-query-dsl*`.
+  **v2 follow-ups (deferred, logged from the settled forks + review):**
+  (i) **fold HQL into `search`'s hybrid RRF** ("HQL narrows, RRF ranks") — needs
+  the placeholder-renumbering seam to splice an HQL WHERE into `FTS`/`Vector`'s
+  already-numbered args (the injection-risk the standalone v1 sidesteps);
+  (ii) **MCP `query` verb** (thin once `QueryConcepts` exists);
+  (iii) **`Match` in-memory predicate** (herald's second backend) if a watch/
+  curate-rule consumer ever needs it; (iv) **bitemporal as-of HQL field** reusing
+  `asOfConceptPredicate`; (v) Minors: `LIMIT 0` reads as unbounded (document or
+  reject); add golden tests for the untested lowering shapes (`NOT IN` tagPrefix,
+  `IS NOT EMPTY`, text `IN`/`=`/`IS EMPTY`, `id !=`); md-format score column shows
+  0 for structured results. Original intent (retained for context):
+  Add a
   JQL/HQL-style structured query language over the concept store so users can
   express precise boolean/field queries instead of only the current flag filters
   (`--type`, `--tag`, `--include-type`, `--exclude-id`, `--min-vector-score`,
