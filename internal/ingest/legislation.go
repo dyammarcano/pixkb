@@ -68,7 +68,7 @@ func parseStatute(text string) []statuteSection {
 	// Seed an ementa collector; it flushes at the first structural heading or Art.
 	cur = &statuteSection{Kind: "ementa", Title: "Ementa"}
 
-	for _, raw := range strings.Split(text, "\n") {
+	for raw := range strings.SplitSeq(text, "\n") {
 		ln := strings.TrimSpace(raw)
 
 		// Anexo heading: starts a new anexo section (structural headings inside
