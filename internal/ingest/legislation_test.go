@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -88,4 +89,59 @@ func TestParseStatute(t *testing.T) {
 func TestParseStatuteEmpty(t *testing.T) {
 	require.Empty(t, parseStatute("just some prose with no articles at all"),
 		"text with no Art. markers and no anexo yields no article/anexo sections")
+}
+
+func TestLegislationConceptsFromText(t *testing.T) {
+	// Exercise concept-building directly from parsed sections (no PDF needed).
+	concepts := legislationConcepts(parseStatute(sampleStatute), "res.pdf", "lc-214-2025", "tax")
+
+	byID := map[string]okfConceptView{}
+	for _, c := range concepts {
+		byID[c.ID] = okfConceptView{Type: c.Type, Title: c.Title, Tags: c.Tags, Body: c.Body}
+	}
+
+	// Article 1º → padded id, LegalArticle type, domain:tax + structural tags.
+	a1, ok := byID["legislation/lc-214-2025/art-0001.md"]
+	require.True(t, ok, "art 0001 concept must exist; got ids %v", keysOf(byID))
+	require.Equal(t, "LegalArticle", a1.Type)
+	require.Equal(t, "Art. 1º", a1.Title)
+	require.Subset(t, a1.Tags, []string{"legislacao", "domain:tax", "lei:lc-214-2025", "livro:i", "titulo:i", "capitulo:i"})
+
+	// Letter-suffixed article keeps its suffix in the id.
+	_, ok = byID["legislation/lc-214-2025/art-0031-a.md"]
+	require.True(t, ok, "art 0031-a concept must exist; got ids %v", keysOf(byID))
+
+	// Ementa concept.
+	_, ok = byID["legislation/lc-214-2025/art-0000-ementa.md"]
+	require.True(t, ok, "ementa concept must exist")
+
+	// Anexo → Reference type, anexo tag.
+	var anexo *okfConceptView
+	for id, c := range byID {
+		if strings.Contains(id, "/anexo-") {
+			cc := c
+			anexo = &cc
+		}
+	}
+	require.NotNil(t, anexo, "anexo Reference concept must exist")
+	require.Equal(t, "Reference", anexo.Type)
+	require.Subset(t, anexo.Tags, []string{"domain:tax", "lei:lc-214-2025", "anexo"})
+}
+
+func TestNewLegislationSourceName(t *testing.T) {
+	require.Equal(t, "legislation", NewLegislationSource(nil, "lc-214-2025", "tax").Name())
+}
+
+type okfConceptView struct {
+	Type, Title string
+	Tags        []string
+	Body        string
+}
+
+func keysOf(m map[string]okfConceptView) []string {
+	ks := make([]string, 0, len(m))
+	for k := range m {
+		ks = append(ks, k)
+	}
+	return ks
 }

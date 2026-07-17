@@ -1,8 +1,14 @@
 package ingest
 
 import (
+	"context"
+	"fmt"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"pixkb/internal/okf"
 )
 
 // statuteSection is one unit of a parsed statute: the leading ementa, one
@@ -147,3 +153,120 @@ func parseStatute(text string) []statuteSection {
 
 // up upper-cases a roman-numeral/ÚNICO context token for stable tag slugs.
 func up(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
+
+type legislationSource struct {
+	files  []string
+	lei    string // statute slug, e.g. "lc-214-2025"
+	domain string // e.g. "tax"
+}
+
+// NewLegislationSource builds a Source that extracts each statute PDF and emits
+// one LegalArticle concept per artigo (plus a leading ementa concept and one
+// Reference per Anexo), tagged with the statute (lei:), domain, and structural
+// position. Offline: reads local PDFs only.
+func NewLegislationSource(files []string, lei, domain string) Source {
+	return &legislationSource{files: files, lei: lei, domain: domain}
+}
+
+func (s *legislationSource) Name() string { return "legislation" }
+
+func (s *legislationSource) Fetch(_ context.Context) ([]okf.Concept, error) {
+	var out []okf.Concept
+	for _, f := range s.files {
+		text, err := extractPDFText(f)
+		if err != nil {
+			return nil, fmt.Errorf("legislation %s: %w", f, err)
+		}
+		out = append(out, legislationConcepts(parseStatute(text), f, s.lei, s.domain)...)
+	}
+	return out, nil
+}
+
+// legislationConcepts maps parsed statute sections to OKF concepts. Split out
+// from Fetch so it is unit-testable without a real PDF.
+func legislationConcepts(secs []statuteSection, resource, lei, domain string) []okf.Concept {
+	if lei == "" {
+		lei = "lei"
+	}
+	seen := map[string]bool{}
+	var out []okf.Concept
+	for _, sec := range secs {
+		var id, typ string
+		tags := []string{"legislacao", "lei:" + lei}
+		if domain != "" {
+			tags = append(tags, "domain:"+domain)
+		}
+		switch sec.Kind {
+		case "ementa":
+			id = fmt.Sprintf("legislation/%s/art-0000-ementa.md", lei)
+			typ = "LegalArticle"
+		case "article":
+			id = fmt.Sprintf("legislation/%s/art-%s.md", lei, articleIDNum(sec.Number))
+			typ = "LegalArticle"
+			tags = appendStructuralTags(tags, sec)
+		case "anexo":
+			id = fmt.Sprintf("legislation/%s/anexo-%s.md", lei, slugify(sec.Number))
+			typ = "Reference"
+			tags = append(tags, "anexo")
+		default:
+			continue
+		}
+		// Disambiguate any accidental duplicate id (e.g. a mis-extracted number).
+		if seen[id] {
+			base := strings.TrimSuffix(id, ".md")
+			for n := 2; ; n++ {
+				alt := fmt.Sprintf("%s-dup%d.md", base, n)
+				if !seen[alt] {
+					id = alt
+					break
+				}
+			}
+		}
+		seen[id] = true
+
+		title := sec.Title
+		body := "# " + title + "\n\n" + sec.Body
+		out = append(out, okf.Concept{
+			ID:          id,
+			Type:        typ,
+			Title:       title,
+			Description: firstLine(sec.Body),
+			Resource:    resource,
+			Tags:        tags,
+			Language:    "pt",
+			SourceURI:   fmt.Sprintf("legislation:%s#%s", filepath.Base(resource), strings.TrimPrefix(strings.TrimPrefix(id, "legislation/"+lei+"/"), "art-")),
+			Body:        body,
+			ContentSHA:  okf.ComputeSHA(body),
+		})
+	}
+	return out
+}
+
+func appendStructuralTags(tags []string, sec statuteSection) []string {
+	for _, kv := range []struct{ k, v string }{
+		{"livro", sec.Livro}, {"titulo", sec.Titulo}, {"capitulo", sec.Capitulo},
+		{"secao", sec.Secao}, {"subsecao", sec.Subsecao},
+	} {
+		if kv.v != "" {
+			tags = append(tags, kv.k+":"+strings.ToLower(kv.v))
+		}
+	}
+	return tags
+}
+
+// articleIDNum turns a raw article number ("1º", "22", "31-A") into a
+// zero-padded, sortable id fragment ("0001", "0022", "0031-a"). Non-numeric
+// input falls back to a slug.
+func articleIDNum(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	num, suffix := s, ""
+	if i := strings.IndexByte(s, '-'); i >= 0 {
+		num, suffix = s[:i], s[i:]
+	}
+	num = strings.TrimRight(num, "º°.")
+	n, err := strconv.Atoi(num)
+	if err != nil {
+		return slugify(raw)
+	}
+	return fmt.Sprintf("%04d%s", n, suffix)
+}
