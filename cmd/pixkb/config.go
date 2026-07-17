@@ -26,11 +26,12 @@ type Config struct {
 	Embedder          string     `yaml:"embedder"`
 	PDFs              []string   `yaml:"pdfs"`                 // PDF files to ingest as ManualSection concepts
 	Markdown          []string   `yaml:"markdown"`             // curated Markdown reference docs (H2 → Reference concepts)
-	MirrorDir         string     `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
-	Repos             []RepoConf `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
-	APIDocs           []string   `yaml:"api_docs"`             // local API-DICT HTML files
-	ScoutCrawlDir     string     `yaml:"scout_crawl_dir"`      // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
-	ScoutCrawlBaseURL string     `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
+	MirrorDir         string              `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
+	Repos             []RepoConf          `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
+	APIDocs           []string            `yaml:"api_docs"`             // local API-DICT HTML files
+	ScoutCrawlDir     string              `yaml:"scout_crawl_dir"`      // dir holding a Scout knowledge-crawl's pages/ tree (WebPage concepts)
+	ScoutCrawlBaseURL string              `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
+	OpenAPISpecs      []OpenAPISpecConf   `yaml:"openapi_specs"`        // standalone OpenAPI specs (e.g. the tax calculator), each with a domain tag
 }
 
 // defaultScoutCrawlBaseURL is the origin a scout-crawl's page paths resolve
@@ -41,6 +42,13 @@ const defaultScoutCrawlBaseURL = "https://www.bcb.gov.br"
 type RepoConf struct {
 	Owner string `yaml:"owner"`
 	Name  string `yaml:"name"`
+}
+
+// OpenAPISpecConf names a standalone OpenAPI/Swagger spec file to ingest (one
+// outside the staged repo mirrors) and the KB domain its endpoints belong to.
+type OpenAPISpecConf struct {
+	File   string `yaml:"file"`
+	Domain string `yaml:"domain"`
 }
 
 func envOr(key, def string) string {
@@ -133,6 +141,9 @@ func applyConfigFile(cfg *Config, path string) {
 	}
 	if fromFile.ScoutCrawlBaseURL != "" {
 		cfg.ScoutCrawlBaseURL = fromFile.ScoutCrawlBaseURL
+	}
+	if len(fromFile.OpenAPISpecs) > 0 {
+		cfg.OpenAPISpecs = fromFile.OpenAPISpecs
 	}
 }
 
