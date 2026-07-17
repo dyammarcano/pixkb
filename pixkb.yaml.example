@@ -14,8 +14,17 @@ ingest_dir: "ingest"
 embedder: "hashing"
 
 # Extra PDFs to ingest as ManualSection concepts (e.g. BCB manuals).
+# Store operator-supplied source files in the PixKB per-user MIRROR dir, OUTSIDE
+# the repo — this keeps large binaries out of git and out of the working tree.
+# The PDF is NOT committed; the operator drops it there before `pixkb ingest`.
+# Per-user mirror dir by OS:
+#   Windows: %LocalAppData%\PixKB\mirror\   (e.g. C:\Users\<you>\AppData\Local\PixKB\mirror)
+#   macOS:   ~/Library/Application Support/PixKB/mirror/
+#   Linux:   ~/.config/PixKB/mirror/
+# `ingest` gathers all sources and aborts if any listed file is missing, so a
+# fresh checkout must place every pdfs: file first.
 pdfs:
-  - "C:/Users/you/Downloads/II_ManualdePadroesparaIniciacaodoPix.pdf"
+  - "C:/Users/you/AppData/Local/PixKB/mirror/pdfs/II_ManualdePadroesparaIniciacaodoPix.pdf"
 
 # Pre-staged git repo mirrors under mirror_dir/<name> (air-gap: cloned ahead).
 mirror_dir: "mirrors"

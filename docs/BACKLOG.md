@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:066 -->
+<!-- rev:067 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -552,8 +552,20 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   the extraction rule skips them — ingest their linked PDFs instead; #10 gov.br
   keys page crawls fine but needs a gov.br-`baseURL` source (see new blocker
   below) before it can be ingested with an honest `source_uri`.
-- **`ingest` is not runnable without the manual PDF (portability blocker, P2).**
-  `pixkb.yaml` pins an absolute `pdfs:` path
+- ~~**`ingest` is not runnable without the manual PDF (portability blocker,
+  P2).**~~ **Resolved (2026-07-17):** operator-supplied source files now live in
+  the PixKB per-user mirror dir OUTSIDE the repo — `%LocalAppData%\PixKB\mirror\`
+  on Windows (the OS-idiomatic per-user data location, matching how pixkb already
+  resolves `%LocalAppData%\PixKB\config.yaml`) — instead of a hardcoded
+  `Downloads` path or a vendored binary. `pixkb.yaml.example` documents the
+  convention (with the macOS/Linux equivalents); the operator drops the PDF there
+  before `pixkb ingest`. Verified: `pixkb ingest` now runs end-to-end against a
+  local DB (`epoch 0: +209 ~0 -0`), which was impossible before. **Residual (open, P3):** ingest is
+  still all-or-nothing — a fresh checkout missing any `pdfs:` file aborts the
+  whole run; option (a) below (warn+preserve on a missing optional source) or
+  (c) (`ingest --only <source>`) would make it degrade gracefully. Historical
+  context on the original blocker:
+  `pixkb.yaml` pinned an absolute `pdfs:` path
   (`C:/Users/dyamm/Downloads/II_ManualdePadroesparaIniciacaodoPix.pdf`) that does
   not exist on every checkout. `pixkb ingest` runs `GatherAll` over ALL sources
   and aborts the whole run if any source file is missing, so a checkout without
