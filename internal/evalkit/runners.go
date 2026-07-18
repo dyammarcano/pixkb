@@ -125,20 +125,29 @@ func RunExplainConsistency(ctx context.Context, s query.Searcher, emb embed.Embe
 		if err != nil {
 			return nil, fmt.Errorf("hybrid-explain %q: %w", c.Query, err)
 		}
-		if len(hits) != len(explains) {
-			issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("len(hits)=%d != len(explains)=%d", len(hits), len(explains))})
-			continue
-		}
-		for i := range hits {
-			if hits[i].Score != explains[i].FinalScore {
-				issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("hit[%d].Score=%v != explain[%d].FinalScore=%v", i, hits[i].Score, i, explains[i].FinalScore)})
-			}
-			if i > 0 && explains[i].FinalScore > explains[i-1].FinalScore {
-				issues = append(issues, ExplainIssue{Query: c.Query, Detail: fmt.Sprintf("explain[%d].FinalScore=%v > explain[%d].FinalScore=%v (rank order violated)", i, explains[i].FinalScore, i-1, explains[i-1].FinalScore)})
-			}
-		}
+		issues = append(issues, checkExplainConsistency(c.Query, hits, explains)...)
 	}
 	return issues, nil
+}
+
+// checkExplainConsistency is the pure invariant check behind RunExplainConsistency
+// (split out so it is unit-testable with synthetic hits/explains, no live index):
+// hits and explains must be parallel, each explain's FinalScore must equal its
+// hit's Score, and FinalScore must be non-increasing in rank order.
+func checkExplainConsistency(q string, hits []postgres.Hit, explains []query.Explain) []ExplainIssue {
+	if len(hits) != len(explains) {
+		return []ExplainIssue{{Query: q, Detail: fmt.Sprintf("len(hits)=%d != len(explains)=%d", len(hits), len(explains))}}
+	}
+	var issues []ExplainIssue
+	for i := range hits {
+		if hits[i].Score != explains[i].FinalScore {
+			issues = append(issues, ExplainIssue{Query: q, Detail: fmt.Sprintf("hit[%d].Score=%v != explain[%d].FinalScore=%v", i, hits[i].Score, i, explains[i].FinalScore)})
+		}
+		if i > 0 && explains[i].FinalScore > explains[i-1].FinalScore {
+			issues = append(issues, ExplainIssue{Query: q, Detail: fmt.Sprintf("explain[%d].FinalScore=%v > explain[%d].FinalScore=%v (rank order violated)", i, explains[i].FinalScore, i-1, explains[i-1].FinalScore)})
+		}
+	}
+	return issues
 }
 
 // AsOfIssue is one as-of-filtering invariant violation: querying at the
@@ -170,18 +179,25 @@ func RunAsOfInvariant(ctx context.Context, s query.Searcher, emb embed.Embedder,
 		if err != nil {
 			return nil, fmt.Errorf("hybrid --as-of-epoch %d %q: %w", epoch, c.Query, err)
 		}
-		if len(unfiltered) != len(asOf) {
-			issues = append(issues, AsOfIssue{Query: c.Query, Detail: fmt.Sprintf("len(unfiltered)=%d != len(as-of)=%d", len(unfiltered), len(asOf))})
-			continue
-		}
-		for i := range unfiltered {
-			if unfiltered[i].ID != asOf[i].ID {
-				issues = append(issues, AsOfIssue{Query: c.Query, Detail: fmt.Sprintf("position %d: unfiltered=%s as-of=%s", i, unfiltered[i].ID, asOf[i].ID)})
-				break
-			}
-		}
+		issues = append(issues, checkAsOfInvariant(c.Query, unfiltered, asOf)...)
 	}
 	return issues, nil
+}
+
+// checkAsOfInvariant is the pure invariant check behind RunAsOfInvariant (split
+// out for unit-testing without a live index): the unfiltered and as-of-latest id
+// sequences must be identical. Reports at most one issue per case (the first
+// divergence), matching the original behavior.
+func checkAsOfInvariant(q string, unfiltered, asOf []postgres.Hit) []AsOfIssue {
+	if len(unfiltered) != len(asOf) {
+		return []AsOfIssue{{Query: q, Detail: fmt.Sprintf("len(unfiltered)=%d != len(as-of)=%d", len(unfiltered), len(asOf))}}
+	}
+	for i := range unfiltered {
+		if unfiltered[i].ID != asOf[i].ID {
+			return []AsOfIssue{{Query: q, Detail: fmt.Sprintf("position %d: unfiltered=%s as-of=%s", i, unfiltered[i].ID, asOf[i].ID)}}
+		}
+	}
+	return nil
 }
 
 // DiversityResult is one RAG-diversity case's outcome: the distinct concept
