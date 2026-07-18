@@ -133,6 +133,28 @@ func TestParseStatuteEmpty(t *testing.T) {
 		"text with no Art. markers and no anexo yields no article/anexo sections")
 }
 
+// TestParseStatuteWrappedArt confirms a "Art." marker whose number wrapped onto
+// the next line is still recognised as an article (item 6).
+func TestParseStatuteWrappedArt(t *testing.T) {
+	text := "Art.\n1º Esta Lei institui o tributo.\nArt.\n2º Considera-se fato gerador.\n"
+	secs := parseStatute(text)
+	var nums []string
+	for _, s := range secs {
+		if s.Kind == "article" {
+			nums = append(nums, s.Number)
+		}
+	}
+	require.Equal(t, []string{"1º", "2º"}, nums, "both wrapped Art. markers parsed")
+	require.Contains(t, secs[0].Body, "institui o tributo")
+}
+
+// TestJoinWrappedArtLeavesProseAlone confirms the join only fires on a bare
+// "Art." line followed by a number, never on ordinary prose.
+func TestJoinWrappedArtLeavesProseAlone(t *testing.T) {
+	in := "Art. 5º já completo\numa frase qualquer\n42 não é um artigo\n"
+	require.Equal(t, in, joinWrappedArt(in), "no bare Art. line -> unchanged")
+}
+
 func TestLegislationConceptsFromText(t *testing.T) {
 	// Exercise concept-building directly from parsed sections (no PDF needed).
 	concepts := legislationConcepts(parseStatute(sampleStatute), "res.pdf", "lc-214-2025", "tax")
@@ -172,6 +194,27 @@ func TestLegislationConceptsFromText(t *testing.T) {
 
 func TestNewLegislationSourceName(t *testing.T) {
 	require.Equal(t, "legislation", NewLegislationSource(nil, "lc-214-2025", "tax").Name())
+}
+
+// TestLegislationConceptsSeenAcrossFiles confirms that the same statute split
+// across two files (shared seen-id map) disambiguates colliding article IDs
+// rather than emitting duplicates that would trip GatherAll's dup-id abort
+// (item 5).
+func TestLegislationConceptsSeenAcrossFiles(t *testing.T) {
+	secs := parseStatute(sampleStatute)
+	seen := map[string]bool{}
+	a := legislationConceptsSeen(secs, "part1.pdf", "lc-214-2025", "tax", seen)
+	b := legislationConceptsSeen(secs, "part2.pdf", "lc-214-2025", "tax", seen)
+
+	ids := map[string]bool{}
+	for _, c := range a {
+		ids[c.ID] = true
+	}
+	for _, c := range b {
+		require.False(t, ids[c.ID], "duplicate id emitted across files: %s", c.ID)
+		ids[c.ID] = true
+	}
+	require.Equal(t, len(a)+len(b), len(ids), "every id across both files is unique")
 }
 
 type okfConceptView struct {
