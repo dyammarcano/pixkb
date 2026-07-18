@@ -77,6 +77,6 @@ func TestRecordFact_AppendsAndClosesPriorTx(t *testing.T) {
 	// isCurrentTx predicate must also return exactly one row (mirrors FTS as-of logic).
 	var currentCount int
 	require.NoError(t, s.pool.QueryRow(ctx,
-		"SELECT count(*) FROM concept_fact WHERE id=$1 AND "+isCurrentTx, id).Scan(&currentCount))
+		"SELECT count(*) FROM concept_fact WHERE id=$1 AND "+currentTxPred("tx"), id).Scan(&currentCount))
 	require.Equal(t, 1, currentCount, "isCurrentTx predicate must select exactly one row")
 }

@@ -36,7 +36,7 @@ func (s *Store) RecordFact(ctx context.Context, c okf.Concept, validFrom, txFrom
 		`UPDATE concept_fact
 		    SET tx    = tstzrange(lower(tx), clock_timestamp()),
 		        valid = tstzrange(lower(valid), $2)
-		  WHERE id = $1 AND `+isCurrentTx, c.ID, validFrom); err != nil {
+		  WHERE id = $1 AND `+currentTxPred("tx"), c.ID, validFrom); err != nil {
 		return fmt.Errorf("close prior fact window %q: %w", c.ID, err)
 	}
 
