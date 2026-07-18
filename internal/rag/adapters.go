@@ -111,22 +111,28 @@ func (a AgentGenerator) Generate(ctx context.Context, prompt string) (string, er
 
 // Ask is the end-to-end RAG entry point: retrieve + augment, then synthesize. It
 // returns the Grounding alongside the Answer so a surface can resolve each cited
-// concept id back to its source_uri for display. When Options.Cache is set, a
-// hit for CacheKey(q, Options.Epoch) short-circuits Synthesize entirely — the
-// whole point being to skip a real subscription-agent turn on a repeated
-// question. Answer.Text is redacted for PII/LGPD before being cached, so a
-// cache hit and a cache miss return identically-redacted text. Grounding is
-// always rebuilt (retrieval is local and cheap, never the agent), even on a
-// cache hit, so citation source_uri resolution keeps working.
+// concept id back to its source_uri for display. When Options.Cache is set (and
+// only when the PII filter is ON), a hit for cacheKeyFor(q, opts) — which folds
+// in the epoch and every retrieval-scoping option — short-circuits Synthesize
+// entirely, to skip a real subscription-agent turn on a repeated question. A
+// NoPIIFilter request never reads or writes the cache, so un-redacted text can
+// never be cached and served to a later normal request. Grounding is always
+// rebuilt (retrieval is local and cheap, never the agent), even on a cache hit,
+// so citation source_uri resolution keeps working.
 func Ask(ctx context.Context, r Retriever, cs ConceptSource, gen Generator, q string, opts Options) (Answer, Grounding, error) {
 	g, err := BuildGrounding(ctx, r, cs, q, opts)
 	if err != nil {
 		return Answer{}, Grounding{}, err
 	}
 
+	// Never touch the cache when the PII filter is disabled: a NoPIIFilter
+	// answer holds un-redacted text that must not persist in a shared process
+	// cache where a later normal request could be served it. The key also folds
+	// in the retrieval scope so differently-scoped answers never collide.
 	var key string
-	if opts.Cache != nil {
-		key = CacheKey(q, opts.Epoch)
+	useCache := opts.Cache != nil && !opts.NoPIIFilter
+	if useCache {
+		key = cacheKeyFor(q, opts)
 		if a, ok := opts.Cache.Get(key); ok {
 			return a, g, nil
 		}
@@ -139,7 +145,7 @@ func Ask(ctx context.Context, r Retriever, cs ConceptSource, gen Generator, q st
 	if !opts.NoPIIFilter {
 		a.Text = RedactPII(a.Text)
 	}
-	if opts.Cache != nil {
+	if useCache {
 		opts.Cache.Put(key, a)
 	}
 	return a, g, nil
