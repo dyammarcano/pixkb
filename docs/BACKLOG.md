@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:072 -->
+<!-- rev:073 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -136,9 +136,10 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   (iii) **`Match` in-memory predicate** (herald's second backend) if a watch/
   curate-rule consumer ever needs it; (iv) **bitemporal as-of HQL field** reusing
   `asOfConceptPredicate`; (v) Minors: `LIMIT 0` reads as unbounded (document or
-  reject); add golden tests for the untested lowering shapes (`NOT IN` tagPrefix,
-  `IS NOT EMPTY`, text `IN`/`=`/`IS EMPTY`, `id !=`); md-format score column shows
-  0 for structured results. Original intent (retained for context):
+  reject); ~~add golden tests for the untested lowering shapes (`NOT IN` tagPrefix,
+  `IS NOT EMPTY`, text `IN`/`=`/`IS EMPTY`, `id !=`);~~ **DONE (2026-07-17,
+  `309e23e`)** — 6 golden cases added, all matched first-run (no compiler bug);
+  md-format score column shows 0 for structured results. Original intent (retained for context):
   Add a
   JQL/HQL-style structured query language over the concept store so users can
   express precise boolean/field queries instead of only the current flag filters
@@ -603,13 +604,17 @@ Prioritized future work. P1 = highest. Promote items into the active phase
     ISPB mapper and multi-query retrieval work) once the questions above have
     answers; it touches ingest, curate, enrich, and search ranking, so it is
     NOT a small task.
-- **CLI output formats — markdown, YAML, JSON.** Commands that currently print
-  fixed plain-text tables (`ispb lookup`, `stats`, `search`, `related`, etc.)
-  should accept a shared `--format` flag (`text` default, `md`, `yaml`,
-  `json`) so output is both scriptable (json/yaml) and shareable as a
-  rendered doc (md). Likely a small shared `internal/output` helper each
-  command's print step routes through, rather than each command hand-rolling
-  its own formatter.
+- ~~**CLI output formats — markdown, YAML, JSON.**~~ **Already shipped, this
+  entry was stale** (found during `/steps:autonomous`, 2026-07-17): the shared
+  `internal/output` helper exists (`Render`/`RenderRelated`/`RenderStats`/
+  `RenderISPB`, each a `text|json|md|yaml` switch) and every named command wires
+  a `--format` flag through it — `search`/`query` (`output.Render`, cmd/pixkb/
+  commands.go:242,256 + query.go), `related` (`RenderRelated`, :345,354), `stats`
+  (`RenderStats`, :428,437), `ispb lookup` (`RenderISPB`, ispb.go:328,336), and
+  even `serve`'s HTTP endpoint honors `?format=` (ops.go:251,260). A
+  `commands_test.go` guard asserts every command carries `--format` defaulting to
+  `text` and that an unknown value errors. No code change needed — closed by
+  doc-vs-code cross-reference, not re-implemented.
 - ~~**SELIC and Dólar (USD/BRL) mappers — current + historical series.**~~
   SHIPPED (2026-07-04). `internal/econindex` (SGS API client + parser,
   `DownloadLatest`/`DownloadRange`/`FetchHistory` with 10-year-window paging)
