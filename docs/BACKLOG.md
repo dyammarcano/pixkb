@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:075 -->
+<!-- rev:076 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -42,16 +42,18 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `docs/superpowers/{specs,plans}/2026-07-17-kb-scope-expansion-phase-b*`.
   **Phase B follow-ups (P3, from the whole-branch review — deferred to the
   real-PDF validation pass, no LC 214 PDF on the checkout):**
-  (i) *Marker robustness* — `reArt` is line-anchored (`^Art\.`); a real PDF that
-  wraps `Art.\n1º` or prefixes a running header (`LC 214/2025  Art. 5º`) misses
-  the marker and merges that article backward. Validate against the real PDF and
-  add running-header stripping / a line-join if needed; the zero-article warning
-  only catches a total miss, not a partial one.
-  (ii) *Same-`lei` multi-file* — each `legislation:` entry is its own source with
+  (i) *Marker robustness* — `reArt` is line-anchored (`^Art\.`). **Wrapped
+  `Art.\n1º` DONE** (merge `2d28e5b`, `joinWrappedArt` rejoins a bare `Art.` with
+  its number-leading next line). **Still open:** the running-header prefix case
+  (`LC 214/2025  Art. 5º`) is statute-specific and stays deferred to real-PDF
+  validation to avoid tuning false positives blind; the zero-article warning only
+  catches a total miss, not a partial one.
+  (ii) ~~*Same-`lei` multi-file* — each `legislation:` entry is its own source with
   its own dup-id map, so the same statute split across two entries can emit
   colliding article IDs that trip `GatherAll`'s hard duplicate-id error and abort
-  ingest. Fine for the one-file-per-lei model; either document it or let one
-  source take multiple files.
+  ingest.~~ **DONE** (merge `2d28e5b`) — one seen-id map is now shared across all
+  files of a legislation source, so split statutes disambiguate instead of
+  aborting.
   **Open — Phases C/D — BLOCKED on operator-supplied offline sources (verified
   2026-07-17 by a source inventory).** C = BACEN split-payment specs (the Pix-rail
   side); D = calculator source/schema (deep, YAGNI until C proves value). There is
@@ -747,16 +749,26 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   Revisit an HNSW (approximate) index on the typed vector column only if the
   corpus grows enough that exact search latency becomes a problem.
 - **docx/xlsx ingest completeness polish** (whole-branch-review Minors, merge
-  `2058f19`, 2026-07-18). (1) `docx.go` collects only `body>p` runs, so text in
-  Word tables (`w:tbl`) and non-`w:t` runs is silently dropped — add table-cell
-  extraction if a real doc needs it. (2) `splitDocx` skips empty-text paragraphs
-  before the heading check, so a stray empty heading can merge two sections.
-  (3) Pre-existing (inherited from `markdown.go`): two configured files sharing a
-  basename map to the same `reference/<basename-slug>/…` prefix and can overwrite
-  on upsert — applies to pdf/markdown/docx/xlsx alike. All three are content-
-  completeness gaps, not crashes; measure against a real corpus before tuning.
+  `2058f19`, 2026-07-18). ~~(1) `docx.go` collects only `body>p` runs, so text in
+  Word tables (`w:tbl`) is silently dropped.~~ **DONE** (merge `2d28e5b`) — an
+  ordered body walk (custom `UnmarshalXML`) flattens `w:tbl` rows into body
+  paragraphs. ~~(2) `splitDocx` skips empty-text paragraphs before the heading
+  check, so a stray empty heading can merge two sections.~~ **DONE** (merge
+  `2d28e5b`) — a heading-styled paragraph now always splits, even with empty
+  text. **Still open:** (3) Pre-existing (inherited from `markdown.go`): two
+  configured files sharing a basename map to the same `reference/<basename-slug>/…`
+  prefix and can overwrite on upsert — applies to pdf/markdown/docx/xlsx alike.
+  Non-crash completeness gap; measure against a real corpus before tuning.
 
 ## Shipped
+- **Ingest-layer hardening batch** (merge `2d28e5b`, 2026-07-18). Six polish
+  items from `/steps:next`: docx now extracts `w:tbl` table text (ordered body
+  walk) and splits on empty-text headings; xlsx sheet-slug ID-collision locked
+  by a regression test; `stripTOCRegion` tolerates the accentless `"Sumario"`
+  marker; legislation shares one seen-id map across a statute's files (no more
+  dup-id abort) and `joinWrappedArt` repairs wrapped `Art.` markers. Whole-branch
+  review (opus) READY, no Critical/Important. Remaining follow-ups (basename-slug
+  collision; legislation running-header stripping) stay open under P3/P2.
 - **docx + xlsx ingest sources** (merge `2058f19`, 2026-07-18). Two offline
   `ingest.Source` adapters emitting `Reference` concepts: `NewDocxSource`
   (stdlib `archive/zip` + `encoding/xml`, split on Word heading styles) and

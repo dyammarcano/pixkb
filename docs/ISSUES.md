@@ -1,5 +1,5 @@
 # pixkb Known Issues & Limitations
-<!-- rev:016 -->
+<!-- rev:017 -->
 
 Current known limitations.
 
@@ -29,8 +29,10 @@ Current known limitations.
   the PDF text layer (`"DRIAGRAMA DE ESTADOS"`); (iii) example data promoted to a
   heading (`"FULANO DE TAL EIRELI"`); (iv) `stripTOCRegion` hardening — a stray
   body dots-only line within 40 lines of the TOC could in theory extend the region
-  (low likelihood, gap-bounded), and an accentless `"Sumario"` heading would no-op
-  (safe degrade). Historical root-cause detail retained below.
+  (low likelihood, gap-bounded). ~~an accentless `"Sumario"` heading would no-op
+  (safe degrade).~~ **Accentless `"Sumario"` RESOLVED** (merge `2d28e5b`) —
+  `isSumarioMarker` now matches both the accented and accentless marker.
+  Historical root-cause detail retained below.
 - **(historical) PDF TOC junk root cause.** Root-caused 2026-07-17.
   The BCB manual's main TOC and per-chapter mini-TOCs are extracted by
   `internal/ingest/pdf.go`, and the PDF renders each TOC entry with **every

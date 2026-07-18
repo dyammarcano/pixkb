@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:010 -->
+<!-- rev:011 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,20 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **Ingest-layer hardening batch shipped to master** (merge
+  `2d28e5b`), via `/steps:next` `all` (items 1-6). Implemented test-first
+  directly (small, self-contained, single-subsystem) with an opus whole-branch
+  review as the gate — READY, no Critical/Important. Key judgment call on item 6
+  (reArt robustness): implemented only the **unambiguous** wrapped-`Art.`
+  line-join and **deferred running-header stripping** to real-PDF validation,
+  because the backlog explicitly warns against tuning statute markers blind (no
+  LC 214 PDF on the machine — Phase B validation stays operator-blocked) and
+  attempt-1 of the PDF fix regressed exactly by over-tuning. Two review Minors
+  (joinWrappedArt prose false-positive; duplicate "Overview" titles — IDs stay
+  unique via index prefix) documented, no change needed. Docs synced
+  (BACKLOG/ISSUES items marked done). This clears the non-blocked polish tier;
+  remaining substantial work stays operator-blocked (mirror PDFs / English
+  decision).
 - 2026-07-18 — **docx + xlsx ingest sources shipped to master** (merge `2058f19`).
   3-task SDD: docx source (`95a7235`), xlsx source + excelize dep (`949aac9`),
   config wiring (`7e8ee68`). Whole-branch review (opus) returned Not-READY on one
