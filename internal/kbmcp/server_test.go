@@ -79,6 +79,15 @@ func TestServerReadTools(t *testing.T) {
 		t.Fatal("search returned no content")
 	}
 
+	// search: HQL --where predicate narrows results before ranking.
+	res, err = cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "search",
+		Arguments: map[string]any{"query": "pix", "where": "type = ManualSection"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("search where call: err=%v isErr=%v", err, res.IsError)
+	}
+
 	// query: structured HQL filter.
 	res, err = cs.CallTool(ctx, &mcp.CallToolParams{
 		Name:      "query",

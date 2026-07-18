@@ -103,3 +103,20 @@ func TestFormatFlag_UnknownValueErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "unknown flag", "--format must be a registered flag on stats")
 }
+
+// TestSearchCmd_BadWhereFailsBeforeStore checks a malformed --where HQL
+// predicate is rejected during parsing, before openStore is ever reached —
+// no DSN/DB is needed for this test to pass.
+func TestSearchCmd_BadWhereFailsBeforeStore(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("PIXKB_CONFIG_DIR", t.TempDir())
+	t.Setenv("PIXKB_DSN", "")
+
+	root := NewRootCmd()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetArgs([]string{"search", "x", "--where", "type = ="})
+	err := root.Execute()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "parse --where")
+}

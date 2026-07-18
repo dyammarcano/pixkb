@@ -99,6 +99,7 @@ type searchIn struct {
 	IncludeTypes []string `json:"include_types,omitempty" jsonschema:"restrict results to concepts whose type is in this list (ORs with type when both are set)"`
 	ExcludeIDs   []string `json:"exclude_ids,omitempty" jsonschema:"exclude these concept ids from results"`
 	MinVecScore  float64  `json:"min_vector_score,omitempty" jsonschema:"drop vector-arm hits scoring below this cosine similarity (0 = disabled)"`
+	Where        string   `json:"where,omitempty" jsonschema:"optional HQL predicate to narrow results before ranking (e.g. type = LegalArticle AND domain = tax)"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`
@@ -116,6 +117,19 @@ func registerSearch(s *mcp.Server, d Deps) {
 		f := postgres.Filter{
 			Type: in.Type, Limit: limit,
 			IncludeTypes: in.IncludeTypes, ExcludeIDs: in.ExcludeIDs, MinVecScore: in.MinVecScore,
+		}
+		if in.Where != "" {
+			hq, err := hql.Parse(in.Where)
+			if err != nil {
+				return nil, searchOut{}, fmt.Errorf("parse where: %w", err)
+			}
+			if _, _, _, err := hq.ToSQLAt(hql.EvalContext{Now: time.Now()}, 0); err != nil {
+				return nil, searchOut{}, fmt.Errorf("compile where: %w", err)
+			}
+			f.HQLWhere = func(start int) (string, []any, error) {
+				w, a, _, err := hq.ToSQLAt(hql.EvalContext{Now: time.Now()}, start)
+				return w, a, err
+			}
 		}
 		if in.AsOfEpoch != nil && in.AsOfTime != "" {
 			return nil, searchOut{}, fmt.Errorf("set only one of as_of_epoch or as_of_time")
