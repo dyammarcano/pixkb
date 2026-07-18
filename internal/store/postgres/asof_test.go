@@ -186,7 +186,7 @@ func TestAsOf(t *testing.T) {
 		// Only one current tx row for pacs.008.
 		var open int
 		require.NoError(t, s.pool.QueryRow(ctx,
-			"SELECT count(*) FROM concept_fact WHERE id=$1 AND "+isCurrentTx,
+			"SELECT count(*) FROM concept_fact WHERE id=$1 AND "+currentTxPred("tx"),
 			"messages/pacs.008.md").Scan(&open))
 		assert.Equal(t, 1, open, "only one open tx window after update")
 	})

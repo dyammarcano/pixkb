@@ -65,10 +65,6 @@ func currentTxPred(col string) string {
 	return fmt.Sprintf("(upper_inf(%s) OR upper(%s) = 'infinity'::timestamptz)", col, col)
 }
 
-// isCurrentTx matches a concept_fact row whose transaction window is still open.
-// Deprecated: use currentTxPred("tx") or currentTxPred("cf.tx") instead.
-const isCurrentTx = `(upper_inf(tx) OR upper(tx) = 'infinity'::timestamptz)`
-
 // ReplaceEdges replaces the entire outbound edge set for src by deleting any
 // existing rows and inserting the new links in a single transaction.
 func (s *Store) ReplaceEdges(ctx context.Context, src string, links []string) error {

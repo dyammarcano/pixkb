@@ -242,9 +242,21 @@ func BuildGrounding(ctx context.Context, r Retriever, cs ConceptSource, q string
 	return g, nil
 }
 
+// Untrusted-document envelope markers. Concept bodies are externally-authored
+// (PDF/docx/legislation) text; fencing them and telling the agent never to obey
+// instructions inside the envelope is the defense against prompt injection
+// smuggled in ingested documents. DocEnd is stripped from bodies at render time
+// so a document cannot forge the boundary and escape the envelope.
+const (
+	DocBegin = "<<<UNTRUSTED-DOCUMENT>>>"
+	DocEnd   = "<<<END-UNTRUSTED-DOCUMENT>>>"
+)
+
 // Render formats the grounding as the context block handed to the answerer: each
-// chunk fenced with its concept id + source_uri so the agent can cite by id and a
-// reader can trace provenance. Returns "" when there are no chunks.
+// chunk carries its concept id + source_uri (trusted metadata) so the agent can
+// cite by id and a reader can trace provenance, and its Body is wrapped in the
+// untrusted-document envelope with any forged closing marker neutralized. Returns
+// "" when there are no chunks.
 func (g Grounding) Render() string {
 	if len(g.Chunks) == 0 {
 		return ""
@@ -254,9 +266,22 @@ func (g Grounding) Render() string {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
-		fmt.Fprintf(&b, "[concept: %s | source: %s]\n%s\n%s", c.ID, sourceOrNone(c.SourceURI), c.Title, c.Body)
+		body := stripMarker(c.Body, DocEnd)
+		fmt.Fprintf(&b, "[concept: %s | source: %s]\n%s\n%s\n%s\n%s",
+			c.ID, sourceOrNone(c.SourceURI), c.Title, DocBegin, body, DocEnd)
 	}
 	return b.String()
+}
+
+// stripMarker removes every occurrence of marker from s, iterating to a fixed
+// point so a split/nested marker cannot reconstruct one after a single pass
+// (e.g. "<<<END-" + marker + "REST>>>" collapsing back into the marker). Used to
+// stop an ingested document forging the untrusted-document envelope boundary.
+func stripMarker(s, marker string) string {
+	for strings.Contains(s, marker) {
+		s = strings.ReplaceAll(s, marker, "")
+	}
+	return s
 }
 
 func sourceOrNone(s string) string {

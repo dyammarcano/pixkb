@@ -41,11 +41,17 @@ func (h HybridRetriever) Retrieve(ctx context.Context, q string, k int) ([]Hit, 
 	if err != nil {
 		return nil, err
 	}
+	return toHits(hits), nil
+}
+
+// toHits projects search hits onto the rag.Hit shape — the single mapping shared
+// by Retrieve/RetrieveMulti/RetrieveSimilar.
+func toHits(hits []postgres.Hit) []Hit {
 	out := make([]Hit, 0, len(hits))
 	for _, x := range hits {
 		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
 	}
-	return out, nil
+	return out
 }
 
 // RetrieveMulti runs the multi-query expansion (query.MultiHybrid) instead of
@@ -59,11 +65,11 @@ func (h HybridRetriever) RetrieveMulti(ctx context.Context, q string, k int) ([]
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Hit, 0, len(hits))
-	for _, x := range hits {
-		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
+	ph := make([]postgres.Hit, len(hits))
+	for i, x := range hits {
+		ph[i] = x.Hit
 	}
-	return out, nil
+	return toHits(ph), nil
 }
 
 // RetrieveSimilar pulls concept-similarity neighbours of id via
@@ -78,11 +84,11 @@ func (h HybridRetriever) RetrieveSimilar(ctx context.Context, id string) ([]Hit,
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Hit, 0, len(hits))
-	for _, x := range hits {
-		out = append(out, Hit{ID: x.ID, Title: x.Title, Type: x.Type, Score: x.Score})
+	ph := make([]postgres.Hit, len(hits))
+	for i, x := range hits {
+		ph[i] = x.Hit
 	}
-	return out, nil
+	return toHits(ph), nil
 }
 
 // Related returns the bundle ids of a concept's graph neighbours.

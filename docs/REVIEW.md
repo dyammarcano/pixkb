@@ -4,6 +4,15 @@ Scope: real bugs only (SQL injection, races, error-swallowing, resource leaks,
 bitemporal correctness, nil derefs, context/pgx misuse). Style nits skipped.
 Point-in-time record; not a living doc.
 
+> **RESOLUTION (2026-07-18):** Both HIGH bitemporal findings below are **fixed in
+> current `internal/store/postgres/fact.go`** — `RecordFact` now closes the prior
+> row's `valid` range at `validFrom` (line 38) and drives *both* `tx` bounds from
+> `clock_timestamp()` (not a shared epoch timestamp), so there is no open-ended
+> valid range and no empty-range/EXCLUDE hazard. The doc comment (fact.go:11-23)
+> documents this; the DB-backed `Fact`/`AsOf` tests pass. Verified during the
+> maturity-route Stabilize pass; no code change was needed (these were stale
+> findings against a pre-fix revision).
+
 ## CRITICAL
 
 _None found._ No SQL injection: every dynamic clause uses `$N` placeholders and

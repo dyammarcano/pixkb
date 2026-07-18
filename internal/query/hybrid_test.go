@@ -23,6 +23,23 @@ func (f *fakeSearcher) Vector(_ context.Context, _ []float32, _ postgres.Filter)
 	return f.vec, nil
 }
 
+// emptyEmbedder returns no vectors — models an Embedder that yields fewer
+// vectors than inputs (the interface permits it).
+type emptyEmbedder struct{}
+
+func (emptyEmbedder) Name() string                                         { return "empty" }
+func (emptyEmbedder) Dim() int                                             { return 8 }
+func (emptyEmbedder) Embed(context.Context, []string) ([][]float32, error) { return nil, nil }
+
+// TestHybrid_EmptyEmbeddingErrors confirms an embedder returning no vector for
+// the query yields an error rather than an index-out-of-range panic.
+func TestHybrid_EmptyEmbeddingErrors(t *testing.T) {
+	s := &fakeSearcher{fts: []postgres.Hit{{ID: "a.md", Score: 1}}}
+	_, err := Hybrid(context.Background(), s, emptyEmbedder{}, "q", postgres.Filter{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no vector")
+}
+
 func TestHybrid_FusesAndHydrates(t *testing.T) {
 	t.Parallel()
 	s := &fakeSearcher{

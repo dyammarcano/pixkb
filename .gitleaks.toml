@@ -1,0 +1,10 @@
+# gitleaks configuration — extends the default ruleset.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Planning/analysis Markdown is prose that discusses keys, PII, and secrets by name (e.g. 'the key function', '[REDACTED:CPF]') and trips generic-entropy rules; it contains no real credentials. Code is still scanned."
+paths = [
+  '''plans/.*\.md''',
+  '''docs/.*\.md''',
+]

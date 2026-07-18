@@ -89,6 +89,30 @@ func TestRunner_RunDiffReindex(t *testing.T) {
 	assert.NotEmpty(t, hits2)
 }
 
+// TestRunner_ReindexBadBundleDoesNotWipe confirms Reindex reads/validates the
+// bundle before truncating, so a missing/unreadable bundle leaves the existing
+// index intact instead of wiping it (the recovery path must not be the hazard).
+func TestRunner_ReindexBadBundleDoesNotWipe(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	bundle := t.TempDir()
+	r := &Runner{Bundle: bundle, Store: st, Emb: embed.NewHashing(256), Git: NewGitCommitter(bundle)}
+
+	_, err := r.Run(ctx, []okf.Concept{mkConcept("messages/pacs.008.md", "Credit Transfer", "credit transfer body")}, "ingest")
+	require.NoError(t, err)
+	before, err := st.FTS(ctx, "transfer", postgres.Filter{})
+	require.NoError(t, err)
+	require.NotEmpty(t, before)
+
+	// Reindex against a non-existent bundle dir must error and NOT truncate.
+	bad := &Runner{Bundle: filepath.Join(t.TempDir(), "does-not-exist"), Store: st, Emb: embed.NewHashing(256), Git: NewGitCommitter(bundle)}
+	require.Error(t, bad.Reindex(ctx))
+
+	after, err := st.FTS(ctx, "transfer", postgres.Filter{})
+	require.NoError(t, err)
+	require.NotEmpty(t, after, "a failed reindex (bad bundle) must not wipe the index")
+}
+
 // TestRunner_ConcurrentUpsertBatch confirms the write path is serialized: N
 // goroutines each upserting one concept must all succeed with distinct epochs
 // (no epoch PRIMARY KEY collision) and race-clean. Run with -race. DB-gated.

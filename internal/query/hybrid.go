@@ -3,6 +3,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 
@@ -184,6 +185,9 @@ func hybridCore(ctx context.Context, s Searcher, emb embed.Embedder, q string, f
 	vecs, err := emb.Embed(ctx, []string{q})
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(vecs) == 0 {
+		return nil, nil, fmt.Errorf("embedder returned no vector for query")
 	}
 	vecHits, err := s.Vector(ctx, vecs[0], f)
 	if err != nil {
