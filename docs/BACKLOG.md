@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:071 -->
+<!-- rev:072 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -130,7 +130,9 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   (i) **fold HQL into `search`'s hybrid RRF** ("HQL narrows, RRF ranks") — needs
   the placeholder-renumbering seam to splice an HQL WHERE into `FTS`/`Vector`'s
   already-numbered args (the injection-risk the standalone v1 sidesteps);
-  (ii) **MCP `query` verb** (thin once `QueryConcepts` exists);
+  ~~(ii) **MCP `query` verb** (thin once `QueryConcepts` exists);~~ **DONE
+  (2026-07-17, merge `bd88fb7`):** read-only `query` MCP tool
+  (`internal/kbmcp/server.go`) exposes the HQL filter to agents alongside `search`;
   (iii) **`Match` in-memory predicate** (herald's second backend) if a watch/
   curate-rule consumer ever needs it; (iv) **bitemporal as-of HQL field** reusing
   `asOfConceptPredicate`; (v) Minors: `LIMIT 0` reads as unbounded (document or
