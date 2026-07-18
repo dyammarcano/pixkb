@@ -26,6 +26,14 @@ embedder: "hashing"
 pdfs:
   - "C:/Users/you/AppData/Local/PixKB/mirror/pdfs/II_ManualdePadroesparaIniciacaodoPix.pdf"
 
+# Word (.docx) and Excel (.xlsx) documents -> Reference concepts. Place under the
+# per-user mirror dir like pdfs: (offline, pure-Go parsing). docx splits on Word
+# heading styles; xlsx renders each sheet as a Markdown table.
+docx:
+  - "C:/Users/you/AppData/Local/PixKB/mirror/docs/especificacao.docx"
+xlsx:
+  - "C:/Users/you/AppData/Local/PixKB/mirror/docs/participantes.xlsx"
+
 # Pre-staged git repo mirrors under mirror_dir/<name> (air-gap: cloned ahead).
 mirror_dir: "mirrors"
 repos:
