@@ -1,5 +1,5 @@
 # pixkb Architecture
-<!-- rev:001 -->
+<!-- rev:002 -->
 
 `pixkb` is an air-gap knowledge base for Brazil BCB Pix/SPB. The **OKF
 (Open Knowledge Format) markdown bundle is the canonical source of truth**;
@@ -12,12 +12,18 @@ flowchart TD
     subgraph Sources
         ISO[ISO-20022 messages]
         PDF[BCB PDF manuals]
+        LEG[Legislation statutes]
+        OFFICE[docx / xlsx]
+        MD[Markdown / OpenAPI]
         GIT[Git mirror source]
         DICT[API-DICT source]
     end
 
     ISO --> ING[ingest]
     PDF --> ING
+    LEG --> ING
+    OFFICE --> ING
+    MD --> ING
     GIT --> ING
     DICT --> ING
 
