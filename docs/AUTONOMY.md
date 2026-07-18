@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:004 -->
+<!-- rev:005 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,15 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **Autonomous run reached saturation; stopping to check in.** After
+  shipping Phase B, HQL v1, and the domain-validation P3 (`45b0e34`), every
+  high-value non-blocked roadmap item is done. What remains is either blocked on
+  the operator (Phases C/D + Phase B real-PDF validation need mirror-dir PDFs; the
+  "KB standardized in English" item needs a product-direction decision), or
+  low-value/deferred polish (remaining `--format` commands; HQL v2 follow-ups just
+  logged). Per the charter's stop conditions (a blocker + product-direction
+  ambiguity), stopping here and surfacing rather than grinding deferred polish.
+  Resuming continues from the ledgers + `git log`.
 - 2026-07-17 — **HQL DSL v1 shipped to master** (merge `7ad5233`). Built via SDD
   (6 TDD tasks + fixes). Forks settled autonomously in the spec (standalone filter
   not RRF-folded; `Match` deferred; `epoch`/`updated`→real columns; no MCP verb in
