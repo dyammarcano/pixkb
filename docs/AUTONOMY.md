@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:012 -->
+<!-- rev:013 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,23 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **corral agent-fleet integration hardening shipped to master**
+  (merge `fb061bf`), after an operator-requested maturity assessment of the
+  corral integration (graded B−: clean boundary, but immature on dependency
+  version/footprint + runtime resilience + concurrency). Executed the two
+  actionable maturity levers as plans 006+007: (006) map `corral.ErrRateLimited`
+  to a typed `rag.ErrRateLimited` (double-`%w` so both causes stay in the chain),
+  proactively short-circuit on a provider-exhausted `LimitStatus`, and surface a
+  friendly "try again later" in the ask CLI + kb_ask MCP — **deliberately no
+  auto-retry** (corral exposes no reset window, so a within-request backoff would
+  just spin; deferred until a reset time is available); (007) serialize
+  `Runner.Run/UpsertBatch/Reindex` with an unexported mutex, closing the
+  CORRECTNESS-02 concurrent-`concept_upsert` epoch/git race the audit found, with
+  a `-race` DB-gated concurrency test. Whole-branch review (opus) READY, no
+  Critical/Important. Deferred maturity items (out of scope, logged): the L-effort
+  corral dependency-graph split (DEPS-01, needs upstream) and gating the live
+  agent e2e in CI. The two remaining improve quick-win plans (002 golangci pin,
+  003 embed guards) + 004/005 still await a go-ahead.
 - 2026-07-18 — **`improve` maturation sweep + top-plan execution** (via
   `/steps:next` `all`, items 1-4). Ran a standard-depth `improve` audit (4
   parallel read-only auditors: correctness/security/tests+debt/perf+deps+dx),

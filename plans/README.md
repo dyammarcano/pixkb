@@ -34,8 +34,9 @@ pass (write one on request):
 
 - **CORRECTNESS-02 — `concept_upsert` runs the non-serialized epoch/bundle/git write path
   concurrently** (`internal/kbmcp/server.go:371`; store delegates serialization to the
-  caller, `internal/store/postgres/epoch.go:14-19`). MED/M. Fix: a process mutex or Postgres
-  advisory lock around the whole `UpsertBatch` write path; retry `NextEpoch` on PK conflict.
+  caller, `internal/store/postgres/epoch.go:14-19`). **DONE — plans/007** (merge `fb061bf`):
+  `epoch.Runner` now serializes `Run`/`UpsertBatch`/`Reindex` with an unexported mutex. A
+  Postgres advisory lock is only needed if multi-*process* writers appear (noted in the plan).
 - **PERF-01 — ingest/reindex write path is fully per-concept, unbatched** (`internal/epoch/
   runner.go:147-168`; ~4 round trips/concept + one INSERT/edge; no `pgx.Batch`/`CopyFrom`
   anywhere). HIGH/M. Fix: `pgx.Batch` the per-concept writes, `CopyFrom` edges, embed all
