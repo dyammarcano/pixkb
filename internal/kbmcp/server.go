@@ -99,7 +99,7 @@ type searchIn struct {
 	IncludeTypes []string `json:"include_types,omitempty" jsonschema:"restrict results to concepts whose type is in this list (ORs with type when both are set)"`
 	ExcludeIDs   []string `json:"exclude_ids,omitempty" jsonschema:"exclude these concept ids from results"`
 	MinVecScore  float64  `json:"min_vector_score,omitempty" jsonschema:"drop vector-arm hits scoring below this cosine similarity (0 = disabled)"`
-	Where        string   `json:"where,omitempty" jsonschema:"optional HQL predicate to narrow results before ranking (e.g. type = LegalArticle AND domain = tax)"`
+	Where        string   `json:"where,omitempty" jsonschema:"optional HQL predicate to narrow results before ranking (e.g. type = LegalArticle AND domain = tax); any ORDER BY/LIMIT in it is ignored — ranking uses relevance"`
 }
 type searchOut struct {
 	Hits []hitOut `json:"hits"`

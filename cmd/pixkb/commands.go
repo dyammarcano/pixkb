@@ -278,7 +278,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&includeTypes, "include-type", nil, "restrict to concepts whose type is in this list (comma-separated or repeatable; ORs with --type when both are set)")
 	cmd.Flags().StringSliceVar(&excludeIDs, "exclude-id", nil, "exclude these concept ids from results (comma-separated or repeatable)")
 	cmd.Flags().Float64Var(&minVecScore, "min-vector-score", 0, "drop vector-arm hits scoring below this cosine similarity (0 = disabled)")
-	cmd.Flags().StringVar(&where, "where", "", "HQL predicate to narrow results before ranking, e.g. 'type = LegalArticle AND domain = tax'")
+	cmd.Flags().StringVar(&where, "where", "", "HQL predicate to narrow results before ranking, e.g. 'type = LegalArticle AND domain = tax' (any ORDER BY/LIMIT in it is ignored — ranking uses relevance + --limit)")
 	return cmd
 }
 
