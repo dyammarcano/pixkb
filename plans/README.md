@@ -12,9 +12,9 @@ row when done.
 |------|-------|----------|--------|------------|--------|
 | 001 | RAG cache never serves un-redacted PII across the PII-filter flag | P1 | S | — | DONE (feat/improve-quickwins) |
 | 002 | Reproducible lint — committed `.golangci.yml` + pinned CI version | P1 | S | — | DONE (feat/golangci-config) |
-| 003 | Guard embedder output length + index mapping (no panic) | P2 | S | — | TODO |
-| 004 | `Reindex` cannot leave the index empty on failure | P2 | M | — | TODO |
-| 005 | Harden RAG/curate prompts against injected document instructions | P2 | M | — | TODO |
+| 003 | Guard embedder output length + index mapping (no panic) | P2 | S | — | DONE (feat/maturity-stabilize) |
+| 004 | `Reindex` cannot leave the index empty on failure | P2 | M | — | DONE — Step 1 (read-before-truncate); atomic swap deferred |
+| 005 | Harden RAG/curate prompts against injected document instructions | P2 | M | — | DONE (feat/maturity-stabilize; split-marker bypass fixed in review) |
 | 006 | Typed rate-limit handling at the corral generation seam | P2 | S | — | DONE (feat/corral-resilience) |
 | 007 | Serialize the epoch/bundle/git write path against concurrent callers | P2 | S–M | — | DONE (feat/corral-resilience) |
 

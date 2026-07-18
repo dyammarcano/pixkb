@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:013 -->
+<!-- rev:014 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,28 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **Maturity-route Stabilize/Harden batch shipped to master** (merge
+  `b47c955`), via `/steps:next` `all` after the `/project:rating` produced
+  `docs/analysis/MATURITY.md` (Stage 3, 77.3/100). Ten route items in one branch,
+  verified under `-race` against a live throwaway pgvector DB (localhost:5433):
+  embed guards, hit-mapping dedup + deprecated-symbol removal, graceful shutdown,
+  a security-scan CI job (govulncheck 0 reachable / gitleaks 0 with a doc-prose
+  allowlist), Reindex read-before-truncate, prompt-injection fencing, sources.go
+  extraction, and ADRs 0003-0005. Key judgment calls: **item 1 (bitemporal fact
+  defects) was a CHECKOFF** — the current `fact.go` already implements exactly
+  REVIEW.md's recommended fix (REVIEW.md reviewed a pre-fix revision; cited a
+  line the 56-line file doesn't have), so REVIEW.md was marked resolved, not
+  re-implemented; **item 8 (distroless) was NOT-APPLICABLE** — the Dockerfile is
+  a deliberate all-in-one pgvector air-gap image (can't be distroless), so the
+  DSN's loopback posture was documented instead of forcing a design-breaking
+  change; **DEBT-05 (epoch write-seq dedup) and the Reindex atomic-swap were
+  deferred** (measure-first — they overlap correctness-critical paths). The
+  whole-branch review caught one Important prompt-injection bypass (a split forged
+  envelope marker defeats single-pass ReplaceAll) — fixed pre-merge with
+  fixed-point neutralization + regression tests. Remaining route work is
+  operator/upstream-blocked: CI green baseline (**GitHub account billing lock** —
+  every Actions run startup-fails account-wide, public or private), Postgres-in-CI
+  coverage (needs Actions), corral dep split (upstream), `v0.x` tag (needs CI).
 - 2026-07-18 — **corral agent-fleet integration hardening shipped to master**
   (merge `fb061bf`), after an operator-requested maturity assessment of the
   corral integration (graded B−: clean boundary, but immature on dependency
