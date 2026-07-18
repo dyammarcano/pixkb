@@ -106,6 +106,21 @@ func TestStripTOCRegion_SumarioNoDotLeaders(t *testing.T) {
 	require.Equal(t, in, stripTOCRegion(in), "Sumário but no dot-leaders -> unchanged")
 }
 
+// TestStripTOCRegion_AccentlessSumario confirms an accentless "Sumario" marker
+// (some PDF text layers strip the á) is still recognised and its TOC dropped.
+func TestStripTOCRegion_AccentlessSumario(t *testing.T) {
+	toc := strings.Join([]string{
+		"Manual", "de Padrões",
+		"Sumario", // accentless marker
+		"1.", "INTRODUÇÃO", "................................", "6",
+		"O Pix é o meio de pagamento instantâneo brasileiro.",
+	}, "\n")
+	out := stripTOCRegion(toc)
+	require.NotContains(t, out, "Sumario", "accentless marker is dropped")
+	require.NotContains(t, out, "....", "no dot-leader lines survive")
+	require.Contains(t, out, "O Pix é o meio de pagamento", "body prose preserved")
+}
+
 func TestLinePredicates(t *testing.T) {
 	require.True(t, isDotLeader("........"))
 	require.True(t, isDotLeader("  ....  "))
