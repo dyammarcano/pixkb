@@ -2,6 +2,7 @@ package rag
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -74,7 +75,7 @@ func TestAsk_CacheHitSkipsGenerator(t *testing.T) {
 	cs := fakeSource{"a.md": concept("a.md", "A", "body", "doc:a")}
 	gen := &fakeGen{reply: `{"answer":"fresh","citations":["a.md"],"refused":false}`}
 	cache := newFakeCache()
-	cache.Put(CacheKey("q", 7), Answer{Text: "cached", Citations: []string{"a.md"}})
+	cache.Put(cacheKeyFor("q", Options{Epoch: 7}), Answer{Text: "cached", Citations: []string{"a.md"}})
 
 	ans, _, err := Ask(context.Background(), r, cs, gen, "q", Options{Cache: cache, Epoch: 7})
 	if err != nil {
@@ -101,9 +102,61 @@ func TestAsk_CacheMissPopulatesCache(t *testing.T) {
 	if !gen.called {
 		t.Fatal("a cache miss must still spend an agent turn")
 	}
-	cached, ok := cache.Get(CacheKey("q", 3))
+	cached, ok := cache.Get(cacheKeyFor("q", Options{Epoch: 3}))
 	if !ok || cached.Text != ans.Text {
 		t.Fatalf("cache must be populated after a miss, got %+v ok=%v", cached, ok)
+	}
+}
+
+func TestAsk_NoPIIFilterNeverCachedNorLeaked(t *testing.T) {
+	r := &fakeRetriever{hits: []Hit{{ID: "a.md", Score: 1}}}
+	cs := fakeSource{"a.md": concept("a.md", "A", "body", "doc:a")}
+	// The generated answer carries a CPF that RedactPII scrubs to [REDACTED:CPF].
+	gen := &fakeGen{reply: `{"answer":"CPF 123.456.789-01","citations":["a.md"],"refused":false}`}
+	cache := newFakeCache()
+
+	// First call disables the PII filter (debug path): returns raw text and must
+	// NOT populate the cache.
+	raw, _, err := Ask(context.Background(), r, cs, gen, "q", Options{Cache: cache, Epoch: 5, NoPIIFilter: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw.Text, "123.456.789-01") {
+		t.Fatalf("NoPIIFilter must return raw text, got %q", raw.Text)
+	}
+	if len(cache.m) != 0 {
+		t.Fatalf("a NoPIIFilter answer must never be cached, cache has %d entries", len(cache.m))
+	}
+
+	// A subsequent normal call for the same question+epoch must re-synthesize and
+	// return REDACTED text — never the raw text from the first call.
+	gen.called = false
+	red, _, err := Ask(context.Background(), r, cs, gen, "q", Options{Cache: cache, Epoch: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !gen.called {
+		t.Fatal("the normal call must not be served from a NoPIIFilter cache entry")
+	}
+	if strings.Contains(red.Text, "123.456.789-01") || !strings.Contains(red.Text, "[REDACTED:CPF]") {
+		t.Fatalf("normal call must return redacted text, got %q", red.Text)
+	}
+}
+
+func TestCacheKeyFor_DiffersByScopeAndPIIFlag(t *testing.T) {
+	base := Options{Epoch: 1, TopK: 5}
+	for _, tc := range []struct {
+		name string
+		opts Options
+	}{
+		{"topk", Options{Epoch: 1, TopK: 10}},
+		{"nopii", Options{Epoch: 1, TopK: 5, NoPIIFilter: true}},
+		{"diversify", Options{Epoch: 1, TopK: 5, Diversify: true}},
+		{"minscore", Options{Epoch: 1, TopK: 5, MinScore: 0.3}},
+	} {
+		if cacheKeyFor("q", base) == cacheKeyFor("q", tc.opts) {
+			t.Fatalf("%s must change the cache key", tc.name)
+		}
 	}
 }
 

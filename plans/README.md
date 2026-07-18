@@ -10,7 +10,7 @@ row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001 | RAG cache never serves un-redacted PII across the PII-filter flag | P1 | S | — | TODO |
+| 001 | RAG cache never serves un-redacted PII across the PII-filter flag | P1 | S | — | DONE (feat/improve-quickwins) |
 | 002 | Reproducible lint — committed `.golangci.yml` + pinned CI version | P1 | S | — | TODO |
 | 003 | Guard embedder output length + index mapping (no panic) | P2 | S | — | TODO |
 | 004 | `Reindex` cannot leave the index empty on failure | P2 | M | — | TODO |

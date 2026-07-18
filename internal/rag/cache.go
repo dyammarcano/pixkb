@@ -35,6 +35,23 @@ func CacheKey(question string, epoch int) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// cacheKeyFor derives a key from the question, epoch, and every retrieval- and
+// redaction-affecting option, so answers computed under different scopes never
+// collide. Without this, two kb_ask calls with the same question+epoch but
+// different TopK/Diversify/… (or, critically, a different NoPIIFilter setting)
+// would share an entry — and a NoPIIFilter=true call could cache un-redacted
+// PII that a later normal call is then served. Ask additionally refuses to
+// cache at all when NoPIIFilter is set; NoPIIFilter is folded in here as
+// defense in depth. Any new answer-affecting Options field must be added here.
+func cacheKeyFor(question string, o Options) string {
+	norm := strings.ToLower(strings.Join(strings.Fields(question), " "))
+	payload := fmt.Sprintf("%d|%s|topk=%d|rel=%t|seeds=%d|multi=%t|div=%t|sim=%t|min=%g|nopii=%t",
+		o.Epoch, norm, o.TopK, o.ExpandRelated, o.ExpandSeeds, o.MultiQuery,
+		o.Diversify, o.ExpandSimilar, o.MinScore, o.NoPIIFilter)
+	sum := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(sum[:])
+}
+
 // LRUCache is a fixed-capacity, in-memory, thread-safe, least-recently-used
 // AnswerCache. Built on container/list (stdlib) — no new go.mod dependency.
 // It holds process-lifetime only: for the MCP server (a long-running process
