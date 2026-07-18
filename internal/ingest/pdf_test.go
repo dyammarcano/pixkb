@@ -3,6 +3,9 @@ package ingest
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,6 +70,53 @@ func TestSlugify(t *testing.T) {
 	assert.Equal(t, "ii-manual", slugify("II__Manual"))
 }
 
+func TestStripTOCRegion(t *testing.T) {
+	// Mirrors the real manual: title/version front matter, then the Sumário TOC
+	// block (number lines, dropcap fragments, dot-leader runs, page numbers),
+	// then real body prose. Dot-leaders appear ONLY in the TOC.
+	toc := strings.Join([]string{
+		"Manual", "de Padrões", "Versão 2.8", // front matter (kept)
+		"Sumário", // TOC start marker
+		"1.", "INTRODUÇÃO", "................................", "6",
+		"2.", "INICIAÇÃO POR QR CODE", "....................", "6",
+		"2.6.", "I", "NICIAÇÃO VIA ", "QR", "C", "ODE ", "E", "STÁTICO",
+		"........................", " ", "11",
+		// --- body begins: no more dot-leaders ---
+		"1.", "Introdução",
+		"O Pix é o meio de pagamento instantâneo brasileiro que permite...",
+	}, "\n")
+
+	out := stripTOCRegion(toc)
+
+	require.Contains(t, out, "Manual", "front matter before Sumário is kept")
+	require.NotContains(t, out, "Sumário", "the Sumário marker is dropped")
+	require.NotContains(t, out, "NICIAÇÃO VIA ", "TOC dropcap fragments are dropped")
+	require.NotContains(t, out, "....", "no dot-leader lines survive")
+	require.Contains(t, out, "O Pix é o meio de pagamento", "body prose is preserved")
+	require.Contains(t, out, "Introdução", "body heading is preserved")
+}
+
+func TestStripTOCRegion_NoSumario(t *testing.T) {
+	in := "3.2 Serviço\n\nUm texto qualquer sem sumário.\n"
+	require.Equal(t, in, stripTOCRegion(in), "no Sumário -> unchanged")
+}
+
+func TestStripTOCRegion_SumarioNoDotLeaders(t *testing.T) {
+	in := "Sumário\n1. Introdução\nTexto sem dot-leaders.\n"
+	require.Equal(t, in, stripTOCRegion(in), "Sumário but no dot-leaders -> unchanged")
+}
+
+func TestLinePredicates(t *testing.T) {
+	require.True(t, isDotLeader("........"))
+	require.True(t, isDotLeader("  ....  "))
+	require.False(t, isDotLeader("... x"))
+	require.False(t, isDotLeader(""))
+	require.True(t, isBarePageNumber("38"))
+	require.True(t, isBarePageNumber("6"))
+	require.False(t, isBarePageNumber("2.6."))
+	require.False(t, isBarePageNumber("ANEXO"))
+}
+
 func TestPDFSource_RealFile(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping real-PDF parse in -short mode")
@@ -83,4 +133,62 @@ func TestPDFSource_RealFile(t *testing.T) {
 	assert.Equal(t, "pt", cs[0].Language)
 	assert.NotEmpty(t, cs[0].ContentSHA)
 	assert.Contains(t, cs[0].ID, "manuals/")
+}
+
+func manualPDFPath() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		return "" // non-Windows / unset: acceptance test skips
+	}
+	p := filepath.Join(base, "PixKB", "mirror", "pdfs", "II_ManualdePadroesparaIniciacaodoPix.pdf")
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
+}
+
+func TestPDFFetch_NoTOCJunk(t *testing.T) {
+	p := manualPDFPath()
+	if p == "" {
+		t.Skip("manual PDF not present in mirror dir")
+	}
+	concepts, err := NewPDFSource([]string{p}).Fetch(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, concepts)
+
+	// The TOC-suppression fix's contract: no TOC-artifact titles survive. A
+	// dot-leader run, a bare page number, and the known dropcap-mangled fragments
+	// were ALL sourced from the manual's Sumário block; stripTOCRegion removes that
+	// block, so none may appear as a ManualSection title.
+	counts := map[string]int{}
+	junk := regexp.MustCompile(`^\.+$`)
+	dropcapArtifacts := []string{"ERVIÇO DE", "ODE ESTÁTICO PARA PACS", "ECOMENDAÇÕES DE SEGURANÇA"}
+	for _, c := range concepts {
+		title := strings.TrimSpace(c.Title)
+		require.False(t, junk.MatchString(title), "dot-leader title leaked: %q", title)
+		require.NotRegexp(t, `^\d{1,4}$`, title, "bare page-number title leaked: %q", title)
+		for _, a := range dropcapArtifacts {
+			require.NotEqual(t, a, title, "known dropcap artifact leaked: %q", title)
+		}
+		counts[title]++
+	}
+
+	// The documented buggy baseline was ~93 mostly-junk sections. Suppressing the
+	// TOC must cut that dramatically; a value near the old count means the TOC
+	// leaked back in.
+	require.Less(t, len(concepts), 40,
+		"expected a large section-count reduction from the ~93 buggy baseline, got %d", len(concepts))
+
+	// NOTE: TOC-vs-body DUPLICATES (the ~27 the ISSUES bug named) are eliminated by
+	// construction — the TOC copy is gone. Any remaining repeated title is a
+	// legitimately-repeated BODY caption (e.g. "DIAGRAMA DE ESTADOS" above several
+	// distinct diagrams), which is a separate body-heading-quality concern tracked
+	// for the numbered-heading-join follow-up, NOT a TOC-suppression regression. We
+	// log it as a signal rather than failing on it here.
+	for title, n := range counts {
+		if n > 1 {
+			t.Logf("repeated body caption (heading-join follow-up): %q x%d", title, n)
+		}
+	}
+	t.Logf("manual produced %d ManualSection concepts (0 TOC-junk titles)", len(concepts))
 }

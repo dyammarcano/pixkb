@@ -29,6 +29,7 @@ func (s *pdfSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 		if err != nil {
 			return nil, fmt.Errorf("pdf %s: %w", f, err)
 		}
+		text = stripTOCRegion(text)
 		slug := slugify(strings.TrimSuffix(filepath.Base(f), filepath.Ext(f)))
 		for i, sec := range splitSections(text) {
 			id := fmt.Sprintf("manuals/%s/secao-%d.md", slug, i)
@@ -192,6 +193,65 @@ func looksUpperHeading(t string) bool {
 		}
 	}
 	return false
+}
+
+const tocGapThreshold = 40
+
+var (
+	dotLeaderRE = regexp.MustCompile(`^\.{4,}$`)
+	barePageRE  = regexp.MustCompile(`^\d{1,4}$`)
+)
+
+func isDotLeader(ln string) bool     { return dotLeaderRE.MatchString(strings.TrimSpace(ln)) }
+func isBarePageNumber(s string) bool { return barePageRE.MatchString(strings.TrimSpace(s)) }
+
+// stripTOCRegion removes a leading table-of-contents block. The BCB manual
+// renders TOC entries ending in dot-leader runs (^\.{4,}$) + a bare page number;
+// dot-leaders occur ONLY in the TOC, so the whole block from the "Sumário" marker
+// through the last dot-leader (plus its trailing page number) is dropped. A PDF
+// with no "Sumário" or no dot-leaders is returned unchanged, so non-manual
+// sources are unaffected.
+func stripTOCRegion(text string) string {
+	lines := strings.Split(text, "\n")
+	start := -1
+	for i, ln := range lines {
+		if strings.EqualFold(strings.TrimSpace(ln), "Sumário") {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return text
+	}
+	lastLeader := -1
+	for i := start; i < len(lines); i++ {
+		if isDotLeader(lines[i]) {
+			lastLeader = i
+		} else if lastLeader >= 0 && i-lastLeader > tocGapThreshold {
+			break // long dot-leader-free stretch -> body has started
+		}
+	}
+	if lastLeader < 0 {
+		return text // "Sumário" present but no dot-leaders: not a real TOC block
+	}
+	// Consume a short trailer (blank/space lines + one bare page number) after the
+	// last dot-leader, stopping before real body prose.
+	end := lastLeader + 1
+	for end < len(lines) && end <= lastLeader+4 {
+		t := strings.TrimSpace(lines[end])
+		if t == "" {
+			end++
+			continue
+		}
+		if isBarePageNumber(t) {
+			end++
+		}
+		break
+	}
+	kept := make([]string, 0, len(lines))
+	kept = append(kept, lines[:start]...)
+	kept = append(kept, lines[end:]...)
+	return strings.Join(kept, "\n")
 }
 
 // cleanTitle normalizes a heading line into a tidy title.
