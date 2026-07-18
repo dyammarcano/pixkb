@@ -2,8 +2,10 @@ package epoch
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,4 +87,37 @@ func TestRunner_RunDiffReindex(t *testing.T) {
 	hits2, err := st.FTS(ctx, "status", postgres.Filter{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, hits2)
+}
+
+// TestRunner_ConcurrentUpsertBatch confirms the write path is serialized: N
+// goroutines each upserting one concept must all succeed with distinct epochs
+// (no epoch PRIMARY KEY collision) and race-clean. Run with -race. DB-gated.
+func TestRunner_ConcurrentUpsertBatch(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	bundle := t.TempDir()
+	r := &Runner{Bundle: bundle, Store: st, Emb: embed.NewHashing(256), Git: NewGitCommitter(bundle)}
+
+	const n = 8
+	epochs := make([]int, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			id := fmt.Sprintf("messages/agent-%02d.md", i)
+			c := mkConcept(id, "Agent Write", fmt.Sprintf("agent write-back body %d", i))
+			res, err := r.UpsertBatch(ctx, []okf.Concept{c}, "agent")
+			epochs[i], errs[i] = res.Epoch, err
+		}(i)
+	}
+	wg.Wait()
+
+	seen := map[int]bool{}
+	for i := 0; i < n; i++ {
+		require.NoErrorf(t, errs[i], "goroutine %d", i)
+		require.Falsef(t, seen[epochs[i]], "epoch %d allocated twice — write path not serialized", epochs[i])
+		seen[epochs[i]] = true
+	}
 }

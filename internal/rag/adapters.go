@@ -2,6 +2,8 @@ package rag
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/inovacc/corral"
@@ -11,6 +13,15 @@ import (
 	"pixkb/internal/similar"
 	"pixkb/internal/store/postgres"
 )
+
+// ErrRateLimited is returned by AgentGenerator.Generate when the agent fleet's
+// provider has reached its usage limit and the run was withheld (corral signals
+// this with corral.ErrRateLimited). Surfaces can errors.Is against this to tell
+// the operator to try again later, instead of showing an opaque error. NOTE:
+// there is no automatic backoff-retry — corral exposes no reset time, and the
+// run was withheld, so a within-request retry would spin; retry is deferred
+// until a reset window is available.
+var ErrRateLimited = errors.New("rag: agent fleet rate-limited")
 
 // HybridRetriever adapts the hybrid search + edge graph to rag.Retriever. Thin
 // wrapper, no logic — the ranking lives in query.Hybrid, the graph in
@@ -100,13 +111,34 @@ func (b BundleSource) Concept(_ context.Context, id string) (okf.Concept, error)
 // generation spends one subscription turn, never a metered API).
 type AgentGenerator struct{ Agency *corral.Agency }
 
-// Generate runs the answerer agent and returns its raw structured reply.
+// Generate runs the answerer agent and returns its raw structured reply. A
+// provider rate-limit (corral.ErrRateLimited) is mapped to the typed
+// ErrRateLimited so surfaces can present a clear "try again later" instead of an
+// opaque error. When the provider reports itself already exhausted, the run is
+// short-circuited to avoid spending a doomed attempt.
 func (a AgentGenerator) Generate(ctx context.Context, prompt string) (string, error) {
+	if status, supported, err := a.Agency.LimitStatus(); err == nil && supported && status.Exhausted() {
+		return "", ErrRateLimited
+	}
 	res, err := a.Agency.Run(ctx, "answerer", prompt)
 	if err != nil {
-		return "", err
+		return "", mapGenErr(err)
 	}
 	return res.Text, nil
+}
+
+// mapGenErr translates a corral run error into pixkb's typed rag error where one
+// applies, leaving all other errors unchanged. Split out so it is unit-testable
+// without constructing a real *corral.Agency.
+func mapGenErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, corral.ErrRateLimited) {
+		// Wrap both so errors.Is matches the typed rag sentinel and the corral cause.
+		return fmt.Errorf("%w: %w", ErrRateLimited, err)
+	}
+	return err
 }
 
 // Ask is the end-to-end RAG entry point: retrieve + augment, then synthesize. It

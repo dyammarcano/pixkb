@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -80,6 +81,9 @@ func newAskCmd() *cobra.Command {
 				},
 			)
 			if err != nil {
+				if errors.Is(err, rag.ErrRateLimited) {
+					return fmt.Errorf("the agent fleet is rate-limited; try again later (%w)", err)
+				}
 				return err
 			}
 			return renderAnswer(cmd.OutOrStdout(), ans, g, asJSON)

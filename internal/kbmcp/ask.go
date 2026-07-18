@@ -2,6 +2,7 @@ package kbmcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -76,6 +77,9 @@ func registerAsk(s *mcp.Server, d Deps) {
 			},
 		)
 		if err != nil {
+			if errors.Is(err, rag.ErrRateLimited) {
+				return nil, askOut{}, fmt.Errorf("the agent fleet is rate-limited; try again later (%w)", err)
+			}
 			return nil, askOut{}, err
 		}
 		out := askOut{Answer: ans.Text, Refused: ans.Refused}
