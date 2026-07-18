@@ -69,13 +69,8 @@ func (r *Runner) Run(ctx context.Context, concepts []okf.Concept, source string)
 		return Result{}, fmt.Errorf("next epoch: %w", err)
 	}
 
-	for _, c := range concepts {
-		c.Epoch = n
-		c.EmbeddedAt = createdAt
-		c.EmbedModel = r.Emb.Name()
-		if err := r.applyConcept(ctx, c, createdAt); err != nil {
-			return Result{}, err
-		}
+	if err := r.applyAll(ctx, concepts, n, createdAt); err != nil {
+		return Result{}, err
 	}
 
 	// Delete bundle files for concepts no longer emitted by any source, so the
@@ -89,28 +84,52 @@ func (r *Runner) Run(ctx context.Context, concepts []okf.Concept, source string)
 		return Result{}, fmt.Errorf("reconcile bundle: %w", err)
 	}
 
-	if err := okf.WriteIndexes(r.Bundle); err != nil {
-		return Result{}, fmt.Errorf("write indexes: %w", err)
-	}
 	line := fmt.Sprintf("%s epoch %d (%s): +%d ~%d -%d",
 		createdAt.UTC().Format(time.RFC3339), n, source, len(d.Added), len(d.Changed), len(d.Removed))
-	if err := okf.AppendLog(r.Bundle, line); err != nil {
-		return Result{}, fmt.Errorf("append log: %w", err)
-	}
-
-	sha, err := r.Git.Commit(ctx, fmt.Sprintf("epoch %d: %s (+%d ~%d -%d)", n, source, len(d.Added), len(d.Changed), len(d.Removed)))
+	msg := fmt.Sprintf("epoch %d: %s (+%d ~%d -%d)", n, source, len(d.Added), len(d.Changed), len(d.Removed))
+	sha, err := r.finishEpoch(ctx, n, line, msg)
 	if err != nil {
-		return Result{}, fmt.Errorf("git commit: %w", err)
+		return Result{}, err
+	}
+	return Result{Epoch: n, Added: len(d.Added), Changed: len(d.Changed), Removed: len(d.Removed), Commit: sha}, nil
+}
+
+// applyAll writes every concept into the bundle + index at epoch n, stamping the
+// embed metadata (createdAt / embedder name). Shared by Run and UpsertBatch.
+func (r *Runner) applyAll(ctx context.Context, concepts []okf.Concept, n int, at time.Time) error {
+	for _, c := range concepts {
+		c.Epoch = n
+		c.EmbeddedAt = at
+		c.EmbedModel = r.Emb.Name()
+		if err := r.applyConcept(ctx, c, at); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// finishEpoch is the shared commit tail of Run and UpsertBatch: regenerate the
+// bundle indexes, append logLine, git-commit with commitMsg, record the sha
+// against epoch n, and prune superseded embeddings. Returns the commit sha.
+func (r *Runner) finishEpoch(ctx context.Context, n int, logLine, commitMsg string) (string, error) {
+	if err := okf.WriteIndexes(r.Bundle); err != nil {
+		return "", fmt.Errorf("write indexes: %w", err)
+	}
+	if err := okf.AppendLog(r.Bundle, logLine); err != nil {
+		return "", fmt.Errorf("append log: %w", err)
+	}
+	sha, err := r.Git.Commit(ctx, commitMsg)
+	if err != nil {
+		return "", fmt.Errorf("git commit: %w", err)
 	}
 	if err := r.Store.SetEpochCommit(ctx, n, sha); err != nil {
-		return Result{}, fmt.Errorf("set epoch commit: %w", err)
+		return "", fmt.Errorf("set epoch commit: %w", err)
 	}
 	// Drop superseded embeddings so vector search stays fast as epochs accumulate.
 	if err := r.Store.PruneEmbeddings(ctx); err != nil {
-		return Result{}, fmt.Errorf("prune embeddings: %w", err)
+		return "", fmt.Errorf("prune embeddings: %w", err)
 	}
-
-	return Result{Epoch: n, Added: len(d.Added), Changed: len(d.Changed), Removed: len(d.Removed), Commit: sha}, nil
+	return sha, nil
 }
 
 // UpsertBatch writes concepts into the bundle + index as a new epoch WITHOUT
@@ -129,31 +148,15 @@ func (r *Runner) UpsertBatch(ctx context.Context, concepts []okf.Concept, source
 	if err != nil {
 		return Result{}, fmt.Errorf("upsert next epoch: %w", err)
 	}
-	for _, c := range concepts {
-		c.Epoch = n
-		c.EmbeddedAt = createdAt
-		c.EmbedModel = r.Emb.Name()
-		if err := r.applyConcept(ctx, c, createdAt); err != nil {
-			return Result{}, err
-		}
-	}
-	if err := okf.WriteIndexes(r.Bundle); err != nil {
-		return Result{}, fmt.Errorf("write indexes: %w", err)
+	if err := r.applyAll(ctx, concepts, n, createdAt); err != nil {
+		return Result{}, err
 	}
 	line := fmt.Sprintf("%s epoch %d (%s): ~%d (agent write-back)",
 		createdAt.UTC().Format(time.RFC3339), n, source, len(concepts))
-	if err := okf.AppendLog(r.Bundle, line); err != nil {
-		return Result{}, fmt.Errorf("append log: %w", err)
-	}
-	sha, err := r.Git.Commit(ctx, fmt.Sprintf("epoch %d: %s (~%d agent write-back)", n, source, len(concepts)))
+	msg := fmt.Sprintf("epoch %d: %s (~%d agent write-back)", n, source, len(concepts))
+	sha, err := r.finishEpoch(ctx, n, line, msg)
 	if err != nil {
-		return Result{}, fmt.Errorf("git commit: %w", err)
-	}
-	if err := r.Store.SetEpochCommit(ctx, n, sha); err != nil {
-		return Result{}, fmt.Errorf("set epoch commit: %w", err)
-	}
-	if err := r.Store.PruneEmbeddings(ctx); err != nil {
-		return Result{}, fmt.Errorf("prune embeddings: %w", err)
+		return Result{}, err
 	}
 	return Result{Epoch: n, Changed: len(concepts), Commit: sha}, nil
 }
