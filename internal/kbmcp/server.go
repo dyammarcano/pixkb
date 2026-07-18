@@ -17,6 +17,7 @@ import (
 	"github.com/inovacc/corral"
 	"pixkb/internal/embed"
 	"pixkb/internal/epoch"
+	"pixkb/internal/hql"
 	"pixkb/internal/okf"
 	"pixkb/internal/query"
 	"pixkb/internal/similar"
@@ -45,6 +46,7 @@ func NewServer(d Deps) *mcp.Server {
 	registerRelated(s, d)
 	registerSimilar(s, d)
 	registerStats(s, d)
+	registerQuery(s, d)
 	registerConceptGet(s, d)
 	registerHygieneScan(s, d)
 	registerQRRead(s)
@@ -262,6 +264,48 @@ func registerStats(s *mcp.Server, d Deps) {
 			return nil, postgres.Stats{}, err
 		}
 		return textResult(fmt.Sprintf("%d concepts, %d embeddings, %d epochs", st.Concepts, st.Embeddings, st.Epochs)), st, nil
+	})
+}
+
+type queryIn struct {
+	Query string `json:"query" jsonschema:"HQL structured filter, e.g. type = LegalArticle AND domain = tax AND text ~ \"split\" ORDER BY id LIMIT 20"`
+	Limit int    `json:"limit,omitempty" jsonschema:"max concepts (overrides an in-query LIMIT; 0 = the query's own LIMIT / no limit)"`
+}
+type conceptRow struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Type  string `json:"type"`
+}
+type queryOut struct {
+	Concepts []conceptRow `json:"concepts"`
+}
+
+func registerQuery(s *mcp.Server, d Deps) {
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "query",
+		Description: "Structured HQL filter over the knowledge base — exact boolean/field selection, complementing the ranked `search` tool. Example: `type = LegalArticle AND domain = tax AND (text ~ \"split\" OR title ~ \"recolhimento\") ORDER BY id LIMIT 20`. Fields: text/body/title/description/intent_terms/source_uri (use ~ / !~ for substring), type/id/language, tag/domain/lei/livro/titulo/capitulo/secao (tag containment), epoch, updated. Operators: = != ~ !~ > >= < <=, IN / NOT IN, IS [NOT] EMPTY, AND/OR/NOT, ORDER BY, LIMIT.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in queryIn) (*mcp.CallToolResult, queryOut, error) {
+		q, err := hql.Parse(in.Query)
+		if err != nil {
+			return nil, queryOut{}, fmt.Errorf("parse query: %w", err)
+		}
+		where, args, order, err := q.ToSQL(hql.EvalContext{Now: time.Now()})
+		if err != nil {
+			return nil, queryOut{}, fmt.Errorf("compile query: %w", err)
+		}
+		lim := q.Limit
+		if in.Limit > 0 {
+			lim = in.Limit
+		}
+		concepts, err := d.Store.QueryConcepts(ctx, where, args, order, lim)
+		if err != nil {
+			return nil, queryOut{}, err
+		}
+		out := queryOut{Concepts: make([]conceptRow, 0, len(concepts))}
+		for _, c := range concepts {
+			out.Concepts = append(out.Concepts, conceptRow{ID: c.ID, Title: c.Title, Type: c.Type})
+		}
+		return textResult(fmt.Sprintf("%d concepts for %q", len(out.Concepts), in.Query)), out, nil
 	})
 }
 

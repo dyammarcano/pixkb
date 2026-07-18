@@ -78,6 +78,18 @@ func TestServerReadTools(t *testing.T) {
 	if len(res.Content) == 0 {
 		t.Fatal("search returned no content")
 	}
+
+	// query: structured HQL filter.
+	res, err = cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "query",
+		Arguments: map[string]any{"query": "type = ManualSection LIMIT 3"},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("query call: err=%v isErr=%v", err, res.IsError)
+	}
+	if len(res.Content) == 0 {
+		t.Fatal("query returned no content")
+	}
 }
 
 // TestServerSearch_MultiMode exercises search's mode="multi" over an
