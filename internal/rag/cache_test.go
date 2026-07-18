@@ -150,6 +150,7 @@ func TestCacheKeyFor_DiffersByScopeAndPIIFlag(t *testing.T) {
 		opts Options
 	}{
 		{"topk", Options{Epoch: 1, TopK: 10}},
+		{"maxchars", Options{Epoch: 1, TopK: 5, MaxChars: 4000}},
 		{"nopii", Options{Epoch: 1, TopK: 5, NoPIIFilter: true}},
 		{"diversify", Options{Epoch: 1, TopK: 5, Diversify: true}},
 		{"minscore", Options{Epoch: 1, TopK: 5, MinScore: 0.3}},
@@ -165,7 +166,7 @@ func TestAsk_DifferentEpochBypassesStaleCache(t *testing.T) {
 	cs := fakeSource{"a.md": concept("a.md", "A", "body", "doc:a")}
 	gen := &fakeGen{reply: `{"answer":"fresh","citations":["a.md"],"refused":false}`}
 	cache := newFakeCache()
-	cache.Put(CacheKey("q", 1), Answer{Text: "stale from epoch 1"})
+	cache.Put(cacheKeyFor("q", Options{Epoch: 1}), Answer{Text: "stale from epoch 1"})
 
 	ans, _, err := Ask(context.Background(), r, cs, gen, "q", Options{Cache: cache, Epoch: 2})
 	if err != nil {

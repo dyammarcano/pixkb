@@ -45,8 +45,8 @@ func CacheKey(question string, epoch int) string {
 // defense in depth. Any new answer-affecting Options field must be added here.
 func cacheKeyFor(question string, o Options) string {
 	norm := strings.ToLower(strings.Join(strings.Fields(question), " "))
-	payload := fmt.Sprintf("%d|%s|topk=%d|rel=%t|seeds=%d|multi=%t|div=%t|sim=%t|min=%g|nopii=%t",
-		o.Epoch, norm, o.TopK, o.ExpandRelated, o.ExpandSeeds, o.MultiQuery,
+	payload := fmt.Sprintf("%d|%s|topk=%d|max=%d|rel=%t|seeds=%d|multi=%t|div=%t|sim=%t|min=%g|nopii=%t",
+		o.Epoch, norm, o.TopK, o.MaxChars, o.ExpandRelated, o.ExpandSeeds, o.MultiQuery,
 		o.Diversify, o.ExpandSimilar, o.MinScore, o.NoPIIFilter)
 	sum := sha256.Sum256([]byte(payload))
 	return hex.EncodeToString(sum[:])
