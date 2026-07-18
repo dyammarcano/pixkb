@@ -266,11 +266,22 @@ func (g Grounding) Render() string {
 		if i > 0 {
 			b.WriteString("\n\n")
 		}
-		body := strings.ReplaceAll(c.Body, DocEnd, "")
+		body := stripMarker(c.Body, DocEnd)
 		fmt.Fprintf(&b, "[concept: %s | source: %s]\n%s\n%s\n%s\n%s",
 			c.ID, sourceOrNone(c.SourceURI), c.Title, DocBegin, body, DocEnd)
 	}
 	return b.String()
+}
+
+// stripMarker removes every occurrence of marker from s, iterating to a fixed
+// point so a split/nested marker cannot reconstruct one after a single pass
+// (e.g. "<<<END-" + marker + "REST>>>" collapsing back into the marker). Used to
+// stop an ingested document forging the untrusted-document envelope boundary.
+func stripMarker(s, marker string) string {
+	for strings.Contains(s, marker) {
+		s = strings.ReplaceAll(s, marker, "")
+	}
+	return s
 }
 
 func sourceOrNone(s string) string {

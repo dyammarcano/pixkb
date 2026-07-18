@@ -49,7 +49,13 @@ func (f *AgencyFixer) EnrichTerms(ctx context.Context, concept okf.Concept) (str
 // authored) concept body so the document cannot forge the boundary and break out
 // of the untrusted-data fence.
 func neutralizeBody(body string) string {
-	return strings.ReplaceAll(body, "--- end ---", "")
+	// Iterate to a fixed point: a single ReplaceAll can leave a fresh marker
+	// reconstructed from a split/nested one (e.g. "--- e"+"--- end ---"+"nd ---").
+	const marker = "--- end ---"
+	for strings.Contains(body, marker) {
+		body = strings.ReplaceAll(body, marker, "")
+	}
+	return body
 }
 
 // buildEnrichPrompt frames the recall-term task: the concept to enrich (id,
