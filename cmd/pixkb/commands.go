@@ -64,6 +64,12 @@ func buildSources(cfg Config) []ingest.Source {
 	if len(cfg.Markdown) > 0 {
 		srcs = append(srcs, ingest.NewMarkdownSource(cfg.Markdown))
 	}
+	if len(cfg.Docx) > 0 {
+		srcs = append(srcs, ingest.NewDocxSource(cfg.Docx))
+	}
+	if len(cfg.Xlsx) > 0 {
+		srcs = append(srcs, ingest.NewXlsxSource(cfg.Xlsx))
+	}
 	if len(cfg.Repos) > 0 {
 		specs := make([]ingest.RepoSpec, 0, len(cfg.Repos))
 		for _, r := range cfg.Repos {

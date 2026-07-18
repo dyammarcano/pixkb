@@ -214,3 +214,17 @@ func TestApplyConfigFileLegislation(t *testing.T) {
 	require.Equal(t, "lc-214-2025", cfg.Legislation[0].Lei)
 	require.Equal(t, "tax", cfg.Legislation[0].Domain)
 }
+
+// TestApplyConfigFileDocxXlsx confirms the docx:/xlsx: file lists load.
+func TestApplyConfigFileDocxXlsx(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pixkb.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(
+		"docx:\n  - a.docx\n  - b.docx\nxlsx:\n  - c.xlsx\n"), 0o644))
+
+	var cfg Config
+	applyConfigFile(&cfg, path)
+
+	require.Equal(t, []string{"a.docx", "b.docx"}, cfg.Docx)
+	require.Equal(t, []string{"c.xlsx"}, cfg.Xlsx)
+}

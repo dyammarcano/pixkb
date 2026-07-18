@@ -26,6 +26,8 @@ type Config struct {
 	Embedder          string            `yaml:"embedder"`
 	PDFs              []string          `yaml:"pdfs"`                 // PDF files to ingest as ManualSection concepts
 	Markdown          []string          `yaml:"markdown"`             // curated Markdown reference docs (H2 → Reference concepts)
+	Docx              []string          `yaml:"docx"`                 // Word .docx files → Reference concepts
+	Xlsx              []string          `yaml:"xlsx"`                 // Excel .xlsx workbooks → Reference table concepts
 	MirrorDir         string            `yaml:"mirror_dir"`           // dir holding pre-staged repo mirrors
 	Repos             []RepoConf        `yaml:"repos"`                // git repos (mirror under MirrorDir/<name>)
 	APIDocs           []string          `yaml:"api_docs"`             // local API-DICT HTML files
@@ -138,6 +140,12 @@ func applyConfigFile(cfg *Config, path string) {
 	}
 	if len(fromFile.Markdown) > 0 {
 		cfg.Markdown = fromFile.Markdown
+	}
+	if len(fromFile.Docx) > 0 {
+		cfg.Docx = fromFile.Docx
+	}
+	if len(fromFile.Xlsx) > 0 {
+		cfg.Xlsx = fromFile.Xlsx
 	}
 	if len(fromFile.Repos) > 0 {
 		cfg.Repos = fromFile.Repos
