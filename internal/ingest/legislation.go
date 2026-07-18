@@ -46,7 +46,36 @@ var (
 // Everything before the first article (and before the first structural heading)
 // is the ementa. "ANEXO N" starts an anexo section that runs to the next anexo
 // or EOF. A pure function of its input — no I/O.
+// reBareArt matches a line that is only the "Art." marker (its number wrapped
+// onto the following line by the PDF text layer).
+var reBareArt = regexp.MustCompile(`^Art\.\s*$`)
+
+// joinWrappedArt repairs the common PDF-extraction artifact where an article
+// marker wraps as "Art." on one line and its number ("1º", "5", "31-A") on the
+// next, which would otherwise defeat the line-anchored reArt. Only a bare "Art."
+// immediately followed by a number-leading line is joined, so ordinary prose is
+// untouched. Running-header prefixes (e.g. "LC 214/2025  Art. 5º") are NOT
+// handled here — that is statute-specific and deferred to real-PDF validation
+// (BACKLOG P2) to avoid tuning false positives blind.
+func joinWrappedArt(text string) string {
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	for i := 0; i < len(lines); i++ {
+		if reBareArt.MatchString(strings.TrimSpace(lines[i])) && i+1 < len(lines) {
+			next := strings.TrimSpace(lines[i+1])
+			if next != "" && next[0] >= '0' && next[0] <= '9' {
+				out = append(out, "Art. "+next)
+				i++
+				continue
+			}
+		}
+		out = append(out, lines[i])
+	}
+	return strings.Join(out, "\n")
+}
+
 func parseStatute(text string) []statuteSection {
+	text = joinWrappedArt(text)
 	var out []statuteSection
 	var ctx statuteSection // holds current Livro..Subsecao
 	var cur *statuteSection
@@ -173,6 +202,10 @@ func (s *legislationSource) Name() string { return "legislation" }
 
 func (s *legislationSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 	var out []okf.Concept
+	// One seen-id map shared across every file of this source, so the same lei
+	// split across multiple legislation: entries disambiguates colliding article
+	// IDs instead of emitting duplicates that trip GatherAll's hard dup-id abort.
+	seen := map[string]bool{}
 	for _, f := range s.files {
 		text, err := extractPDFText(f)
 		if err != nil {
@@ -188,7 +221,7 @@ func (s *legislationSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 		if articleN == 0 {
 			slog.Warn("legislation: no articles parsed from statute", "path", f)
 		}
-		out = append(out, legislationConcepts(secs, f, s.lei, s.domain)...)
+		out = append(out, legislationConceptsSeen(secs, f, s.lei, s.domain, seen)...)
 	}
 	return out, nil
 }
@@ -196,10 +229,15 @@ func (s *legislationSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 // legislationConcepts maps parsed statute sections to OKF concepts. Split out
 // from Fetch so it is unit-testable without a real PDF.
 func legislationConcepts(secs []statuteSection, resource, lei, domain string) []okf.Concept {
+	return legislationConceptsSeen(secs, resource, lei, domain, map[string]bool{})
+}
+
+// legislationConceptsSeen is legislationConcepts with a caller-supplied seen-id
+// map, so IDs can be disambiguated across multiple files of the same statute.
+func legislationConceptsSeen(secs []statuteSection, resource, lei, domain string, seen map[string]bool) []okf.Concept {
 	if lei == "" {
 		lei = "lei"
 	}
-	seen := map[string]bool{}
 	var out []okf.Concept
 	for _, sec := range secs {
 		var id, typ string

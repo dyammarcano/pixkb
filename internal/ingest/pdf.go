@@ -205,17 +205,24 @@ var (
 func isDotLeader(ln string) bool     { return dotLeaderRE.MatchString(strings.TrimSpace(ln)) }
 func isBarePageNumber(s string) bool { return barePageRE.MatchString(strings.TrimSpace(s)) }
 
+// isSumarioMarker reports whether a line is a "Sumário" TOC heading, tolerating
+// the accentless "Sumario" that some PDF text layers extract (á -> a).
+func isSumarioMarker(ln string) bool {
+	t := strings.TrimSpace(ln)
+	return strings.EqualFold(t, "Sumário") || strings.EqualFold(t, "Sumario")
+}
+
 // stripTOCRegion removes a leading table-of-contents block. The BCB manual
 // renders TOC entries ending in dot-leader runs (^\.{4,}$) + a bare page number;
 // dot-leaders occur ONLY in the TOC, so the whole block from the "Sumário" marker
-// through the last dot-leader (plus its trailing page number) is dropped. A PDF
-// with no "Sumário" or no dot-leaders is returned unchanged, so non-manual
-// sources are unaffected.
+// (accentless "Sumario" is also tolerated) through the last dot-leader (plus its
+// trailing page number) is dropped. A PDF with no such marker or no dot-leaders
+// is returned unchanged, so non-manual sources are unaffected.
 func stripTOCRegion(text string) string {
 	lines := strings.Split(text, "\n")
 	start := -1
 	for i, ln := range lines {
-		if strings.EqualFold(strings.TrimSpace(ln), "Sumário") {
+		if isSumarioMarker(ln) {
 			start = i
 			break
 		}

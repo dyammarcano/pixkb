@@ -68,6 +68,28 @@ func TestXlsxSource_RowCap(t *testing.T) {
 	require.LessOrEqual(t, strings.Count(cs[0].Body, "\n| v |"), maxXlsxRows)
 }
 
+// TestXlsxSource_SlugCollisionDistinctIDs confirms two sheets whose names
+// slugify to the same value get distinct concept IDs (index-prefixed), so
+// neither silently overwrites the other on upsert (item 1 / review fix 302a950).
+func TestXlsxSource_SlugCollisionDistinctIDs(t *testing.T) {
+	fx := excelize.NewFile()
+	// "Data 1" and "Data-1" both slugify to "data-1"; both non-empty.
+	require.NoError(t, fx.SetSheetName("Sheet1", "Data 1"))
+	require.NoError(t, fx.SetCellValue("Data 1", "A1", "x"))
+	_, err := fx.NewSheet("Data-1")
+	require.NoError(t, err)
+	require.NoError(t, fx.SetCellValue("Data-1", "A1", "y"))
+
+	path := filepath.Join(t.TempDir(), "collide.xlsx")
+	require.NoError(t, fx.SaveAs(path))
+	require.NoError(t, fx.Close())
+
+	cs, err := NewXlsxSource([]string{path}).Fetch(context.Background())
+	require.NoError(t, err)
+	require.Len(t, cs, 2)
+	require.NotEqual(t, cs[0].ID, cs[1].ID, "colliding sheet slugs must not share an ID")
+}
+
 func TestXlsxSource_Name(t *testing.T) {
 	require.Equal(t, "xlsx", NewXlsxSource(nil).Name())
 }
