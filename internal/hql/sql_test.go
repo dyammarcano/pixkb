@@ -225,3 +225,91 @@ func TestToSQL_IDContainsAllowed(t *testing.T) {
 		t.Errorf("args = %v", args)
 	}
 }
+
+func TestToSQL_TagPrefixNotIn(t *testing.T) {
+	q := sqlMustParse(t, `domain NOT IN (pix, tax)`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `NOT (tags @> ARRAY[$1]::text[] OR tags @> ARRAY[$2]::text[])` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 2 || args[0] != "domain:pix" || args[1] != "domain:tax" {
+		t.Errorf("args = %v", args)
+	}
+}
+
+func TestToSQL_TagPrefixIsNotEmpty(t *testing.T) {
+	q := sqlMustParse(t, `livro IS NOT EMPTY`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `NOT (NOT EXISTS (SELECT 1 FROM unnest(tags) t WHERE t LIKE $1))` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 1 || args[0] != "livro:%" {
+		t.Errorf("args = %v", args)
+	}
+}
+
+func TestToSQL_TextIn(t *testing.T) {
+	q := sqlMustParse(t, `title IN (a, b)`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `title = ANY($1)` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 1 {
+		t.Fatalf("args = %v", args)
+	}
+	list, ok := args[0].([]any)
+	if !ok || len(list) != 2 || list[0] != "a" || list[1] != "b" {
+		t.Errorf("args[0] = %v", args[0])
+	}
+}
+
+func TestToSQL_TextEq(t *testing.T) {
+	q := sqlMustParse(t, `title = foo`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `title = $1` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 1 || args[0] != "foo" {
+		t.Errorf("args = %v", args)
+	}
+}
+
+func TestToSQL_TextIsEmpty(t *testing.T) {
+	q := sqlMustParse(t, `description IS EMPTY`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `(description IS NULL OR description = '')` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 0 {
+		t.Errorf("args = %v", args)
+	}
+}
+
+func TestToSQL_IDNotEqual(t *testing.T) {
+	q := sqlMustParse(t, `id != x`)
+	where, args, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if where != `id != $1` {
+		t.Errorf("where = %q", where)
+	}
+	if len(args) != 1 || args[0] != "x" {
+		t.Errorf("args = %v", args)
+	}
+}
