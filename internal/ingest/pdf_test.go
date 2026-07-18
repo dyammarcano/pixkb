@@ -3,6 +3,8 @@ package ingest
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -131,4 +133,41 @@ func TestPDFSource_RealFile(t *testing.T) {
 	assert.Equal(t, "pt", cs[0].Language)
 	assert.NotEmpty(t, cs[0].ContentSHA)
 	assert.Contains(t, cs[0].ID, "manuals/")
+}
+
+func manualPDFPath() string {
+	base := os.Getenv("LOCALAPPDATA")
+	if base == "" {
+		return "" // non-Windows / unset: acceptance test skips
+	}
+	p := filepath.Join(base, "PixKB", "mirror", "pdfs", "II_ManualdePadroesparaIniciacaodoPix.pdf")
+	if _, err := os.Stat(p); err != nil {
+		return ""
+	}
+	return p
+}
+
+func TestPDFFetch_NoTOCJunk(t *testing.T) {
+	p := manualPDFPath()
+	if p == "" {
+		t.Skip("manual PDF not present in mirror dir")
+	}
+	concepts, err := NewPDFSource([]string{p}).Fetch(context.Background())
+	require.NoError(t, err)
+	require.NotEmpty(t, concepts)
+
+	seen := map[string]bool{}
+	junk := regexp.MustCompile(`^\.+$`)
+	dropcapArtifacts := []string{"ERVIÇO DE", "ODE ESTÁTICO PARA PACS", "ECOMENDAÇÕES DE SEGURANÇA"}
+	for _, c := range concepts {
+		title := strings.TrimSpace(c.Title)
+		require.False(t, junk.MatchString(title), "dot-leader title leaked: %q", title)
+		require.NotRegexp(t, `^\d{1,4}$`, title, "bare page-number title leaked: %q", title)
+		for _, a := range dropcapArtifacts {
+			require.NotEqual(t, a, title, "known dropcap artifact leaked: %q", title)
+		}
+		require.False(t, seen[title], "duplicate ManualSection title: %q", title)
+		seen[title] = true
+	}
+	t.Logf("manual produced %d ManualSection concepts (clean)", len(concepts))
 }

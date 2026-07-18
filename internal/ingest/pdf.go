@@ -29,6 +29,7 @@ func (s *pdfSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 		if err != nil {
 			return nil, fmt.Errorf("pdf %s: %w", f, err)
 		}
+		text = stripTOCRegion(text)
 		slug := slugify(strings.TrimSuffix(filepath.Base(f), filepath.Ext(f)))
 		for i, sec := range splitSections(text) {
 			id := fmt.Sprintf("manuals/%s/secao-%d.md", slug, i)
