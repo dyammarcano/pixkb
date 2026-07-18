@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:008 -->
+<!-- rev:009 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,15 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **New operator directive: docx + xlsx ingest sources.** md/pdf
+  already exist, so scope is the two missing formats (operator-confirmed). Parse:
+  `github.com/xuri/excelize/v2` for xlsx (pure-Go, air-gap-safe) + stdlib
+  `archive/zip`+`encoding/xml` for docx (operator-confirmed). Decided: both emit
+  `Reference` concepts (no new Type), domain via the default `tagDomain` backfill,
+  config as plain `[]string` lists like `pdfs:`/`markdown:`. First new third-party
+  dependency added this session (excelize) — justified by the operator's explicit
+  approve of the lib approach; it is pure Go and reads only local files. Spec:
+  `docs/superpowers/specs/2026-07-18-docx-xlsx-ingest-design.md`.
 - 2026-07-18 — **PDF TOC-suppression fix shipped to master** (merge `4c62a6d`).
   Measured on the real manual: ~93 mostly-junk sections → 21 clean, 0 TOC-junk
   titles. Key decision: **descoped Task 3 (body numbered-heading join) after
