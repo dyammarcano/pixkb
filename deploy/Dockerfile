@@ -56,5 +56,10 @@ RUN sed -i 's/\r$//' /docker-entrypoint-initdb.d/* \
 COPY deploy/kb-data/ /kb/
 ENV PIXKB_BUNDLE=/kb
 
-# DSN pointing at the co-located Postgres so `pixkb` works inside the container.
+# DSN pointing at the co-located Postgres so `pixkb` works out of the box inside
+# this all-in-one image. It is intentionally a LOOPBACK default: the credentials
+# are the ones this image's own initdb hook creates, and traffic never leaves the
+# container, so `sslmode=disable` is safe here. When pointing pixkb at an EXTERNAL
+# Postgres, override PIXKB_DSN with real credentials AND `sslmode=require` — do not
+# rely on this default off-loopback.
 ENV PIXKB_DSN=postgres://pixkb:pixkb@localhost:5432/pixkb?sslmode=disable
