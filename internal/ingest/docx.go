@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"log/slog"
 	"path/filepath"
 	"strings"
@@ -22,11 +23,88 @@ func NewDocxSource(files []string) Source { return &docxSource{files: files} }
 func (s *docxSource) Name() string { return "docx" }
 
 // docxDocument mirrors the read parts of word/document.xml. The root element is
-// <w:document>; XMLName pins the decode there and xml:"body>p" collects the
-// body's paragraphs.
+// <w:document>; XMLName pins the decode there and the custom-decoded body
+// preserves the document order of paragraphs and tables.
 type docxDocument struct {
-	XMLName xml.Name   `xml:"document"`
-	Paras   []docxPara `xml:"body>p"`
+	XMLName xml.Name `xml:"document"`
+	Body    docxBody `xml:"body"`
+}
+
+// docxBody walks the body's direct children in order, collecting top-level
+// paragraphs and flattening tables (w:tbl) into synthetic body paragraphs so
+// tabular text is not silently dropped. A custom decoder is required because
+// encoding/xml struct tags cannot preserve the interleaved order of <w:p> and
+// <w:tbl> siblings.
+type docxBody struct {
+	Blocks []docxPara
+}
+
+func (b *docxBody) UnmarshalXML(d *xml.Decoder, _ xml.StartElement) error {
+	for {
+		tok, err := d.Token()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		se, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		switch se.Name.Local {
+		case "p":
+			var p docxPara
+			if err := d.DecodeElement(&p, &se); err != nil {
+				return err
+			}
+			b.Blocks = append(b.Blocks, p)
+		case "tbl":
+			var t docxTbl
+			if err := d.DecodeElement(&t, &se); err != nil {
+				return err
+			}
+			b.Blocks = append(b.Blocks, t.rows()...)
+		default:
+			if err := d.Skip(); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// docxTbl mirrors a w:tbl: rows (w:tr) of cells (w:tc), each cell holding
+// paragraphs.
+type docxTbl struct {
+	Rows []struct {
+		Cells []struct {
+			Paras []docxPara `xml:"p"`
+		} `xml:"tc"`
+	} `xml:"tr"`
+}
+
+// rows renders each table row as one synthetic body paragraph, joining the
+// non-empty cell texts with " | " (no heading style — table text is body).
+func (t docxTbl) rows() []docxPara {
+	var out []docxPara
+	for _, r := range t.Rows {
+		var cells []string
+		for _, c := range r.Cells {
+			var parts []string
+			for _, p := range c.Paras {
+				if txt := p.text(); txt != "" {
+					parts = append(parts, txt)
+				}
+			}
+			if cell := strings.Join(parts, " "); cell != "" {
+				cells = append(cells, cell)
+			}
+		}
+		if line := strings.Join(cells, " | "); line != "" {
+			out = append(out, docxPara{Texts: []string{line}})
+		}
+	}
+	return out
 }
 
 type docxPara struct {
@@ -125,14 +203,18 @@ func splitDocx(doc docxDocument) []section {
 		}
 		secs = append(secs, cur)
 	}
-	for _, p := range doc.Paras {
+	for _, p := range doc.Body.Blocks {
 		txt := p.text()
-		if txt == "" {
-			continue
-		}
+		// A heading-styled paragraph always starts a new section — even one with
+		// empty text, so a stray empty heading does not silently merge the
+		// sections on either side of it. An empty-text heading gets the
+		// "Overview" fallback title at flush time.
 		if isHeadingStyle(p.style()) {
 			flush()
 			cur = section{title: cleanTitle(txt)}
+			continue
+		}
+		if txt == "" {
 			continue
 		}
 		cur.body += txt + "\n\n"
