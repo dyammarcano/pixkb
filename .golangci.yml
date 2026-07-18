@@ -1,0 +1,13 @@
+# golangci-lint configuration (schema v2 — matches the pinned CI version).
+# Codifies the linter set the tree already passes; tightening (adding linters)
+# is a separate, source-touching change so the "current-state" and "raise-the-bar"
+# steps stay reviewable apart.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) — the
+  # set the codebase is currently clean against.
+  default: standard
