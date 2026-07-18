@@ -45,7 +45,7 @@ func newMCPManifestCmd() *cobra.Command {
 
 func newMCPServeCmd() *cobra.Command {
 	var dsn, answerer string
-	var readOnly bool
+	var readOnly, allowPIIBypass bool
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Serve pixkb verbs (search/related/stats/concept_get/concept_upsert/reindex) as MCP tools over stdio",
@@ -64,7 +64,7 @@ func newMCPServeCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			d := kbmcp.Deps{Store: st, Emb: r.Emb, Runner: r, Bundle: cfg.BundleDir}
+			d := kbmcp.Deps{Store: st, Emb: r.Emb, Runner: r, Bundle: cfg.BundleDir, AllowPIIBypass: allowPIIBypass}
 			if readOnly {
 				d.Runner = nil // omit write tools
 			}
@@ -88,5 +88,6 @@ func newMCPServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN (overrides PIXKB_DSN)")
 	cmd.Flags().BoolVar(&readOnly, "read-only", false, "disable write tools (concept_upsert, reindex)")
 	cmd.Flags().StringVar(&answerer, "answerer", "", "enable the kb_ask RAG tool, answered by this backend: claude|codex|agy")
+	cmd.Flags().BoolVar(&allowPIIBypass, "allow-pii-bypass", false, "DEBUG ONLY: honor kb_ask's no_pii_filter flag (disables LGPD/PII redaction); off by default")
 	return cmd
 }

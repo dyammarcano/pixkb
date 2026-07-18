@@ -102,44 +102,9 @@ func (s *Store) FTS(ctx context.Context, q string, f Filter) ([]Hit, error) {
 		limit = defaultLimit
 	}
 
-	args := []any{q}
-	// Recall uses the same custom 'pixpt' config as the generated fts column
-	// (migration 0003): Portuguese stopwords dropped, NO stemming — so query and
-	// index tokenize identically and natural-language stopwords are not required
-	// AND-terms. Ranking (below) still stems per-language for ranking quality.
-	//
-	// NOTE: this is websearch's implicit AND-of-all-words. A naive OR-recall
-	// rewrite (' & ' -> ' | ') was tried to let intent_terms fire on fuzzy queries
-	// and MEASURED WORSE on the deterministic top-hit harness (fuzzy MRR 0.285 ->
-	// 0.162, top@5 41% -> 24%; precise flat): OR floods the FTS arm with every
-	// 'pix' doc and length-normalized ts_rank_cd floats short junk, which RRF then
-	// dilutes the real target down. The real lever is QUORUM/coverage ranking (rank
-	// by distinct query-terms matched, not length-normalized density) — see BACKLOG.
-	where := "WHERE fts @@ websearch_to_tsquery('pixpt', $1)"
-	if types := combinedTypes(f); len(types) > 0 {
-		args = append(args, types)
-		where += fmt.Sprintf(" AND type = ANY($%d)", len(args))
-	}
-	if f.Tag != "" {
-		args = append(args, f.Tag)
-		where += fmt.Sprintf(" AND tags @> ARRAY[$%d]::text[]", len(args))
-	}
-	if len(f.ExcludeIDs) > 0 {
-		args = append(args, f.ExcludeIDs)
-		where += fmt.Sprintf(" AND id != ALL($%d)", len(args))
-	}
-	if pred, ok := asOfConceptPredicate(&args, f); ok {
-		where += " AND " + pred
-	}
-	if f.HQLWhere != nil {
-		hw, ha, err := f.HQLWhere(len(args))
-		if err != nil {
-			return nil, fmt.Errorf("hql filter: %w", err)
-		}
-		if hw != "" {
-			where += " AND (" + hw + ")"
-			args = append(args, ha...)
-		}
+	where, args, err := buildFTSWhere(q, f)
+	if err != nil {
+		return nil, err
 	}
 	args = append(args, limit)
 
@@ -195,6 +160,48 @@ LIMIT $%d`, where, len(args))
 		return nil, fmt.Errorf("iterate fts rows: %w", err)
 	}
 	return hits, nil
+}
+
+// buildFTSWhere assembles the FTS WHERE clause and its positional args from the
+// filter (query is $1). Pure — no DB — so the predicate composition and the $N
+// numbering (the exact place a spliced-in predicate such as HQL or as-of can
+// mis-number) is unit-testable. The trailing LIMIT arg is added by the caller.
+//
+// The tsquery uses the custom 'pixpt' config (migration 0003): Portuguese
+// stopwords dropped, NO stemming, so query and the generated fts column tokenize
+// identically. This is websearch's implicit AND-of-all-words; a naive OR-recall
+// rewrite ('&'->'|') was tried and MEASURED WORSE on the deterministic top-hit
+// harness (fuzzy MRR 0.285->0.162), so it stays AND — see BACKLOG for the
+// quorum/coverage-ranking lever.
+func buildFTSWhere(q string, f Filter) (string, []any, error) {
+	args := []any{q}
+	where := "WHERE fts @@ websearch_to_tsquery('pixpt', $1)"
+	if types := combinedTypes(f); len(types) > 0 {
+		args = append(args, types)
+		where += fmt.Sprintf(" AND type = ANY($%d)", len(args))
+	}
+	if f.Tag != "" {
+		args = append(args, f.Tag)
+		where += fmt.Sprintf(" AND tags @> ARRAY[$%d]::text[]", len(args))
+	}
+	if len(f.ExcludeIDs) > 0 {
+		args = append(args, f.ExcludeIDs)
+		where += fmt.Sprintf(" AND id != ALL($%d)", len(args))
+	}
+	if pred, ok := asOfConceptPredicate(&args, f); ok {
+		where += " AND " + pred
+	}
+	if f.HQLWhere != nil {
+		hw, ha, err := f.HQLWhere(len(args))
+		if err != nil {
+			return "", nil, fmt.Errorf("hql filter: %w", err)
+		}
+		if hw != "" {
+			where += " AND (" + hw + ")"
+			args = append(args, ha...)
+		}
+	}
+	return where, args, nil
 }
 
 // combinedTypes returns the set of type values FTS/Vector's type predicate

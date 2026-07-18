@@ -21,7 +21,7 @@ type askIn struct {
 	ExpandSeeds   int     `json:"expand_seeds,omitempty" jsonschema:"graph-neighbour seed hits to expand when expand is set (0 = default 1)"`
 	ExpandSimilar bool    `json:"expand_similar,omitempty" jsonschema:"also ground on the top hit's concept-similarity neighbours (internal/similar.Similar, hybrid mode)"`
 	MinScore      float64 `json:"min_score,omitempty" jsonschema:"refuse when the top retrieved hit's score is below this (0 = disabled)"`
-	NoPIIFilter   bool    `json:"no_pii_filter,omitempty" jsonschema:"disable the deterministic PII/LGPD redaction post-filter (debugging only)"`
+	NoPIIFilter   bool    `json:"no_pii_filter,omitempty" jsonschema:"request to disable the PII/LGPD redaction post-filter (debugging only); honored ONLY when the server was started with --allow-pii-bypass, otherwise ignored"`
 	NoCache       bool    `json:"no_cache,omitempty" jsonschema:"bypass the answer cache and force a fresh agent turn"`
 }
 
@@ -33,6 +33,23 @@ type askOut struct {
 	Answer    string           `json:"answer"`
 	Refused   bool             `json:"refused"`
 	Citations []askCitationOut `json:"citations"`
+}
+
+// Upper bounds on client-supplied fan-out for kb_ask, so a single request cannot
+// force an unbounded retrieval/expansion. 0 (unset) is left as 0 → rag applies
+// its own default.
+const (
+	maxAskTopK        = 50
+	maxAskExpandSeeds = 20
+)
+
+// clampInt caps v at max (a value <= 0 is left unchanged so rag's own default
+// applies).
+func clampInt(v, max int) int {
+	if v > max {
+		return max
+	}
+	return v
 }
 
 // askCache is shared across every kb_ask call for this server's lifetime — the
@@ -64,16 +81,18 @@ func registerAsk(s *mcp.Server, d Deps) {
 			rag.AgentGenerator{Agency: d.Agency},
 			in.Question,
 			rag.Options{
-				TopK:          in.TopK,
+				TopK:          clampInt(in.TopK, maxAskTopK),
 				ExpandRelated: in.Expand,
 				MultiQuery:    in.Multi,
 				Diversify:     in.Diversify,
-				ExpandSeeds:   in.ExpandSeeds,
+				ExpandSeeds:   clampInt(in.ExpandSeeds, maxAskExpandSeeds),
 				ExpandSimilar: in.ExpandSimilar,
 				MinScore:      in.MinScore,
-				NoPIIFilter:   in.NoPIIFilter,
-				Cache:         cache,
-				Epoch:         stats.LatestEpoch,
+				// The PII/LGPD filter is a compliance control: honor no_pii_filter
+				// only when the operator explicitly enabled bypass on the server.
+				NoPIIFilter: in.NoPIIFilter && d.AllowPIIBypass,
+				Cache:       cache,
+				Epoch:       stats.LatestEpoch,
 			},
 		)
 		if err != nil {
