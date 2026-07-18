@@ -35,7 +35,7 @@ func (s *xlsxSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 		base := filepath.Base(f)
 		slug := slugify(strings.TrimSuffix(base, filepath.Ext(f)))
 		emitted := 0
-		for _, sheet := range fx.GetSheetList() {
+		for idx, sheet := range fx.GetSheetList() {
 			rows, err := fx.GetRows(sheet)
 			if err != nil {
 				_ = fx.Close()
@@ -49,7 +49,10 @@ func (s *xlsxSource) Fetch(_ context.Context) ([]okf.Concept, error) {
 			body := "# " + title + "\n\n" + table
 			sheetSlug := slugify(sheet)
 			out = append(out, okf.Concept{
-				ID:          fmt.Sprintf("reference/%s/%s.md", slug, sheetSlug),
+				// Prefix the sheet index so distinct sheet names that slugify to
+				// the same value (or to "" for all-non-ASCII names) cannot collide
+				// on ID and silently overwrite each other on upsert.
+				ID:          fmt.Sprintf("reference/%s/%02d-%s.md", slug, idx, sheetSlug),
 				Type:        "Reference",
 				Title:       title,
 				Description: fmt.Sprintf("Spreadsheet %s, sheet %s", base, sheet),
