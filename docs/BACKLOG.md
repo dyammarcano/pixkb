@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:076 -->
+<!-- rev:077 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -757,8 +757,15 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   `2d28e5b`) — a heading-styled paragraph now always splits, even with empty
   text. **Still open:** (3) Pre-existing (inherited from `markdown.go`): two
   configured files sharing a basename map to the same `reference/<basename-slug>/…`
-  prefix and can overwrite on upsert — applies to pdf/markdown/docx/xlsx alike.
-  Non-crash completeness gap; measure against a real corpus before tuning.
+  prefix — applies to pdf/markdown/docx/xlsx alike (and cross-type: a `foo.docx`
+  and a `foo.md` both land under `reference/foo/`). **Corrected severity
+  (2026-07-18 improve sweep):** this is NOT a silent upsert-overwrite —
+  `GatherAll` hard-errors on any duplicate concept ID, so the failure mode is a
+  *loud ingest abort*, not data loss. The proper fix is source-type ID
+  namespacing (`reference/docx/<slug>/…` etc.), which changes derived concept
+  IDs and is therefore a deliberate bundle-ID migration under the deprecation
+  policy — do it as its own change with a re-ingest, not a rushed in-place edit.
+  Low likelihood (needs two same-basename files); left P3.
 
 ## Shipped
 - **Ingest-layer hardening batch** (merge `2d28e5b`, 2026-07-18). Six polish
