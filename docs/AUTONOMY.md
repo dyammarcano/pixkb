@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:006 -->
+<!-- rev:007 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,19 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **Picked up the PDF TOC-suppression fix** (last substantial
+  non-blocked item; ROADMAP 0-9 all done, this is the open ISSUES.md content-
+  quality bug). Attempt 1 (dropcap-rejoin) net-regressed; grounded a fresh design
+  in the real extracted text (`.superpowers/research/pdf-junk-title-analysis.md`).
+  **Forks settled:** (1) suppress the whole `Sumário`-delimited TOC block rather
+  than un-mangle its fragments (the junk + duplicates share that single source);
+  (2) detect TOC end by dot-leader density gap (dot-leaders occur ONLY in the TOC),
+  not a line count; (3) add grounded body numbered-heading detection (number-line +
+  empty-separator title join — the `QR` 2-letter case that broke attempt 1 joins
+  correctly), keeping the existing ALL-CAPS path; (4) written generically (no-ops
+  on a `Sumário`-less PDF). Deterministic DB-free acceptance gate (inspect
+  `NewPDFSource(manual).Fetch` titles). Spec:
+  `docs/superpowers/specs/2026-07-17-pdf-toc-suppression-design.md`.
 - 2026-07-17 — **HQL v2 (`search --where`) shipped to master** (merge `45afc89`),
   after the user said "keep going" past the earlier saturation point. This was the
   last substantial non-blocked item — folding the HQL filter into ranked search.
