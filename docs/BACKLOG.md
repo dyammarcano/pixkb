@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:077 -->
+<!-- rev:078 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -748,6 +748,14 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 - **HNSW-on-typed-vector revisit.** Current vector search is exact-cosine.
   Revisit an HNSW (approximate) index on the typed vector column only if the
   corpus grows enough that exact search latency becomes a problem.
+- **Batch the epoch DB write path (remainder of PERF-01).** Embedding is now
+  batched into one `Emb.Embed` call (`91881e9`), but `applyConcept`'s DB writes
+  (UpsertConcept / UpsertEmbedding / ReplaceEdges / RecordFact) are still one
+  round trip each, per concept. Batching them (`pgx.Batch` for upsert/embedding,
+  `CopyFrom` for edges) touches the correctness-critical bitemporal `RecordFact`
+  (per-fact close-prior-window UPDATE + INSERT), and local reindex is already
+  fast — the win is remote-DB-latency only. Deferred until a remote-DB benchmark
+  justifies the risk; keep the "index is rebuildable" contract (`runner.go:36-42`).
 - **docx/xlsx ingest completeness polish** (whole-branch-review Minors, merge
   `2058f19`, 2026-07-18). ~~(1) `docx.go` collects only `body>p` runs, so text in
   Word tables (`w:tbl`) is silently dropped.~~ **DONE** (merge `2d28e5b`) — an

@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:014 -->
+<!-- rev:015 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,24 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **Harden-tier quality batch shipped to master** (merge `91881e9`),
+  via `/steps:next` `all` (8 items: the improve-sweep vetted list + maturity
+  Harden). Closed SECURITY-04 (no_pii_filter now server-gated behind
+  `--allow-pii-bypass`, fan-out clamped), TEST-02/03/04 (extracted `buildFTSWhere`,
+  the evalkit invariant checks, and buildSources into pure DB-free unit tests),
+  PERF-02 (MultiHybrid subqueries now concurrent, fusion byte-identical), and
+  DEBT-05 (epoch write-seq dedup into applyAll/finishEpoch). **PERF-01 done in
+  part** — embedding is batched into one `Emb.Embed` call, but the per-concept DB
+  round trips are **deferred** (measure-first: batching them touches the
+  bitemporal RecordFact and the win is remote-DB-latency only; logged BACKLOG P3).
+  Coverage on the two low outliers rose (evalkit 41.6→49.2%, cmd 38.0→41.3%); the
+  80% target stays gated on the DB-in-CI harness (blocked on billing). Whole-branch
+  review (opus) READY, no findings — every refactor confirmed behavior-preserving.
+  Verified `-race` against a live pgvector DB; the lone `-race` failure was the
+  `-short`-gated live-agent curate E2E (unrelated, CI-skipped). The doc-derived
+  non-blocked backlog is now essentially exhausted — what remains is
+  operator-blocked (CI billing, mirror PDFs, English policy) or upstream (corral
+  dep split).
 - 2026-07-18 — **Maturity-route Stabilize/Harden batch shipped to master** (merge
   `b47c955`), via `/steps:next` `all` after the `/project:rating` produced
   `docs/analysis/MATURITY.md` (Stage 3, 77.3/100). Ten route items in one branch,
