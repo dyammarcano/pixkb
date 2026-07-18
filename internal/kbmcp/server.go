@@ -31,6 +31,12 @@ type Deps struct {
 	Runner *epoch.Runner // may be nil for read-only servers
 	Bundle string
 	Agency *corral.Agency // may be nil; enables the kb_ask (RAG) tool when set
+
+	// AllowPIIBypass gates the kb_ask `no_pii_filter` request flag. Default false:
+	// the LGPD/PII redaction is a compliance control, not a per-request tunable, so
+	// a client cannot disable it unless the operator explicitly enabled bypass on
+	// the server (debug only).
+	AllowPIIBypass bool
 }
 
 // Version is reported in the MCP server implementation handshake.
