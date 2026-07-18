@@ -95,13 +95,18 @@ func (r *Runner) Run(ctx context.Context, concepts []okf.Concept, source string)
 }
 
 // applyAll writes every concept into the bundle + index at epoch n, stamping the
-// embed metadata (createdAt / embedder name). Shared by Run and UpsertBatch.
+// embed metadata (createdAt / embedder name). Shared by Run and UpsertBatch. All
+// concepts are embedded in a single Emb.Embed call (one round trip, not N).
 func (r *Runner) applyAll(ctx context.Context, concepts []okf.Concept, n int, at time.Time) error {
-	for _, c := range concepts {
+	vecs, err := r.embedAll(ctx, concepts)
+	if err != nil {
+		return err
+	}
+	for i, c := range concepts {
 		c.Epoch = n
 		c.EmbeddedAt = at
 		c.EmbedModel = r.Emb.Name()
-		if err := r.applyConcept(ctx, c, at); err != nil {
+		if err := r.applyConcept(ctx, c, at, vecs[i]); err != nil {
 			return err
 		}
 	}
@@ -161,17 +166,15 @@ func (r *Runner) UpsertBatch(ctx context.Context, concepts []okf.Concept, source
 	return Result{Epoch: n, Changed: len(concepts), Commit: sha}, nil
 }
 
-// applyConcept writes one concept to the bundle and the derived index.
-func (r *Runner) applyConcept(ctx context.Context, c okf.Concept, at time.Time) error {
+// applyConcept writes one concept to the bundle and the derived index, using a
+// precomputed embedding vector (see embedAll — vectors are batched, not embedded
+// one per concept here).
+func (r *Runner) applyConcept(ctx context.Context, c okf.Concept, at time.Time, vec []float32) error {
 	if err := okf.WriteConcept(r.Bundle, c); err != nil {
 		return fmt.Errorf("write concept %q: %w", c.ID, err)
 	}
 	if err := r.Store.UpsertConcept(ctx, c); err != nil {
 		return fmt.Errorf("upsert concept %q: %w", c.ID, err)
-	}
-	vec, err := r.embed(ctx, c)
-	if err != nil {
-		return fmt.Errorf("embed %q: %w", c.ID, err)
 	}
 	if err := r.Store.UpsertEmbedding(ctx, c.ID, c.Epoch, r.Emb.Name(), vec, at); err != nil {
 		return fmt.Errorf("upsert embedding %q: %w", c.ID, err)
@@ -185,18 +188,32 @@ func (r *Runner) applyConcept(ctx context.Context, c okf.Concept, at time.Time) 
 	return nil
 }
 
-func (r *Runner) embed(ctx context.Context, c okf.Concept) ([]float32, error) {
-	// Embed title + intent_terms + body. The hashing embedder is bag-of-words
-	// cosine — a lexical-overlap proxy — so folding the agent-generated recall
-	// synonyms (intent_terms) into the embedded text lets a paraphrase query that
-	// shares that vocabulary (but not the title/body wording) score higher on the
-	// vector arm. The vector arm is the fuzzy-recall bottleneck (the FTS arm is
-	// AND-bound; see search.go), and it previously ignored intent_terms entirely.
-	vs, err := r.Emb.Embed(ctx, []string{c.Title + " " + c.IntentTerms + " " + c.Body})
+// embedAll embeds every concept's (title + intent_terms + body) text in a SINGLE
+// Emb.Embed call — one round trip instead of N, which matters for a metered or
+// remote embedder. Folding the agent-generated recall synonyms (intent_terms)
+// into the embedded text lets a paraphrase query that shares that vocabulary
+// score higher on the vector arm (the fuzzy-recall bottleneck; the FTS arm is
+// AND-bound, see search.go). Returns one vector per concept, in input order.
+//
+// NOTE: the DB writes in applyConcept remain per-concept round trips. Batching
+// those (pgx.Batch for upsert/embedding, CopyFrom for edges) is deferred: it
+// would touch the correctness-critical bitemporal RecordFact (a per-fact
+// close-prior-window UPDATE + INSERT), and local reindex is already fast — the
+// win is remote-DB-latency only, so it needs a benchmark to justify the risk
+// (BACKLOG).
+func (r *Runner) embedAll(ctx context.Context, concepts []okf.Concept) ([][]float32, error) {
+	texts := make([]string, len(concepts))
+	for i, c := range concepts {
+		texts[i] = c.Title + " " + c.IntentTerms + " " + c.Body
+	}
+	vecs, err := r.Emb.Embed(ctx, texts)
 	if err != nil {
 		return nil, err
 	}
-	return vs[0], nil
+	if len(vecs) != len(concepts) {
+		return nil, fmt.Errorf("embedder returned %d vectors for %d concepts", len(vecs), len(concepts))
+	}
+	return vecs, nil
 }
 
 // Diff returns the concept-level delta between two epochs using the bitemporal
@@ -254,9 +271,13 @@ func (r *Runner) Reindex(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("reindex next epoch: %w", err)
 	}
-	for _, c := range concepts {
+	vecs, err := r.embedAll(ctx, concepts)
+	if err != nil {
+		return fmt.Errorf("reindex embed: %w", err)
+	}
+	for i, c := range concepts {
 		c.Epoch = n
-		if err := r.applyConcept(ctx, c, createdAt); err != nil {
+		if err := r.applyConcept(ctx, c, createdAt, vecs[i]); err != nil {
 			return err
 		}
 	}
