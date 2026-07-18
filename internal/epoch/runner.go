@@ -228,15 +228,24 @@ func (r *Runner) epochSHAs(ctx context.Context, epoch int) (map[string]string, e
 // bundle is the source of truth, so this is the no-lock-in recovery path. Past
 // epoch history is not reconstructed (it lives in git); the current queryable
 // state is fully restored.
+//
+// The bundle is read and validated BEFORE the destructive Truncate, so a
+// missing/unreadable bundle can never wipe a healthy index (Reindex is the
+// recovery path — it must not itself be the largest availability hazard). A
+// failure mid-replay (a bad concept, a killed process) can still leave a
+// partially rebuilt index; recovery is to re-run Reindex against the intact
+// bundle. Making the truncate+replay fully atomic (build-into-staging then swap)
+// is a deferred follow-up — see plans/004.
 func (r *Runner) Reindex(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if err := r.Store.Truncate(ctx); err != nil {
-		return fmt.Errorf("truncate: %w", err)
-	}
+	// Read + validate the bundle first; only truncate once it is known-good.
 	concepts, err := okf.ReadBundle(r.Bundle)
 	if err != nil {
 		return fmt.Errorf("read bundle: %w", err)
+	}
+	if err := r.Store.Truncate(ctx); err != nil {
+		return fmt.Errorf("truncate: %w", err)
 	}
 	n, createdAt, err := r.Store.NextEpoch(ctx, "reindex", "", len(concepts), 0, 0)
 	if err != nil {
