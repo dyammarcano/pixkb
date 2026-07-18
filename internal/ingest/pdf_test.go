@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,53 @@ func TestSlugify(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "foo-bar-baz", slugify("Foo_Bar Baz!"))
 	assert.Equal(t, "ii-manual", slugify("II__Manual"))
+}
+
+func TestStripTOCRegion(t *testing.T) {
+	// Mirrors the real manual: title/version front matter, then the Sumário TOC
+	// block (number lines, dropcap fragments, dot-leader runs, page numbers),
+	// then real body prose. Dot-leaders appear ONLY in the TOC.
+	toc := strings.Join([]string{
+		"Manual", "de Padrões", "Versão 2.8", // front matter (kept)
+		"Sumário", // TOC start marker
+		"1.", "INTRODUÇÃO", "................................", "6",
+		"2.", "INICIAÇÃO POR QR CODE", "....................", "6",
+		"2.6.", "I", "NICIAÇÃO VIA ", "QR", "C", "ODE ", "E", "STÁTICO",
+		"........................", " ", "11",
+		// --- body begins: no more dot-leaders ---
+		"1.", "Introdução",
+		"O Pix é o meio de pagamento instantâneo brasileiro que permite...",
+	}, "\n")
+
+	out := stripTOCRegion(toc)
+
+	require.Contains(t, out, "Manual", "front matter before Sumário is kept")
+	require.NotContains(t, out, "Sumário", "the Sumário marker is dropped")
+	require.NotContains(t, out, "NICIAÇÃO VIA ", "TOC dropcap fragments are dropped")
+	require.NotContains(t, out, "....", "no dot-leader lines survive")
+	require.Contains(t, out, "O Pix é o meio de pagamento", "body prose is preserved")
+	require.Contains(t, out, "Introdução", "body heading is preserved")
+}
+
+func TestStripTOCRegion_NoSumario(t *testing.T) {
+	in := "3.2 Serviço\n\nUm texto qualquer sem sumário.\n"
+	require.Equal(t, in, stripTOCRegion(in), "no Sumário -> unchanged")
+}
+
+func TestStripTOCRegion_SumarioNoDotLeaders(t *testing.T) {
+	in := "Sumário\n1. Introdução\nTexto sem dot-leaders.\n"
+	require.Equal(t, in, stripTOCRegion(in), "Sumário but no dot-leaders -> unchanged")
+}
+
+func TestLinePredicates(t *testing.T) {
+	require.True(t, isDotLeader("........"))
+	require.True(t, isDotLeader("  ....  "))
+	require.False(t, isDotLeader("... x"))
+	require.False(t, isDotLeader(""))
+	require.True(t, isBarePageNumber("38"))
+	require.True(t, isBarePageNumber("6"))
+	require.False(t, isBarePageNumber("2.6."))
+	require.False(t, isBarePageNumber("ANEXO"))
 }
 
 func TestPDFSource_RealFile(t *testing.T) {
