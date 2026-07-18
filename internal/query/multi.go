@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 
+	"golang.org/x/sync/errgroup"
+
 	"pixkb/internal/embed"
 	"pixkb/internal/store/postgres"
 )
@@ -52,6 +54,10 @@ const multiSubqueryLimit = 20
 // multi-intent partial-coverage case for the motivating example.
 const multiRRFK = 5
 
+// multiFanout bounds how many subquery Hybrid searches run concurrently, so a
+// large expansion cannot open an unbounded number of simultaneous DB queries.
+const multiFanout = 4
+
 // MultiHybrid expands q (via ExpandQuery) into a small deterministic set of
 // subqueries, runs the existing, unmodified Hybrid search for each one, and
 // fuses the per-subquery ranked lists with a second reciprocal-rank-fusion
@@ -67,18 +73,36 @@ func MultiHybrid(ctx context.Context, s Searcher, emb embed.Embedder, q string, 
 		perSubFilter.Limit = multiSubqueryLimit
 	}
 
+	// The per-subquery Hybrid calls are independent (each hits the DB); run them
+	// concurrently, but collect each subquery's results into a fixed slot so the
+	// fusion below aggregates in deterministic subquery order — the parallel run
+	// produces byte-identical output to the former serial loop (firstSeen/order
+	// still assigned in subquery-then-hit order, not completion order).
+	results := make([][]postgres.Hit, len(subqueries))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(multiFanout)
+	for i, sq := range subqueries {
+		g.Go(func() error {
+			hits, err := Hybrid(gctx, s, emb, sq, perSubFilter)
+			if err != nil {
+				return err
+			}
+			results[i] = hits
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+
 	scores := make(map[string]float64)
 	firstSeen := make(map[string]int)
 	hitByID := make(map[string]postgres.Hit)
 	provenance := make(map[string][]SubqueryMatch)
 	order := 0
 
-	for _, sq := range subqueries {
-		hits, err := Hybrid(ctx, s, emb, sq, perSubFilter)
-		if err != nil {
-			return nil, err
-		}
-		for _, h := range hits {
+	for i, sq := range subqueries {
+		for _, h := range results[i] {
 			scores[h.ID] += 1.0 / float64(multiRRFK+h.Rank)
 			if _, ok := hitByID[h.ID]; !ok {
 				hitByID[h.ID] = h
