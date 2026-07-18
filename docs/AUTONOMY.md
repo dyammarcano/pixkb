@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:007 -->
+<!-- rev:008 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,15 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **PDF TOC-suppression fix shipped to master** (merge `4c62a6d`).
+  Measured on the real manual: ~93 mostly-junk sections → 21 clean, 0 TOC-junk
+  titles. Key decision: **descoped Task 3 (body numbered-heading join) after
+  measurement** — Task 2 (TOC suppression) alone fixes the reported bug, and the
+  residual body-quality issues it exposed (repeated `DIAGRAMA DE ESTADOS` caption,
+  an OCR typo, example-data heading) are content-quality work for the curate/
+  hygiene agent fleet, not more extractor heuristics (which is what regressed in
+  attempt 1). This is the measure-first discipline the ISSUES warning demands.
+  Residual items + 3 whole-branch-review Minors logged to ISSUES/BACKLOG.
 - 2026-07-17 — **Picked up the PDF TOC-suppression fix** (last substantial
   non-blocked item; ROADMAP 0-9 all done, this is the open ISSUES.md content-
   quality bug). Attempt 1 (dropcap-rejoin) net-regressed; grounded a fresh design

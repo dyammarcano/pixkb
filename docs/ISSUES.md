@@ -1,11 +1,37 @@
 # pixkb Known Issues & Limitations
-<!-- rev:015 -->
+<!-- rev:016 -->
 
 Current known limitations.
 
 ## Content quality
-- **PDF table-of-contents entries leak in as junk `ManualSection` titles
-  (51 flagged by `hygiene`), plus ~27 duplicate titles.** Root-caused 2026-07-17.
+- ~~**PDF table-of-contents entries leak in as junk `ManualSection` titles
+  (51 flagged by `hygiene`), plus ~27 duplicate titles.**~~ **RESOLVED (2026-07-18,
+  merge `4c62a6d`) — via TOC-region suppression, NOT dropcap-rejoin.** A fresh
+  design grounded in the real extracted text
+  (`.superpowers/research/pdf-junk-title-analysis.md`) found that dot-leader lines
+  (`^\.{4,}$`) occur ONLY in the TOC and the whole TOC is one `"Sumário"`-delimited
+  block — so `internal/ingest/pdf.go`'s new `stripTOCRegion` drops that block
+  wholesale before `splitSections`, rather than trying to un-mangle the dropcap
+  fragments (attempt 1's approach, which broke on 2-letter abbreviations like
+  `QR`). **Measured on the real manual: ~93 mostly-junk sections → 21 clean, with
+  ZERO dot-leader/bare-page-number/dropcap-artifact titles** (DB-free acceptance
+  gate `TestPDFFetch_NoTOCJunk`); TOC-vs-body duplicates are eliminated by
+  construction (the TOC copy is gone). Generic (no-ops on a `Sumário`-less PDF, so
+  non-manual sources are unaffected); whole-branch review READY. Spec/plan:
+  `docs/superpowers/{specs,plans}/2026-07-17-pdf-toc-suppression*`.
+  **Residual body-content-quality follow-ups (P3, exposed once the TOC junk was
+  cleared — a DIFFERENT problem, best handled by the curate/hygiene agent fleet,
+  NOT more extractor heuristics):** (i) the numbered/caption body-heading join was
+  measured net-neutral for the extractor and DESCOPED — a generic body caption
+  `"DIAGRAMA DE ESTADOS"` repeats 8× above distinct state-diagram sections (the
+  specific labels like `"COBR PAGA NA DATA NORMAL"` are their own sections);
+  joining the caption with its label would give unique titles; (ii) an OCR typo in
+  the PDF text layer (`"DRIAGRAMA DE ESTADOS"`); (iii) example data promoted to a
+  heading (`"FULANO DE TAL EIRELI"`); (iv) `stripTOCRegion` hardening — a stray
+  body dots-only line within 40 lines of the TOC could in theory extend the region
+  (low likelihood, gap-bounded), and an accentless `"Sumario"` heading would no-op
+  (safe degrade). Historical root-cause detail retained below.
+- **(historical) PDF TOC junk root cause.** Root-caused 2026-07-17.
   The BCB manual's main TOC and per-chapter mini-TOCs are extracted by
   `internal/ingest/pdf.go`, and the PDF renders each TOC entry with **every
   word's first letter split onto its own line** (a small-caps/dropcap style):
