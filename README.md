@@ -1,12 +1,13 @@
 # pixkb — Air-Gap OKF Knowledge Base for Pix / SPB
-<!-- rev:003 -->
+<!-- rev:004 -->
 
-`pixkb` ingests Brazilian instant-payment (Pix / SPB / SPI) knowledge —
-ISO 20022 PACS/CAMT message specs, BCB manuals (PDF), and staged git repo
-mirrors — into a canonical **Open Knowledge Format (OKF)** bundle, and indexes
-it for **full-text + vector search** in Postgres + pgvector. It runs fully
-air-gapped after a one-time online gather and evolves over **epochs** with
-bitemporal history.
+`pixkb` ingests Brazilian instant-payment (Pix / SPB / SPI) and consumption-tax
+(Receita Federal / Reforma Tributária) knowledge — ISO 20022 PACS/CAMT message
+specs, BCB manuals and statutes (PDF), Office documents (docx / xlsx), OpenAPI
+contracts, curated Markdown, and staged git repo mirrors — into a canonical
+**Open Knowledge Format (OKF)** bundle, and indexes it for **full-text + vector
+search** in Postgres + pgvector. It runs fully air-gapped after a one-time online
+gather and evolves over **epochs** with bitemporal history.
 
 ## Architecture
 
@@ -17,6 +18,27 @@ bitemporal history.
   (`tstzrange` valid/tx → query "as of epoch N"), and the link graph. Rebuild it
   any time from the bundle with `pixkb reindex` — no lock-in.
 - **Hybrid search** fuses FTS + vector via reciprocal-rank fusion (RRF).
+
+## Ingest sources
+
+Every source reads **local offline files** (air-gap: no network at ingest) and
+emits OKF concepts, wired via `pixkb.yaml` (see [`pixkb.yaml.example`](pixkb.yaml.example)):
+
+| Source | Input | Concepts |
+|--------|-------|----------|
+| ISO 20022 | built-in PACS/CAMT message set | `PacsMessage` / `CamtMessage` |
+| `pdfs:` | BCB manuals (PDF) | `ManualSection` (TOC-junk suppressed) |
+| `legislation:` | statute PDFs (e.g. LC 214/2025) | `LegalArticle` per *artigo* + Anexos |
+| `docx:` | Word documents | `Reference` (heading-split, tables flattened) |
+| `xlsx:` | Excel workbooks | `Reference` (one per sheet, Markdown table) |
+| `markdown:` | curated reference docs | `Reference` (one per H2) |
+| `openapi_specs:` | OpenAPI/Swagger contracts | `ApiEndpoint` per operation |
+| `api_docs:` | local API-DICT HTML | `ApiEndpoint` |
+| `repos:` | staged git mirrors | `Repo` + bundled OpenAPI |
+| `scout_crawl_dir:` | offline web capture | `WebPage` |
+
+Concepts carry a `domain:pix` / `domain:tax` tag (backfilled to `domain:pix` when
+unset) so search can isolate the payments rail from the tax domain.
 
 ## Quickstart
 
