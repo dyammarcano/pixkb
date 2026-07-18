@@ -3,6 +3,7 @@ package epoch
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"pixkb/internal/embed"
@@ -13,11 +14,21 @@ import (
 // Runner orchestrates an ingest pass: it writes the canonical OKF bundle, cuts
 // a new epoch, updates the derived Postgres index (concepts, embeddings, edges,
 // bitemporal facts), regenerates indexes, appends log.md, and git-commits.
+//
+// The write entry points (Run, UpsertBatch, Reindex) are serialized by mu: the
+// MCP server holds one Runner and dispatches tool handlers concurrently, and the
+// store delegates epoch-allocation serialization to its caller (see
+// postgres.Store.NextEpoch). Without this, two concurrent concept_upsert calls
+// could both allocate the same epoch (PK conflict), interleave log.md appends,
+// or corrupt the shared git worktree mid-stage. Runner is always used as a
+// pointer, so the zero-value mutex is never copied.
 type Runner struct {
 	Bundle string
 	Store  *postgres.Store
 	Emb    embed.Embedder
 	Git    Committer
+
+	mu sync.Mutex // serializes the Run/UpsertBatch/Reindex write path
 }
 
 // Result summarizes one epoch.
@@ -41,6 +52,8 @@ type Result struct {
 // after any interrupted Run. Do not add cross-system transactions here; treat
 // the bundle as authoritative and the index as reconstructible.
 func (r *Runner) Run(ctx context.Context, concepts []okf.Concept, source string) (Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	oldSHA, err := r.Store.CurrentSHAs(ctx)
 	if err != nil {
 		return Result{}, fmt.Errorf("read current shas: %w", err)
@@ -110,6 +123,8 @@ func (r *Runner) UpsertBatch(ctx context.Context, concepts []okf.Concept, source
 	if len(concepts) == 0 {
 		return Result{}, nil
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	n, createdAt, err := r.Store.NextEpoch(ctx, source, "", 0, len(concepts), 0)
 	if err != nil {
 		return Result{}, fmt.Errorf("upsert next epoch: %w", err)
@@ -214,6 +229,8 @@ func (r *Runner) epochSHAs(ctx context.Context, epoch int) (map[string]string, e
 // epoch history is not reconstructed (it lives in git); the current queryable
 // state is fully restored.
 func (r *Runner) Reindex(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if err := r.Store.Truncate(ctx); err != nil {
 		return fmt.Errorf("truncate: %w", err)
 	}
