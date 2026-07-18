@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:013 -->
+<!-- rev:014 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -29,6 +29,8 @@ index is a fully derived, rebuildable artifact.
 - PDF ingest (`ledongthuc/pdf`) → ManualSection concepts.
 - Git mirror source.
 - API-DICT source. Sources wired into ingest via config.
+- Office-document sources (merge `2058f19`, 2026-07-18): docx (stdlib zip+xml,
+  heading-split) and xlsx (excelize, sheet→Markdown table) → Reference concepts.
 
 ## Phase 5 — Epoch Engine [x]
 - Epoch cut: snapshot the bundle and commit to git per epoch.

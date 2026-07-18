@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:009 -->
+<!-- rev:010 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,20 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **docx + xlsx ingest sources shipped to master** (merge `2058f19`).
+  3-task SDD: docx source (`95a7235`), xlsx source + excelize dep (`949aac9`),
+  config wiring (`7e8ee68`). Whole-branch review (opus) returned Not-READY on one
+  Important — xlsx concept IDs lacked the index prefix docx/markdown use, so
+  sheet names that slugify identically (or to "" for all-non-ASCII names) would
+  collide and silently overwrite on upsert. **Fixed pre-merge** (`302a950`,
+  index-prefixed ID). 3 Minors (docx table-cell text dropped; empty-heading
+  merge; pre-existing basename-slug collision inherited from markdown) logged to
+  BACKLOG P3 as measure-first completeness polish, not fixed blind. excelize
+  v2.11.0 confirmed pure-Go + local-file-only (air-gap invariant holds). This
+  completes the operator's md/pdf/docx/excel-parser directive. Remaining
+  substantial roadmap work stays operator-blocked (Phases C/D + Phase B real-PDF
+  validation need mirror-dir PDFs; the English-standardization item needs a
+  product decision).
 - 2026-07-18 — **New operator directive: docx + xlsx ingest sources.** md/pdf
   already exist, so scope is the two missing formats (operator-confirmed). Parse:
   `github.com/xuri/excelize/v2` for xlsx (pure-Go, air-gap-safe) + stdlib

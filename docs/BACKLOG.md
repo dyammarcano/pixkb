@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:074 -->
+<!-- rev:075 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -746,8 +746,26 @@ Prioritized future work. P1 = highest. Promote items into the active phase
 - **HNSW-on-typed-vector revisit.** Current vector search is exact-cosine.
   Revisit an HNSW (approximate) index on the typed vector column only if the
   corpus grows enough that exact search latency becomes a problem.
+- **docx/xlsx ingest completeness polish** (whole-branch-review Minors, merge
+  `2058f19`, 2026-07-18). (1) `docx.go` collects only `body>p` runs, so text in
+  Word tables (`w:tbl`) and non-`w:t` runs is silently dropped — add table-cell
+  extraction if a real doc needs it. (2) `splitDocx` skips empty-text paragraphs
+  before the heading check, so a stray empty heading can merge two sections.
+  (3) Pre-existing (inherited from `markdown.go`): two configured files sharing a
+  basename map to the same `reference/<basename-slug>/…` prefix and can overwrite
+  on upsert — applies to pdf/markdown/docx/xlsx alike. All three are content-
+  completeness gaps, not crashes; measure against a real corpus before tuning.
 
 ## Shipped
+- **docx + xlsx ingest sources** (merge `2058f19`, 2026-07-18). Two offline
+  `ingest.Source` adapters emitting `Reference` concepts: `NewDocxSource`
+  (stdlib `archive/zip` + `encoding/xml`, split on Word heading styles) and
+  `NewXlsxSource` (`github.com/xuri/excelize/v2`, pure-Go, one Reference per
+  sheet rendered as a row-capped, pipe-escaped Markdown table). Config keys
+  `docx:`/`xlsx:` wired into `buildSources`. Whole-branch review caught + fixed
+  a silent xlsx ID slug-collision (now index-prefixed). Delivered the operator's
+  "implement md/pdf/docx/excel parsers" directive (md/pdf already existed).
+  Follow-up completeness Minors logged under P3.
 - **Migrated `pkg/agents` onto `github.com/inovacc/corral`** (2026-07-05).
   Byte-level diff confirmed corral is pixkb's own agent-runtime, generalized
   and published upstream; pixkb now keeps only the BACEN-charter roster
