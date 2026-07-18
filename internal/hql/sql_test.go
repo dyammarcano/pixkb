@@ -313,3 +313,51 @@ func TestToSQL_IDNotEqual(t *testing.T) {
 		t.Errorf("args = %v", args)
 	}
 }
+
+func TestToSQLAt_Offset(t *testing.T) {
+	q := sqlMustParse(t, `type = LegalArticle AND domain = tax`)
+
+	// Offset 0 == ToSQL (v1 behavior).
+	w0, a0, _, err := q.ToSQLAt(sqlFixedCtx(), 0)
+	if err != nil {
+		t.Fatalf("ToSQLAt(0) error: %v", err)
+	}
+	wc, ac, _, err := q.ToSQL(sqlFixedCtx())
+	if err != nil {
+		t.Fatalf("ToSQL error: %v", err)
+	}
+	if wc != w0 {
+		t.Errorf("where mismatch: ToSQL=%q ToSQLAt(0)=%q", wc, w0)
+	}
+	if len(ac) != len(a0) {
+		t.Fatalf("args len mismatch: ToSQL=%v ToSQLAt(0)=%v", ac, a0)
+	}
+	for i := range ac {
+		if ac[i] != a0[i] {
+			t.Errorf("args[%d] mismatch: ToSQL=%v ToSQLAt(0)=%v", i, ac[i], a0[i])
+		}
+	}
+
+	// Offset 5: first placeholder is $6, second $7; args unchanged.
+	w5, a5, _, err := q.ToSQLAt(sqlFixedCtx(), 5)
+	if err != nil {
+		t.Fatalf("ToSQLAt(5) error: %v", err)
+	}
+	if !strings.Contains(w5, "$6") {
+		t.Errorf("where = %q, want to contain $6", w5)
+	}
+	if !strings.Contains(w5, "$7") {
+		t.Errorf("where = %q, want to contain $7", w5)
+	}
+	if strings.Contains(w5, "$1 ") {
+		t.Errorf("where = %q, should not contain $1 (offset not applied)", w5)
+	}
+	if len(a5) != len(a0) {
+		t.Fatalf("args len mismatch: offset0=%v offset5=%v", a0, a5)
+	}
+	for i := range a5 {
+		if a5[i] != a0[i] {
+			t.Errorf("args[%d] mismatch: offset0=%v offset5=%v", i, a0[i], a5[i])
+		}
+	}
+}

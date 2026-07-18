@@ -49,6 +49,16 @@ func (s *Store) Vector(ctx context.Context, vec []float32, f Filter) ([]Hit, err
 	if pred, ok := asOfConceptPredicate(&args, f); ok {
 		add(pred) // "id IN (...)" — resolves to concept.id
 	}
+	if f.HQLWhere != nil {
+		hw, ha, err := f.HQLWhere(len(args))
+		if err != nil {
+			return nil, fmt.Errorf("hql filter: %w", err)
+		}
+		if hw != "" {
+			add("(" + hw + ")")
+			args = append(args, ha...)
+		}
+	}
 	args = append(args, limit)
 
 	query := fmt.Sprintf(`

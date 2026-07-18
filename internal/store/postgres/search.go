@@ -35,6 +35,13 @@ type Filter struct {
 	// caller-configurable floor honored directly by Store.Vector itself,
 	// independent of whether the caller goes through Hybrid at all.
 	MinVecScore float64
+
+	// HQLWhere, when non-nil, contributes an additional parameterized WHERE
+	// fragment (from internal/hql's ToSQLAt) AND-ed into FTS/Vector. It receives
+	// the count of args already bound and must number its own placeholders from
+	// startArg+1; it returns the fragment (no leading AND) + its arg values. The
+	// store never imports hql — the caller supplies this closure.
+	HQLWhere func(startArg int) (where string, args []any, err error)
 }
 
 // Hit is a single ranked search result.
@@ -127,6 +134,16 @@ func (s *Store) FTS(ctx context.Context, q string, f Filter) ([]Hit, error) {
 	}
 	if pred, ok := asOfConceptPredicate(&args, f); ok {
 		where += " AND " + pred
+	}
+	if f.HQLWhere != nil {
+		hw, ha, err := f.HQLWhere(len(args))
+		if err != nil {
+			return nil, fmt.Errorf("hql filter: %w", err)
+		}
+		if hw != "" {
+			where += " AND (" + hw + ")"
+			args = append(args, ha...)
+		}
 	}
 	args = append(args, limit)
 

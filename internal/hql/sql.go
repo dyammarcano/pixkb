@@ -11,7 +11,17 @@ import (
 // the caller (Store.QueryConcepts) adds them. Every value is a placeholder;
 // no user text is ever interpolated into SQL.
 func (q Query) ToSQL(ctx EvalContext) (where string, args []any, order string, err error) {
-	b := &sqlBuilder{ctx: ctx}
+	return q.ToSQLAt(ctx, 0)
+}
+
+// ToSQLAt renders the query the same way ToSQL does, but numbers its $N
+// placeholders starting from startArg+1 instead of 1. This lets a caller
+// splice the returned WHERE fragment and args into an already-numbered
+// argument list (e.g. appending an HQL predicate after other parameterized
+// predicates) without any string renumbering. ToSQLAt(ctx, 0) is byte-
+// identical to ToSQL(ctx).
+func (q Query) ToSQLAt(ctx EvalContext, startArg int) (where string, args []any, order string, err error) {
+	b := &sqlBuilder{ctx: ctx, base: startArg}
 	where, err = b.expr(q.Where)
 	if err != nil {
 		return "", nil, "", err
@@ -25,13 +35,15 @@ func (q Query) ToSQL(ctx EvalContext) (where string, args []any, order string, e
 
 type sqlBuilder struct {
 	ctx  EvalContext
+	base int
 	args []any
 }
 
-// ph appends v to args and returns its positional placeholder ($1, $2, ...).
+// ph appends v to args and returns its positional placeholder ($1, $2, ...
+// offset by base).
 func (b *sqlBuilder) ph(v any) string {
 	b.args = append(b.args, v)
-	return fmt.Sprintf("$%d", len(b.args))
+	return fmt.Sprintf("$%d", b.base+len(b.args))
 }
 
 func (b *sqlBuilder) expr(e Expr) (string, error) {

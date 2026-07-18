@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"pixkb/internal/hql"
 	"pixkb/internal/ingest"
 	"pixkb/internal/okf"
 	"pixkb/internal/output"
@@ -156,7 +157,7 @@ func newIngestCmd() *cobra.Command {
 }
 
 func newSearchCmd() *cobra.Command {
-	var dsn, mode, typ, tag, format, asOfTime string
+	var dsn, mode, typ, tag, format, asOfTime, where string
 	var limit, asOfEpoch int
 	var explain bool
 	var includeTypes, excludeIDs []string
@@ -166,6 +167,18 @@ func newSearchCmd() *cobra.Command {
 		Short: "Search the KB (hybrid FTS+vector by default; --mode fts|vector)",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var hq hql.Query
+			if where != "" {
+				var err error
+				hq, err = hql.Parse(where)
+				if err != nil {
+					return fmt.Errorf("parse --where: %w", err)
+				}
+				if _, _, _, err := hq.ToSQLAt(hql.EvalContext{Now: time.Now()}, 0); err != nil {
+					return fmt.Errorf("compile --where: %w", err)
+				}
+			}
+
 			cfg := loadConfig()
 			if dsn != "" {
 				cfg.DSN = dsn
@@ -185,6 +198,12 @@ func newSearchCmd() *cobra.Command {
 			f := postgres.Filter{
 				Type: typ, Tag: tag, Limit: limit,
 				IncludeTypes: includeTypes, ExcludeIDs: excludeIDs, MinVecScore: minVecScore,
+			}
+			if where != "" {
+				f.HQLWhere = func(start int) (string, []any, error) {
+					w, a, _, err := hq.ToSQLAt(hql.EvalContext{Now: time.Now()}, start)
+					return w, a, err
+				}
 			}
 
 			if asOfEpoch != 0 && asOfTime != "" {
@@ -259,6 +278,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&includeTypes, "include-type", nil, "restrict to concepts whose type is in this list (comma-separated or repeatable; ORs with --type when both are set)")
 	cmd.Flags().StringSliceVar(&excludeIDs, "exclude-id", nil, "exclude these concept ids from results (comma-separated or repeatable)")
 	cmd.Flags().Float64Var(&minVecScore, "min-vector-score", 0, "drop vector-arm hits scoring below this cosine similarity (0 = disabled)")
+	cmd.Flags().StringVar(&where, "where", "", "HQL predicate to narrow results before ranking, e.g. 'type = LegalArticle AND domain = tax' (any ORDER BY/LIMIT in it is ignored — ranking uses relevance + --limit)")
 	return cmd
 }
 
