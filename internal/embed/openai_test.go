@@ -53,3 +53,33 @@ func TestOpenAIEmbedderNoKey(t *testing.T) {
 		t.Error("want error when OPENAI_API_KEY unset")
 	}
 }
+
+// TestOpenAIEmbedderGappedIndex confirms a response with the right count but a
+// duplicated/gapped index set is rejected rather than silently mis-pairing
+// vectors with inputs.
+func TestOpenAIEmbedderGappedIndex(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body openaiEmbedReq
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		resp := openaiEmbedResp{}
+		// Correct count (2) but indices {0, 0} — a duplicate, no index 1.
+		for _, idx := range []int{0, 0} {
+			resp.Data = append(resp.Data, struct {
+				Index     int       `json:"index"`
+				Embedding []float32 `json:"embedding"`
+			}{Index: idx, Embedding: []float32{float32(idx), 0.5}})
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	t.Setenv("OPENAI_API_KEY", "test-key")
+	t.Setenv("OPENAI_BASE_URL", srv.URL)
+	e, err := NewOpenAIEmbedder("", 2)
+	if err != nil {
+		t.Fatalf("new embedder: %v", err)
+	}
+	if _, err := e.Embed(context.Background(), []string{"a", "b"}); err == nil {
+		t.Fatal("want error on duplicate/gapped index, got nil")
+	}
+}

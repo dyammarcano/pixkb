@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"sort"
 	"time"
 )
 
@@ -111,11 +110,20 @@ func (e *OpenAIEmbedder) Embed(ctx context.Context, texts []string) ([][]float32
 	if len(er.Data) != len(texts) {
 		return nil, fmt.Errorf("openai embed: got %d vectors for %d inputs", len(er.Data), len(texts))
 	}
-	// The API may return data out of order; sort by index to match inputs.
-	sort.Slice(er.Data, func(i, j int) bool { return er.Data[i].Index < er.Data[j].Index })
-	out := make([][]float32, len(er.Data))
+	// The API may return data out of order and does not guarantee the Index
+	// values are the contiguous 0..n-1 set. Place each embedding by its declared,
+	// bounds-checked Index rather than by slice position, so a gapped/duplicated
+	// index set is rejected instead of silently pairing a vector with the wrong
+	// input.
+	out := make([][]float32, len(texts))
+	seen := make([]bool, len(texts))
 	for i := range er.Data {
-		out[i] = er.Data[i].Embedding
+		idx := er.Data[i].Index
+		if idx < 0 || idx >= len(texts) || seen[idx] {
+			return nil, fmt.Errorf("openai embed: invalid or duplicate index %d for %d inputs", idx, len(texts))
+		}
+		seen[idx] = true
+		out[idx] = er.Data[i].Embedding
 	}
 	return out, nil
 }
