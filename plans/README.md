@@ -15,6 +15,8 @@ row when done.
 | 003 | Guard embedder output length + index mapping (no panic) | P2 | S | — | TODO |
 | 004 | `Reindex` cannot leave the index empty on failure | P2 | M | — | TODO |
 | 005 | Harden RAG/curate prompts against injected document instructions | P2 | M | — | TODO |
+| 006 | Typed rate-limit handling at the corral generation seam | P2 | S | — | IN PROGRESS |
+| 007 | Serialize the epoch/bundle/git write path against concurrent callers | P2 | S–M | — | IN PROGRESS |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (rationale).
 
