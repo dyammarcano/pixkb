@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:011 -->
+<!-- rev:012 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,27 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-18 — **`improve` maturation sweep + top-plan execution** (via
+  `/steps:next` `all`, items 1-4). Ran a standard-depth `improve` audit (4
+  parallel read-only auditors: correctness/security/tests+debt/perf+deps+dx),
+  vetted findings against the code, and wrote `plans/` (README index + 5
+  executor-ready plans + a vetted-but-unplanned backlog). **Shipped the P1 fix
+  (merge `5347423`):** the RAG answer cache was keyed only by (question, epoch),
+  so a `no_pii_filter=true` call cached un-redacted PII a later normal call was
+  served — a real LGPD leak whose own doc comment claimed the opposite. Fixed:
+  scope-aware `cacheKeyFor` + never cache when `NoPIIFilter`. Whole-branch review
+  caught a missing `MaxChars` key field (scope collision) — fixed pre-merge.
+  **Reconciled the other `/steps:next` items:** item 3 (doc refresh) shipped
+  (README `818926a` + ARCHITECTURE `b4e7632`); **item 4 (vector-score floor) was
+  already implemented** (`vecScoreFloor=0.05` in `hybrid.go`) — checkoff, no new
+  code; **item 2 (basename-slug collision) deliberately NOT rushed** — the sweep
+  showed the real failure mode is a *loud `GatherAll` dup-id abort*, not the
+  silent overwrite the backlog implied, and the proper fix (source-type ID
+  namespacing) is a bundle-ID migration under the deprecation policy, so it was
+  re-scoped in BACKLOG rather than hacked in-place. The remaining 4 plans
+  (golangci pin, embed guards, Reindex failure-safety, prompt-injection
+  hardening) + the vetted backlog await a go-ahead. Audit surfaced no live
+  secrets and confirmed the HQL/SQL layer is fully parameterized.
 - 2026-07-18 — **Ingest-layer hardening batch shipped to master** (merge
   `2d28e5b`), via `/steps:next` `all` (items 1-6). Implemented test-first
   directly (small, self-contained, single-subsystem) with an opus whole-branch
