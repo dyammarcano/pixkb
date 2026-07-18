@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:073 -->
+<!-- rev:074 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -127,9 +127,18 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   substring) fixed pre-merge. Spec/plan:
   `docs/superpowers/{specs,plans}/2026-07-17-hql-query-dsl*`.
   **v2 follow-ups (deferred, logged from the settled forks + review):**
-  (i) **fold HQL into `search`'s hybrid RRF** ("HQL narrows, RRF ranks") — needs
-  the placeholder-renumbering seam to splice an HQL WHERE into `FTS`/`Vector`'s
-  already-numbered args (the injection-risk the standalone v1 sidesteps);
+  ~~(i) **fold HQL into `search`'s hybrid RRF** ("HQL narrows, RRF ranks")~~
+  **DONE (2026-07-17, merge `45afc89`):** `pixkb search "<q>" --where "<hql>"` (and
+  the `search` MCP tool's `where` field) compose an HQL predicate into both search
+  arms before RRF ranks. Injection-safe via `hql.Query.ToSQLAt(startArg)`
+  (offset-numbered placeholders — NO string renumbering) + a
+  `postgres.Filter.HQLWhere` closure (store stays hql-agnostic); nil = byte-
+  identical; ranking math (ADR 0002) untouched; composes with `--mode multi` and
+  `--as-of-*`. Live-validated (`--where "type = ManualSection"` narrows correctly);
+  opus whole-branch review READY (parameterization clean, fail-fast parse, fail-
+  closed). Spec/plan: `docs/superpowers/{specs,plans}/2026-07-17-hql-search-filter*`.
+  **Minor left (backlog):** CLI (`parse --where`) vs MCP (`parse where`) error-
+  message wording diverges — a shared helper would unify them.
   ~~(ii) **MCP `query` verb** (thin once `QueryConcepts` exists);~~ **DONE
   (2026-07-17, merge `bd88fb7`):** read-only `query` MCP tool
   (`internal/kbmcp/server.go`) exposes the HQL filter to agents alongside `search`;

@@ -1,5 +1,5 @@
 # pixkb Autonomy Charter
-<!-- rev:005 -->
+<!-- rev:006 -->
 
 Standing authority for autonomous roadmap execution, granted by the operator via
 `/steps:autonomous` on 2026-07-17. This is the durable, auditable record of the
@@ -70,6 +70,19 @@ reviews caught, what's next). Otherwise silent.
 
 ## Decision Log (newest first)
 
+- 2026-07-17 — **HQL v2 (`search --where`) shipped to master** (merge `45afc89`),
+  after the user said "keep going" past the earlier saturation point. This was the
+  last substantial non-blocked item — folding the HQL filter into ranked search.
+  Since it touches the core search SQL (FTS/Vector), decided to (a) design the
+  injection-sensitive placeholder-composition fork up front (offset-numbered
+  `ToSQLAt`, never string-renumber; store-agnostic `Filter.HQLWhere` closure),
+  (b) run the 3 tasks strictly sequentially with an opus review of the FTS/Vector
+  crux, (c) live-validate end-to-end on a local DB before merge. Also shipped this
+  session after the checkpoint: MCP `query` verb (`bd88fb7`), HQL golden-test gaps
+  (`309e23e`), domain-validation P3 (`45b0e34`), and closed two stale-doc items
+  (CLI `--format`, similar-eval). Remaining non-blocked work is now genuinely
+  minor/deferred; substantial work is operator-blocked (Phases C/D + PDFs; English
+  policy decision).
 - 2026-07-17 — **Autonomous run reached saturation; stopping to check in.** After
   shipping Phase B, HQL v1, and the domain-validation P3 (`45b0e34`), every
   high-value non-blocked roadmap item is done. What remains is either blocked on
