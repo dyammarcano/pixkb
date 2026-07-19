@@ -25,6 +25,11 @@ type Filter struct {
 	IncludeTypes []string
 	// ExcludeIDs, if non-empty, excludes these concept ids from results.
 	ExcludeIDs []string
+	// Domains, if non-empty, restricts results to concepts whose domain is in
+	// this list (`AND domain = ANY(...)`). Empty (the default) searches ALL
+	// domains and emits NO domain predicate — preserving v0.1 search behavior
+	// byte-for-byte. Wired from the repeatable `--domain` search flag.
+	Domains []string
 	// MinVecScore, if > 0, drops Vector() hits whose cosine score is below
 	// this threshold (0 = disabled, matching the "0 = disabled" convention
 	// used elsewhere in this codebase, e.g. rag.Options.MinScore). It has no
@@ -55,6 +60,10 @@ type Hit struct {
 	// hit. Set only by query.Hybrid's fused output; empty ("") on raw
 	// FTS()/Vector() results before fusion.
 	Arm string
+	// Domain is the concept's domain (e.g. "pix", "bacen-normative"). Populated
+	// by the FTS arm's SELECT; may be empty on hits sourced solely from the
+	// vector arm, which does not project it.
+	Domain string
 }
 
 const defaultLimit = 20
@@ -119,7 +128,7 @@ func (s *Store) FTS(ctx context.Context, q string, f Filter) ([]Hit, error) {
 	// IV") outranks the short, exact API endpoint for common-word queries like
 	// "consultar cobrança por txid". Length normalization fixes that bias.
 	query := fmt.Sprintf(`
-SELECT id, coalesce(title,''), type,
+SELECT id, coalesce(title,''), type, domain,
        ts_rank_cd(
          setweight(to_tsvector(
            (CASE WHEN language = 'en' THEN 'english' ELSE 'portuguese' END)::regconfig,
@@ -149,7 +158,7 @@ LIMIT $%d`, where, len(args))
 	rank := 0
 	for rows.Next() {
 		var h Hit
-		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Score); err != nil {
+		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Domain, &h.Score); err != nil {
 			return nil, fmt.Errorf("scan fts hit: %w", err)
 		}
 		rank++
@@ -187,6 +196,10 @@ func buildFTSWhere(q string, f Filter) (string, []any, error) {
 	if len(f.ExcludeIDs) > 0 {
 		args = append(args, f.ExcludeIDs)
 		where += fmt.Sprintf(" AND id != ALL($%d)", len(args))
+	}
+	if len(f.Domains) > 0 {
+		args = append(args, f.Domains)
+		where += fmt.Sprintf(" AND domain = ANY($%d)", len(args))
 	}
 	if pred, ok := asOfConceptPredicate(&args, f); ok {
 		where += " AND " + pred

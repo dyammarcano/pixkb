@@ -64,7 +64,7 @@ func newSearchCmd() *cobra.Command {
 	var dsn, mode, typ, tag, format, asOfTime, where string
 	var limit, asOfEpoch int
 	var explain bool
-	var includeTypes, excludeIDs []string
+	var includeTypes, excludeIDs, domains []string
 	var minVecScore float64
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -102,6 +102,7 @@ func newSearchCmd() *cobra.Command {
 			f := postgres.Filter{
 				Type: typ, Tag: tag, Limit: limit,
 				IncludeTypes: includeTypes, ExcludeIDs: excludeIDs, MinVecScore: minVecScore,
+				Domains: domains,
 			}
 			if where != "" {
 				f.HQLWhere = func(start int) (string, []any, error) {
@@ -181,6 +182,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&asOfTime, "as-of-time", "", "time-travel: return the state as of this RFC3339 timestamp (empty = unset)")
 	cmd.Flags().StringSliceVar(&includeTypes, "include-type", nil, "restrict to concepts whose type is in this list (comma-separated or repeatable; ORs with --type when both are set)")
 	cmd.Flags().StringSliceVar(&excludeIDs, "exclude-id", nil, "exclude these concept ids from results (comma-separated or repeatable)")
+	cmd.Flags().StringSliceVar(&domains, "domain", nil, "restrict to concepts in these domains, e.g. pix or bacen-normative (comma-separated or repeatable; empty = all domains)")
 	cmd.Flags().Float64Var(&minVecScore, "min-vector-score", 0, "drop vector-arm hits scoring below this cosine similarity (0 = disabled)")
 	cmd.Flags().StringVar(&where, "where", "", "HQL predicate to narrow results before ranking, e.g. 'type = LegalArticle AND domain = tax' (any ORDER BY/LIMIT in it is ignored — ranking uses relevance + --limit)")
 	return cmd
