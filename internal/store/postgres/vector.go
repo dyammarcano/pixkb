@@ -46,6 +46,10 @@ func (s *Store) Vector(ctx context.Context, vec []float32, f Filter) ([]Hit, err
 		args = append(args, f.ExcludeIDs)
 		add(fmt.Sprintf("c.id != ALL($%d)", len(args)))
 	}
+	if len(f.Domains) > 0 {
+		args = append(args, f.Domains)
+		add(fmt.Sprintf("c.domain = ANY($%d)", len(args)))
+	}
 	if pred, ok := asOfConceptPredicate(&args, f); ok {
 		add(pred) // "id IN (...)" — resolves to concept.id
 	}
