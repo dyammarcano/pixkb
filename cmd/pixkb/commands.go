@@ -22,7 +22,7 @@ import (
 
 // attachCommands wires the knowledge-base subcommands onto root.
 func attachCommands(root *cobra.Command) {
-	root.AddCommand(newIngestCmd(), newSearchCmd(), newReindexCmd(), newDiffCmd(), newStatsCmd(), newRelatedCmd(), newSimilarCmd(), newAgentsCmd(), newConceptCmd(), newMCPCmd(), newHygieneCmd(), newCurateCmd(), newQRCmd(), newAskCmd(), newISPBCmd(), newEvalCmd(), newVocabCmd(), newSearchHealthCmd(), newEconIndexCmd(), newQueryCmd())
+	root.AddCommand(newIngestCmd(), newSearchCmd(), newReindexCmd(), newDiffCmd(), newStatsCmd(), newRelatedCmd(), newSimilarCmd(), newAgentsCmd(), newConceptCmd(), newMCPCmd(), newHygieneCmd(), newCurateCmd(), newQRCmd(), newAskCmd(), newISPBCmd(), newEvalCmd(), newVocabCmd(), newSearchHealthCmd(), newEconIndexCmd(), newQueryCmd(), newLinkCmd())
 }
 
 func newIngestCmd() *cobra.Command {
