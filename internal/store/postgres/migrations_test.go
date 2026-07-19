@@ -125,3 +125,33 @@ func TestMigration0003PtStopwords(t *testing.T) {
 	assert.Contains(t, downSQL, "DROP TEXT SEARCH CONFIGURATION IF EXISTS pixpt")
 	assert.Contains(t, downSQL, "DROP TEXT SEARCH DICTIONARY IF EXISTS pt_simple_nostem")
 }
+
+func TestMigration0007ConceptDomain(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0007_concept_domain.up.sql"], "missing 0007 up migration")
+	require.True(t, names["0007_concept_domain.down.sql"], "missing 0007 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0007_concept_domain.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS domain text", // additive domain column
+		"NOT NULL DEFAULT 'pix'",               // back-fills existing concepts as pix
+		"CREATE INDEX IF NOT EXISTS concept_domain_idx ON concept(domain)",
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0007 up missing %q", want)
+	}
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0007_concept_domain.down.sql")
+	require.NoError(t, err)
+	downSQL := string(down)
+	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_domain_idx")
+	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS domain")
+}
