@@ -78,3 +78,43 @@ func TestUpsertConcept_InsertThenUpdate(t *testing.T) {
 	require.NoError(t, s.pool.QueryRow(ctx, "SELECT count(*) FROM concept").Scan(&cnt))
 	require.Equal(t, 1, cnt)
 }
+
+func TestUpsertConcept_DomainRoundTrip(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	base := okf.Concept{
+		Type:       "message",
+		Resource:   "pacs.008",
+		ContentSHA: "sha1",
+		Epoch:      1,
+		Timestamp:  time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Explicit domain is preserved.
+	withDomain := base
+	withDomain.ID = "concept/with-domain.md"
+	withDomain.Domain = "bacen-normative"
+	require.NoError(t, s.UpsertConcept(ctx, withDomain))
+
+	// Empty domain back-fills to the 'pix' column default.
+	noDomain := base
+	noDomain.ID = "concept/no-domain.md"
+	noDomain.Domain = ""
+	require.NoError(t, s.UpsertConcept(ctx, noDomain))
+
+	got, err := s.QueryConcepts(ctx, "id = $1", []any{withDomain.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "bacen-normative", got[0].Domain)
+
+	got, err = s.QueryConcepts(ctx, "id = $1", []any{noDomain.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "pix", got[0].Domain, "empty domain must read back as the 'pix' default")
+}

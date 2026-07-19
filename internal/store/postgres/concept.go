@@ -15,9 +15,10 @@ func (s *Store) UpsertConcept(ctx context.Context, c okf.Concept) error {
 	const q = `
 INSERT INTO concept
   (id, type, title, description, resource, tags, language, body,
-   content_sha, source_uri, first_epoch, last_epoch, updated_at, intent_terms)
+   content_sha, source_uri, first_epoch, last_epoch, updated_at, intent_terms, domain)
 VALUES
-  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+   coalesce(NULLIF($15, ''), 'pix'))
 ON CONFLICT (id) DO UPDATE SET
   type         = EXCLUDED.type,
   title        = EXCLUDED.title,
@@ -31,7 +32,8 @@ ON CONFLICT (id) DO UPDATE SET
   intent_terms = EXCLUDED.intent_terms,
   first_epoch  = LEAST(concept.first_epoch, EXCLUDED.first_epoch),
   last_epoch   = GREATEST(concept.last_epoch, EXCLUDED.last_epoch),
-  updated_at   = EXCLUDED.updated_at`
+  updated_at   = EXCLUDED.updated_at,
+  domain       = EXCLUDED.domain`
 
 	tags := c.Tags
 	if tags == nil {
@@ -39,7 +41,7 @@ ON CONFLICT (id) DO UPDATE SET
 	}
 	if _, err := s.pool.Exec(ctx, q,
 		c.ID, c.Type, c.Title, c.Description, c.Resource, tags, c.Language,
-		c.Body, c.ContentSHA, c.SourceURI, c.Epoch, c.Epoch, c.Timestamp, c.IntentTerms,
+		c.Body, c.ContentSHA, c.SourceURI, c.Epoch, c.Epoch, c.Timestamp, c.IntentTerms, c.Domain,
 	); err != nil {
 		return fmt.Errorf("upsert concept %q: %w", c.ID, err)
 	}
