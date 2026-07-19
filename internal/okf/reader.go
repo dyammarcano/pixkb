@@ -42,6 +42,8 @@ func ReadConcept(path, bundleDir string) (Concept, error) {
 		Epoch:       fm.Epoch,
 		ContentSHA:  fm.ContentSHA,
 		SourceURI:   fm.SourceURI,
+		Domain:      fm.Domain,
+		NormRef:     fm.NormRef,
 		IntentTerms: fm.IntentTerms,
 		EmbeddedAt:  fm.EmbeddedAt,
 		EmbedModel:  fm.EmbedModel,

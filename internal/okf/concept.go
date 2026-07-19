@@ -18,6 +18,12 @@ type Concept struct {
 	Epoch       int
 	ContentSHA  string
 	SourceURI   string
+	// Domain names the knowledge domain a concept belongs to (e.g. "pix",
+	// "bacen-normative"). Empty means unspecified; callers default it downstream.
+	Domain string
+	// NormRef is an optional normative reference (e.g. a BCB resolution id) that
+	// anchors the concept to its regulatory source.
+	NormRef     string
 	EmbeddedAt  time.Time
 	EmbedModel  string
 	Body        string

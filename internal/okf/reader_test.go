@@ -52,6 +52,30 @@ func TestWriteReadRoundTrip(t *testing.T) {
 	assert.Equal(t, ComputeSHA(body), out.ContentSHA)
 }
 
+func TestWriteReadRoundTripDomainNormRef(t *testing.T) {
+	dir := t.TempDir()
+	in := Concept{
+		ID:      "norms/res-bcb-1.md",
+		Type:    "NormativeConcept",
+		Domain:  "bacen-normative",
+		NormRef: "RES-BCB-1-2020",
+		Body:    "norm body\n",
+	}
+	require.NoError(t, WriteConcept(dir, in))
+
+	out, err := ReadConcept(filepath.Join(dir, "norms", "res-bcb-1.md"), dir)
+	require.NoError(t, err)
+	assert.Equal(t, "bacen-normative", out.Domain)
+	assert.Equal(t, "RES-BCB-1-2020", out.NormRef)
+
+	// A concept whose front-matter omits domain reads back empty.
+	require.NoError(t, WriteConcept(dir, Concept{ID: "plain.md", Type: "Repo", Body: "x\n"}))
+	plain, err := ReadConcept(filepath.Join(dir, "plain.md"), dir)
+	require.NoError(t, err)
+	assert.Equal(t, "", plain.Domain)
+	assert.Equal(t, "", plain.NormRef)
+}
+
 func TestReadConceptIDIsBundleRelativeSlash(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, WriteConcept(dir, Concept{
