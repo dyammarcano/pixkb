@@ -15,23 +15,42 @@ const domainTagPrefix = "domain:"
 // defaultDomain is applied to any concept no source tagged with a domain.
 const defaultDomain = "pix"
 
-// tagDomain ensures every concept carries exactly one domain:* tag. A concept a
-// source already tagged (e.g. domain:tax) keeps it; all others get domain:pix.
-// Idempotent — a concept that already has a domain tag is left untouched.
+// tagDomain reconciles each concept's domain TAG and domain COLUMN so they
+// always agree. In one pass it: derives the domain from an existing domain:*
+// tag (prefix stripped) and writes it to concepts[i].Domain, defaulting to
+// defaultDomain ("pix") when no source tagged one; and keeps the domain:pix tag
+// stamping so the tag remains a consistent compatibility alias (HQL `domain:`
+// queries and similar/domain.go still work). After this call the tag and the
+// column ALWAYS carry the same domain. Idempotent — re-running is stable.
 func tagDomain(concepts []okf.Concept) []okf.Concept {
 	for i := range concepts {
-		hasDomain := false
+		domain := defaultDomain
 		for _, t := range concepts[i].Tags {
 			if strings.HasPrefix(t, domainTagPrefix) {
-				hasDomain = true
+				domain = strings.TrimPrefix(t, domainTagPrefix)
 				break
 			}
 		}
-		if !hasDomain {
-			concepts[i].Tags = append(concepts[i].Tags, domainTagPrefix+defaultDomain)
+		concepts[i].Domain = domain
+		if domain == defaultDomain {
+			// No source tagged a domain (or it is already pix): ensure the
+			// compatibility alias tag is present without double-tagging.
+			if !hasDomainTag(concepts[i].Tags) {
+				concepts[i].Tags = append(concepts[i].Tags, domainTagPrefix+defaultDomain)
+			}
 		}
 	}
 	return concepts
+}
+
+// hasDomainTag reports whether tags already carries any domain:* tag.
+func hasDomainTag(tags []string) bool {
+	for _, t := range tags {
+		if strings.HasPrefix(t, domainTagPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // GatherAll fetches every source in order and returns the merged concept set,

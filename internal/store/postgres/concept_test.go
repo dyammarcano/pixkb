@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 	"time"
 
@@ -117,6 +118,43 @@ func TestUpsertConcept_DomainRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, "pix", got[0].Domain, "empty domain must read back as the 'pix' default")
+}
+
+// TestMigration0010_BackfillDomainFromTags proves the 0010 backfill makes the
+// domain COLUMN authoritative from the domain:* TAG for pre-backfill rows: a
+// concept seeded with tags {api,domain:tax} but column domain='pix' (the state
+// the ingest path used to leave) must read back domain='tax' after the backfill.
+func TestMigration0010_BackfillDomainFromTags(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	const id = "concept/backfill-tax.md"
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO concept (id, type, title, body, content_sha, tags, domain, first_epoch, last_epoch, updated_at)
+VALUES ($1, 'ManualSection', 'Tax concept', 'body', 'sha-backfill', $2, 'pix', 1, 1, now())`,
+		id, []string{"api", "domain:tax"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = s.pool.Exec(context.Background(), "DELETE FROM concept WHERE id=$1", id) })
+
+	// Sanity: pre-backfill the column is the wrong 'pix'.
+	var before string
+	require.NoError(t, s.pool.QueryRow(ctx, "SELECT domain FROM concept WHERE id=$1", id).Scan(&before))
+	require.Equal(t, "pix", before)
+
+	// Apply the 0010 backfill SQL (the same DDL production runs via `db up`).
+	sqlBytes, err := fs.ReadFile(SchemaFS, "schema/0010_backfill_domain_from_tags.up.sql")
+	require.NoError(t, err)
+	_, err = s.pool.Exec(ctx, string(sqlBytes))
+	require.NoError(t, err)
+
+	var after string
+	require.NoError(t, s.pool.QueryRow(ctx, "SELECT domain FROM concept WHERE id=$1", id).Scan(&after))
+	require.Equal(t, "tax", after, "backfill must set the column from the domain:tax tag")
 }
 
 func TestUpsertConcept_NormRefRoundTrip(t *testing.T) {

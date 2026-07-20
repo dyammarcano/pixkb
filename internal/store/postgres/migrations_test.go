@@ -214,3 +214,28 @@ func TestMigration0009EdgeUnique(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(down), "DROP INDEX IF EXISTS edge_cites_uniq")
 }
+
+func TestMigration0010BackfillDomainFromTags(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0010_backfill_domain_from_tags.up.sql"], "missing 0010 up migration")
+	require.True(t, names["0010_backfill_domain_from_tags.down.sql"], "missing 0010 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0010_backfill_domain_from_tags.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"UPDATE concept c SET domain = replace(t.tag, 'domain:', '')", // column takes the tag's value
+		"unnest(tags) AS tag",                                         // expand the tags array
+		"WHERE tag LIKE 'domain:%'",                                    // only domain:* tags
+		"replace(t.tag,'domain:','') <> ''",                           // skip an empty derived domain
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0010 up missing %q", want)
+	}
+}
