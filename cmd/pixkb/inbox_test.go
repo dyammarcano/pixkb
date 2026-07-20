@@ -86,25 +86,78 @@ func TestClassifyFetched(t *testing.T) {
 
 	// A PDF (by content-type) is kept as raw bytes in a .pdf file, never mangled.
 	pdfBytes := []byte("%PDF-1.7\n\xe2\xe3\xcf\xd3 binary")
-	name, content := classifyFetched("https://x/informe.pdf", "", "application/pdf", pdfBytes)
-	assert.Equal(t, ".pdf", filepath.Ext(name))
+	name, content := classifyFetched("base-abc", "https://x/informe.pdf", "", "application/pdf", pdfBytes)
+	assert.Equal(t, "base-abc.pdf", name)
 	assert.Equal(t, pdfBytes, content, "PDF bytes must be preserved verbatim")
 
 	// A PDF by URL extension even when the server sends octet-stream.
-	name, _ = classifyFetched("https://x/doc.pdf", "", "application/octet-stream", pdfBytes)
+	name, _ = classifyFetched("base-abc", "https://x/doc.pdf", "", "application/octet-stream", pdfBytes)
 	assert.Equal(t, ".pdf", filepath.Ext(name))
 
 	// HTML is converted to text and any invalid UTF-8 is stripped.
 	html := []byte("<html><body><h1>Ol\xe1</h1><p>t\xe3xto</p></body></html>")
-	name, content = classifyFetched("https://x/page", "T", "text/html; charset=utf-8", html)
-	assert.Equal(t, ".md", filepath.Ext(name))
+	name, content = classifyFetched("base-abc", "https://x/page", "T", "text/html; charset=utf-8", html)
+	assert.Equal(t, "base-abc.md", name)
 	assert.True(t, utf8.Valid(content), "html->md output must be valid UTF-8")
 	assert.NotContains(t, string(content), "<h1>")
 
 	// An unknown binary keeps its bytes as an attachment (not a .md).
-	name, content = classifyFetched("https://x/pic.png", "", "image/png", []byte{0x89, 'P', 'N', 'G'})
+	name, content = classifyFetched("base-abc", "https://x/pic.png", "", "image/png", []byte{0x89, 'P', 'N', 'G'})
 	assert.Equal(t, ".png", filepath.Ext(name))
 	assert.Equal(t, []byte{0x89, 'P', 'N', 'G'}, content)
+}
+
+func TestNormalizeURL(t *testing.T) {
+	t.Parallel()
+	// These variants must all normalize to the same canonical string.
+	same := []string{
+		"https://BCB.gov.br/a/b/",
+		"https://bcb.gov.br:443/a/b",
+		"https://bcb.gov.br/a/b/#section",
+		"https://bcb.gov.br/a/b",
+	}
+	var canon string
+	for i, in := range same {
+		got, ok := normalizeURL(in)
+		require.True(t, ok, "%q should parse", in)
+		if i == 0 {
+			canon = got
+		} else {
+			assert.Equal(t, canon, got, "%q should normalize to %q", in, canon)
+		}
+	}
+	// Query keys are sorted for a stable identity.
+	a, _ := normalizeURL("https://x/p?b=2&a=1")
+	b, _ := normalizeURL("https://x/p?a=1&b=2")
+	assert.Equal(t, a, b)
+
+	for _, bad := range []string{"", "ftp://x/y", "not a url", "file:///etc"} {
+		_, ok := normalizeURL(bad)
+		assert.False(t, ok, "%q must be rejected", bad)
+	}
+}
+
+func TestURLHash_StableAndDistinct(t *testing.T) {
+	t.Parallel()
+	n1, _ := normalizeURL("https://bcb.gov.br/a/")
+	n2, _ := normalizeURL("https://bcb.gov.br/a")
+	assert.Equal(t, urlHash(n1), urlHash(n2), "equivalent URLs share a hash")
+	n3, _ := normalizeURL("https://bcb.gov.br/b")
+	assert.NotEqual(t, urlHash(n1), urlHash(n3), "different URLs differ")
+	assert.Len(t, urlHash(n1), 12)
+}
+
+func TestInboxServer_FindByHash(t *testing.T) {
+	t.Parallel()
+	s := &inboxServer{cfg: Config{IngestDir: t.TempDir()}}
+	require.NoError(t, os.MkdirAll(s.dir(), 0o755))
+	norm, _ := normalizeURL("https://bcb.gov.br/x")
+	h := urlHash(norm)
+	name := stageBase(norm, h) + ".md"
+	require.NoError(t, os.WriteFile(filepath.Join(s.dir(), name), []byte("x"), 0o644))
+
+	assert.Equal(t, name, s.findByHash(h), "an already-staged hash is found")
+	assert.Equal(t, "", s.findByHash("deadbeefdead"), "an unknown hash is not found")
 }
 
 func TestHTMLToText(t *testing.T) {

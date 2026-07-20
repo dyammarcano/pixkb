@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -155,8 +158,8 @@ func (s *inboxServer) handleURL(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
-	u := strings.TrimSpace(body.URL)
-	if u == "" || !(strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://")) {
+	norm, ok := normalizeURL(body.URL)
+	if !ok {
 		http.Error(w, "url must be http(s)", http.StatusBadRequest)
 		return
 	}
@@ -164,12 +167,83 @@ func (s *inboxServer) handleURL(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	name, content, fetched := fetchURL(req.Context(), u, body.Title)
+	// Dedup by a hash of the normalized URL: the same link (modulo case, default
+	// port, trailing slash, fragment, query order) is staged at most once and
+	// never re-fetched.
+	hash := urlHash(norm)
+	if existing := s.findByHash(hash); existing != "" {
+		writeJSON(w, map[string]any{"saved": existing, "fetched": false, "duplicate": true})
+		return
+	}
+	base := stageBase(norm, hash)
+	name, content, fetched := fetchURL(req.Context(), base, norm, body.Title)
 	if err := os.WriteFile(filepath.Join(s.dir(), name), content, 0o644); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]any{"saved": name, "fetched": fetched})
+	writeJSON(w, map[string]any{"saved": name, "fetched": fetched, "duplicate": false})
+}
+
+// normalizeURL parses and canonicalizes an http(s) URL so trivially-different
+// spellings of the same link hash identically: lowercased scheme+host, no
+// default port, no fragment, no trailing slash, and query keys sorted. Returns
+// false for anything that is not a valid http(s) URL.
+func normalizeURL(raw string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", false
+	}
+	u.Scheme = strings.ToLower(u.Scheme)
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return "", false
+	}
+	u.Host = strings.ToLower(u.Host)
+	u.Host = strings.TrimSuffix(u.Host, ":80")
+	u.Host = strings.TrimSuffix(u.Host, ":443")
+	u.Fragment = ""
+	if len(u.Path) > 1 {
+		u.Path = strings.TrimRight(u.Path, "/")
+	}
+	if u.RawQuery != "" {
+		u.RawQuery = u.Query().Encode() // Encode sorts by key
+	}
+	return u.String(), true
+}
+
+// urlHash is a short, stable content id for a normalized URL.
+func urlHash(norm string) string {
+	sum := sha256.Sum256([]byte(norm))
+	return hex.EncodeToString(sum[:])[:12]
+}
+
+// stageBase builds the staged filename stem: a (truncated) readable slug plus
+// the hash, so the file is both human-recognizable and uniquely keyed.
+func stageBase(norm, hash string) string {
+	slug := ingest.Slugify(norm)
+	if len(slug) > 80 {
+		slug = strings.Trim(slug[:80], "-")
+	}
+	return slug + "-" + hash
+}
+
+// findByHash returns the name of an already-staged file carrying this URL hash,
+// or "" if none. The hash is embedded in the stem as "-<hash>".
+func (s *inboxServer) findByHash(hash string) string {
+	entries, err := os.ReadDir(s.dir())
+	if err != nil {
+		return ""
+	}
+	marker := "-" + hash
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		stem := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+		if strings.HasSuffix(stem, marker) {
+			return e.Name()
+		}
+	}
+	return ""
 }
 
 func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
@@ -210,13 +284,13 @@ func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
 // converted to UTF-8-sanitized markdown, and any other binary is kept as-is (an
 // attachment). On any failure it returns a link-only markdown stub, so a URL is
 // always staged (the operator's "fetch when online, else store link" choice).
-func fetchURL(ctx context.Context, u, title string) (string, []byte, bool) {
+func fetchURL(ctx context.Context, base, u, title string) (string, []byte, bool) {
 	linkOnly := func(note string) (string, []byte, bool) {
 		t := title
 		if t == "" {
 			t = u
 		}
-		return ingest.Slugify(u) + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, note), false
+		return base + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, note), false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -236,7 +310,7 @@ func fetchURL(ctx context.Context, u, title string) (string, []byte, bool) {
 	if err != nil {
 		return linkOnly("(link only — response could not be read)")
 	}
-	name, content := classifyFetched(u, title, resp.Header.Get("Content-Type"), raw)
+	name, content := classifyFetched(base, u, title, resp.Header.Get("Content-Type"), raw)
 	return name, content, true
 }
 
@@ -245,8 +319,7 @@ func fetchURL(ctx context.Context, u, title string) (string, []byte, bool) {
 // HTML/text becomes UTF-8-sanitized markdown (invalid bytes stripped so the
 // Postgres UTF8 upsert never fails); anything else is kept raw as an attachment.
 // Pure (no I/O) so it is unit-testable.
-func classifyFetched(u, title, contentType string, raw []byte) (string, []byte) {
-	slug := ingest.Slugify(u)
+func classifyFetched(base, u, title, contentType string, raw []byte) (string, []byte) {
 	ct := strings.ToLower(contentType)
 	clean := u
 	if i := strings.IndexAny(clean, "?#"); i >= 0 {
@@ -256,7 +329,7 @@ func classifyFetched(u, title, contentType string, raw []byte) (string, []byte) 
 
 	switch {
 	case strings.Contains(ct, "pdf") || ext == ".pdf":
-		return slug + ".pdf", raw
+		return base + ".pdf", raw
 	case strings.Contains(ct, "html") || strings.Contains(ct, "xml") || strings.HasPrefix(ct, "text/") ||
 		(ct == "" && (ext == "" || ext == ".html" || ext == ".htm" || ext == ".txt" || ext == ".md")):
 		t := title
@@ -268,12 +341,12 @@ func classifyFetched(u, title, contentType string, raw []byte) (string, []byte) 
 			text = htmlToText(text)
 		}
 		text = strings.ToValidUTF8(text, "") // drop invalid bytes — Postgres upsert requires valid UTF-8
-		return slug + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, strings.TrimSpace(text))
+		return base + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, strings.TrimSpace(text))
 	default:
 		if ext == "" {
 			ext = ".bin"
 		}
-		return slug + ext, raw
+		return base + ext, raw
 	}
 }
 

@@ -245,7 +245,9 @@
       const res = await fetch("/inbox/url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
       if (!res.ok) throw new Error(await res.text());
       const j = await res.json();
-      statusEl.innerHTML = j.fetched ? '<span class="ok">Link buscado e indexado.</span>' : '<span class="hint">Link salvo (não foi possível buscar — offline?).</span>';
+      statusEl.innerHTML = j.duplicate ? '<span class="hint">Este link já está na fila (ignorado).</span>'
+        : j.fetched ? '<span class="ok">Link buscado e indexado.</span>'
+        : '<span class="hint">Link salvo (não foi possível buscar — offline?).</span>';
       $("urlinput").value = ""; refreshStaged();
     } catch (e) { statusEl.innerHTML = '<span class="err">' + esc(e.message) + "</span>"; }
   });
