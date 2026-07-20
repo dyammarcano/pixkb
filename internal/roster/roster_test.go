@@ -6,7 +6,7 @@ import (
 
 	"github.com/inovacc/corral"
 
-	_ "pixkb/internal/roster" // populate corral's registry
+	"pixkb/internal/roster"
 )
 
 func TestRosterRegistered(t *testing.T) {
@@ -45,5 +45,27 @@ func TestRosterRegistered(t *testing.T) {
 	ans, _ := corral.ByName("answerer")
 	if !strings.Contains(ans.Schema, "refused") {
 		t.Error("answerer agent missing refused field in schema")
+	}
+}
+
+func TestCharterFor(t *testing.T) {
+	const marker = "BACEN domain charter"
+
+	for _, domain := range []string{"pix", "bacen-normative"} {
+		c := roster.CharterFor(domain)
+		if c == "" {
+			t.Errorf("CharterFor(%q) returned empty charter", domain)
+		}
+		if !strings.Contains(c, marker) {
+			t.Errorf("CharterFor(%q) missing marker %q", domain, marker)
+		}
+	}
+
+	fallback := roster.CharterFor("unknown-domain")
+	if fallback == "" {
+		t.Error("CharterFor(unknown) returned empty fallback")
+	}
+	if !strings.Contains(fallback, marker) {
+		t.Errorf("CharterFor(unknown) fallback missing marker %q", marker)
 	}
 }

@@ -139,6 +139,27 @@ const domainCharter = "\n\n--- BACEN domain charter (ENFORCED) ---\n" +
 	"DROP the implementation detail. A concept that only makes sense inside one project does " +
 	"NOT belong in this KB. Describe the flow from BACEN's view, never a particular project's."
 
+// charters maps a KB domain to its normative system-prompt charter. Both pilot
+// domains ("pix" and "bacen-normative") currently share the single BACEN charter
+// — same issuer, same normative scope — but the seam lets future domains carry
+// their own charter without touching agent registration.
+var charters = map[string]string{
+	"pix":             domainCharter,
+	"bacen-normative": domainCharter,
+}
+
+// CharterFor returns the enforced domain charter (system-prompt scope text) for
+// the given KB domain. An unknown domain falls back to the BACEN charter — the
+// safe default for this Pix/SPB-first KB — so callers always receive a non-empty
+// charter rather than an empty scope.
+func CharterFor(domain string) string {
+	if c, ok := charters[domain]; ok {
+		return c
+	}
+	// Documented fallback: unknown domains default to the BACEN charter.
+	return domainCharter
+}
+
 // register appends the BACEN domain charter and the pixkb operating contract,
 // then adds the agent to corral's global roster.
 func register(a corral.Agent) {
