@@ -155,3 +155,35 @@ func TestMigration0007ConceptDomain(t *testing.T) {
 	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_domain_idx")
 	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS domain")
 }
+
+func TestMigration0008ConceptNormRef(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0008_concept_norm_ref.up.sql"], "missing 0008 up migration")
+	require.True(t, names["0008_concept_norm_ref.down.sql"], "missing 0008 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0008_concept_norm_ref.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS norm_ref TEXT",                                  // additive, nullable column
+		"CREATE INDEX IF NOT EXISTS concept_norm_ref_idx ON concept(norm_ref)",    // link lookup index
+		"WHERE norm_ref IS NOT NULL",                                              // partial index
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0008 up missing %q", want)
+	}
+	// norm_ref is optional: no NOT NULL / DEFAULT back-fill, unlike domain.
+	assert.NotContains(t, upSQL, "NOT NULL DEFAULT", "norm_ref must be nullable with no default")
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0008_concept_norm_ref.down.sql")
+	require.NoError(t, err)
+	downSQL := string(down)
+	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_norm_ref_idx")
+	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS norm_ref")
+}

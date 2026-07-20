@@ -118,3 +118,49 @@ func TestUpsertConcept_DomainRoundTrip(t *testing.T) {
 	require.Len(t, got, 1)
 	require.Equal(t, "pix", got[0].Domain, "empty domain must read back as the 'pix' default")
 }
+
+func TestUpsertConcept_NormRefRoundTrip(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	base := okf.Concept{
+		Type:       "message",
+		Resource:   "pacs.008",
+		ContentSHA: "sha1",
+		Epoch:      1,
+		Timestamp:  time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Explicit norm_ref is preserved.
+	withRef := base
+	withRef.ID = "concept/with-ref.md"
+	withRef.NormRef = "RES-BCB-1-2020"
+	require.NoError(t, s.UpsertConcept(ctx, withRef))
+
+	// Empty norm_ref stores SQL NULL and reads back as "".
+	noRef := base
+	noRef.ID = "concept/no-ref.md"
+	noRef.NormRef = ""
+	require.NoError(t, s.UpsertConcept(ctx, noRef))
+
+	got, err := s.QueryConcepts(ctx, "id = $1", []any{withRef.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "RES-BCB-1-2020", got[0].NormRef)
+
+	got, err = s.QueryConcepts(ctx, "id = $1", []any{noRef.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "", got[0].NormRef, "empty norm_ref must read back as \"\"")
+
+	// The column must actually be SQL NULL (not empty string) for empty refs.
+	var isNull bool
+	require.NoError(t, s.pool.QueryRow(ctx,
+		"SELECT norm_ref IS NULL FROM concept WHERE id=$1", noRef.ID).Scan(&isNull))
+	require.True(t, isNull, "empty norm_ref must persist as SQL NULL")
+}
