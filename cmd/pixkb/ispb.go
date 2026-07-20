@@ -290,6 +290,25 @@ func newISPBSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Brand-alias expansion: the registry lists legal names (Nubank ->
+			// "NU PAGAMENTOS"), and abbreviates "BANCO" as "BCO". Search each
+			// expanded fragment too, merging results de-duped by ISPB code.
+			seen := make(map[string]bool, len(matches))
+			for _, m := range matches {
+				seen[m.ISPB] = true
+			}
+			for _, frag := range ispb.AliasFragments(args[0]) {
+				extra, err := st.SearchISPB(ctx, frag)
+				if err != nil {
+					return err
+				}
+				for _, e := range extra {
+					if !seen[e.ISPB] {
+						seen[e.ISPB] = true
+						matches = append(matches, e)
+					}
+				}
+			}
 			out := cmd.OutOrStdout()
 			if len(matches) == 0 {
 				_, _ = fmt.Fprintln(out, "no matches")
