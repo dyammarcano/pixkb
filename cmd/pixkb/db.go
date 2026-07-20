@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -97,14 +96,18 @@ func normalizeDSN(dsn string) string {
 	return dsn
 }
 
-// resolveDSN returns the DSN from the --dsn flag, falling back to the
-// PIXKB_DSN environment variable. It errors if neither is set.
+// resolveDSN honors the project's config-file-as-source-of-truth design: the
+// --dsn flag wins if set; otherwise the loaded config supplies the DSN (global
+// config file -> pixkb.yaml -> PIXKB_DSN env, via loadConfig). db commands
+// previously read only the flag/env and ignored the config file entirely — a
+// deviation from that design, fixed here so `pixkb db up` resolves the DSN the
+// same way every other command already does.
 func resolveDSN(flagVal string) (string, error) {
 	if flagVal == "" {
-		flagVal = os.Getenv("PIXKB_DSN")
+		flagVal = loadConfig().DSN
 	}
 	if flagVal == "" {
-		return "", fmt.Errorf("--dsn flag or PIXKB_DSN env is required")
+		return "", fmt.Errorf("no database DSN: set `dsn` in the config file (%s), pixkb.yaml, PIXKB_DSN, or --dsn", globalConfigPath())
 	}
 	return flagVal, nil
 }
