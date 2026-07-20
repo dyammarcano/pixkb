@@ -14,10 +14,11 @@ func sourceNames(cfg Config) []string {
 	return names
 }
 
-// TestBuildSources_AlwaysHasISOSpec confirms the ISO-20022 message set is always
-// present, even for an empty config.
+// TestBuildSources_AlwaysHasISOSpec confirms the ISO-20022 message set and the
+// Dump/Ingest inbox source are always present, even for an empty config. The
+// inbox source is a no-op when its dir is absent, so it is always safe to wire.
 func TestBuildSources_AlwaysHasISOSpec(t *testing.T) {
-	require.Equal(t, []string{"iso-spec"}, sourceNames(Config{}))
+	require.Equal(t, []string{"iso-spec", "inbox"}, sourceNames(Config{}))
 }
 
 // TestBuildSources_WiresConfiguredSources confirms each configured input adds its

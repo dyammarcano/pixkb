@@ -237,6 +237,15 @@ func newServeCmd() *cobra.Command {
 					)
 				}
 				mux.HandleFunc("/ask", newAskHandler(ask))
+
+				// Dump/Ingest section: stage dropped files + fetched URLs under
+				// <ingest_dir>/inbox, then cut a new epoch on explicit request.
+				inbox := &inboxServer{cfg: cfg}
+				mux.HandleFunc("/inbox/upload", inbox.handleUpload)
+				mux.HandleFunc("/inbox/url", inbox.handleURL)
+				mux.HandleFunc("/inbox/ingest", inbox.handleIngest)
+				mux.HandleFunc("/inbox", inbox.handleList)
+
 				mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path != "/" {
 						http.NotFound(w, r)
