@@ -5,6 +5,29 @@ All notable changes to pixkb are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — cross-domain regulatory graph foundation (Phase 10 part 1)
+
+- First-class `domain` on concepts: OKF model + front-matter → `concept.domain`
+  column (migration 0007). Reconciled as the source of truth with the pre-existing
+  `domain:*` tag convention — `tagDomain` sets the column, migration 0010 backfills
+  existing rows (the Receita `domain:tax` corpus becomes `domain='tax'`); the tag
+  stays a compatibility alias.
+- `norm_ref` field + column (migration 0008) — stable citation-edge target.
+- Optional `--domain` search facet (empty = all-domain, byte-for-byte v0.1);
+  filters FTS and vector arms.
+- `internal/link` BACEN citation-edge parser + `pixkb link` — deterministic,
+  date-independent base-key matching materialises cross-domain `cites` edges
+  (`edge` unique index, migration 0009).
+- Per-domain vocabulary registry (`internal/query/domains/<name>/vocabulary.yaml`)
+  and per-domain agent-charter registry (`roster.CharterFor`).
+
+### Fixed
+
+- Concept hydrator crashed on a NULL `resource` column (`coalesce`) — pre-existing;
+  surfaced by the `pixkb link` full scan.
+
 ## [0.1.0] - 2026-07-18
 
 First tagged release. pixkb is an air-gapped Open Knowledge Format (OKF)
