@@ -160,6 +160,37 @@ func TestInboxServer_FindByHash(t *testing.T) {
 	assert.Equal(t, "", s.findByHash("deadbeefdead"), "an unknown hash is not found")
 }
 
+func TestInboxServer_ArchiveClearsQueueButKeepsFiles(t *testing.T) {
+	t.Parallel()
+	s := &inboxServer{cfg: Config{IngestDir: t.TempDir()}}
+	require.NoError(t, os.MkdirAll(s.dir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(s.dir(), "a.md"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(s.dir(), "b-abcdef012345.pdf"), []byte("y"), 0o644))
+
+	moved, err := s.archiveInbox()
+	require.NoError(t, err)
+	assert.Equal(t, 2, moved)
+
+	// Queue (top-level list) is now empty...
+	items, err := s.list()
+	require.NoError(t, err)
+	assert.Empty(t, items, "queue clears after archive")
+
+	// ...but the files still exist under ingested/ (so the source still gathers them).
+	_, err = os.Stat(filepath.Join(s.dir(), "ingested", "a.md"))
+	assert.NoError(t, err)
+	_, err = os.Stat(filepath.Join(s.dir(), "ingested", "b-abcdef012345.pdf"))
+	assert.NoError(t, err)
+
+	// And dedup still finds the archived file by hash.
+	assert.Equal(t, "b-abcdef012345.pdf", s.findByHash("abcdef012345"))
+
+	// A second archive with nothing staged is a no-op.
+	moved, err = s.archiveInbox()
+	require.NoError(t, err)
+	assert.Equal(t, 0, moved)
+}
+
 func TestHTMLToText(t *testing.T) {
 	t.Parallel()
 	html := `<html><head><style>.x{}</style><script>bad()</script></head>` +

@@ -226,24 +226,62 @@ func stageBase(norm, hash string) string {
 	return slug + "-" + hash
 }
 
-// findByHash returns the name of an already-staged file carrying this URL hash,
-// or "" if none. The hash is embedded in the stem as "-<hash>".
+// findByHash returns the name of an already-seen file carrying this URL hash, or
+// "" if none. The hash is embedded in the stem as "-<hash>". The search is
+// recursive so a URL already ingested (archived under ingested/) still dedups —
+// re-staging it would otherwise collide on the same derived concept id.
 func (s *inboxServer) findByHash(hash string) string {
-	entries, err := os.ReadDir(s.dir())
-	if err != nil {
-		return ""
-	}
 	marker := "-" + hash
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
+	found := ""
+	_ = filepath.Walk(s.dir(), func(_ string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || found != "" {
+			return nil
 		}
-		stem := strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))
+		stem := strings.TrimSuffix(fi.Name(), filepath.Ext(fi.Name()))
 		if strings.HasSuffix(stem, marker) {
-			return e.Name()
+			found = fi.Name()
+		}
+		return nil
+	})
+	return found
+}
+
+// archiveInbox moves the top-level staged files into the ingested/ subdir after
+// a successful ingest, clearing the visible queue while keeping the files where
+// the inbox source still gathers them (Run is a full-corpus snapshot that would
+// otherwise remove concepts dropped from the source). Returns the count moved.
+func (s *inboxServer) archiveInbox() (int, error) {
+	dir := s.dir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	var files []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			files = append(files, e.Name())
 		}
 	}
-	return ""
+	if len(files) == 0 {
+		return 0, nil
+	}
+	archive := filepath.Join(dir, "ingested")
+	if err := os.MkdirAll(archive, 0o755); err != nil {
+		return 0, err
+	}
+	moved := 0
+	for _, name := range files {
+		dst := filepath.Join(archive, name)
+		_ = os.Remove(dst) // replace a prior archived copy of the same file
+		if err := os.Rename(filepath.Join(dir, name), dst); err != nil {
+			return moved, err
+		}
+		moved++
+	}
+	return moved, nil
 }
 
 func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
@@ -272,10 +310,17 @@ func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]any{
+	// Clear the queue: move the just-ingested files into ingested/ (still gathered
+	// by the source, so Run's full-corpus snapshot keeps them next time).
+	archived, archErr := s.archiveInbox()
+	out := map[string]any{
 		"epoch": res.Epoch, "added": res.Added, "changed": res.Changed,
-		"removed": res.Removed, "commit": short(res.Commit),
-	})
+		"removed": res.Removed, "commit": short(res.Commit), "archived": archived,
+	}
+	if archErr != nil {
+		out["archive_error"] = archErr.Error()
+	}
+	writeJSON(w, out)
 }
 
 // fetchURL GETs u and returns (filename, file-bytes, fetched). It routes by

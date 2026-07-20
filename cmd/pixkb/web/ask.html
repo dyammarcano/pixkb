@@ -259,7 +259,8 @@
       const res = await fetch("/inbox/ingest", { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
       const r = await res.json();
-      statusEl.innerHTML = '<span class="ok">Epoch ' + r.epoch + ': +' + r.added + ' ~' + r.changed + ' -' + r.removed + ' (commit ' + esc(r.commit) + ')</span>';
+      statusEl.innerHTML = '<span class="ok">Epoch ' + r.epoch + ': +' + r.added + ' ~' + r.changed + ' -' + r.removed +
+        ' (commit ' + esc(r.commit) + ') — ' + (r.archived || 0) + ' item(ns) arquivado(s)</span>';
       refreshStaged();
     } catch (e) { statusEl.innerHTML = '<span class="err">' + esc(e.message) + "</span>"; }
     finally { btn.disabled = false; }
