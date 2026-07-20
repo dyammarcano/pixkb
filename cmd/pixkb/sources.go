@@ -39,6 +39,10 @@ func buildSources(cfg Config) []ingest.Source {
 		slog.Warn("configured domain is not a known KB domain (pix|tax); its concepts will be invisible to domain filters", "source", b)
 	}
 	srcs := []ingest.Source{ingest.NewISOSpecSource(ingest.DefaultMsgDefs())}
+	// The Dump/Ingest UI stages ad-hoc dropped files + fetched URLs under
+	// <ingest_dir>/inbox; a missing dir yields no concepts, so this is safe to
+	// include unconditionally.
+	srcs = append(srcs, ingest.NewInboxSource(filepath.Join(cfg.IngestDir, "inbox")))
 	if len(cfg.PDFs) > 0 {
 		srcs = append(srcs, ingest.NewPDFSource(cfg.PDFs))
 	}
