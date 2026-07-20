@@ -1,6 +1,18 @@
 # pixkb — Completion Record
 
-- **Project:** pixkb — air-gapped Go OKF knowledge base for BR Pix/SPB + Receita Federal tax
+## Checkpoint — 2026-07-19 (v0.2 foundation merged)
+
+- **Tier:** T1 — Personal, **with a self-chosen multi-domain vision** (operator-confirmed 2026-07-19: still **zero users**; the tier-raise was a decision, not a consumer appearing).
+- **Verdict:** **STOP-READY.** v0.2 part-1 (cross-domain regulatory-graph foundation) is merged to `master` (merge `ec07a5a`, 14 commits) and independently verified green. "Foundation merged" is an honest stopping marker.
+- **The line:** with no user, **part-2 is below the line — optional-forever until a consumer exists.** Above-the-line distance for the *actual* (zero-user) tier = **0**.
+- **Below-the-line (v0.2 part-2, reopens only when a user appears):** real BACEN-normative corpus ingest (operator-blocked on offline files), cross-domain RAG citation-provenance + `cites`-edge traversal (the payoff; unblocked — a legitimate *conscious* one-more-piece), MCP `domain` flags, `bundle/<domain>/` move. Tracked in BACKLOG P2.
+- **Delivered this cycle:** first-class `domain` (migrations 0007/0010, reconciled as source-of-truth with the `domain:*` tag corpus), `norm_ref` (0008), `--domain` facet, BACEN citation parser + `pixkb link` + `cites` edges (0009), per-domain vocabulary + charter registries. Whole-branch reviewed (1 Important + minors, all fixed); e2e proven (`pix → bacen-normative` cites edge; `domain:tax` backfill).
+- **Discipline note:** this is the same finish-line the tool drew at v0.1.0 — a zero-user tool at a clean stopping point. Continuing into part-2 without a user is the treadmill at a higher tier. Ship-the-vision is a valid *choice*, not a *requirement*.
+
+---
+
+## Prior record — 2026-07-18 (T1 baseline, pre-v0.2)
+
 - **Tier:** T1 — Personal (solo author, no client/consumer, no releases; operator-confirmed)
 - **Verdict:** **OVER-BUILDING**
 - **Distance-to-done:** **0 above-the-line essentials (~0 sessions)** — T1 line is clear
