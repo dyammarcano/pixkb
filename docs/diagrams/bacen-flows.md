@@ -42,6 +42,39 @@ A refund (devolução) is carried as **pacs.004** (Payment Return) and/or
 carries an **RtrId** — 32 chars, prefix `D` — issued by the refunding PSP. One Pix
 can have multiple `RtrId`s (partial refunds).
 
+## MED — Mecanismo Especial de Devolução
+
+```mermaid
+sequenceDiagram
+    participant U as Usuário pagador
+    participant P as Pagador PSP
+    participant DICT as DICT (BACEN)
+    participant R as Recebedor PSP
+    U->>P: relata fraude / falha operacional
+    P->>DICT: notificação de infração (infraction report)
+    R->>R: análise + bloqueio cautelar do saldo
+    R->>SPI: pacs.004 — devolução (RtrId prefix D)
+    R->>R: monitora conta até 90 dias (devolução parcial)
+```
+
+The **MED (Mecanismo Especial de Devolução)** is BACEN's set of rules and
+operational procedures that let a Pix be returned **starting from the receiving
+participant**, in cases of founded suspicion of fraud or of an operational/system
+failure in the Pix. It was established/expanded by **Resolução BCB nº 147 (16 Nov
+2021)**.
+
+The paying user reports the incident to their **Pagador PSP**, which opens a
+**notificação de infração (infraction report)** against the receiving account
+through **DICT**. The **Recebedor PSP** analyses the report, may place a
+**cautelary block** on the funds, and returns them via the ordinary **devolução**
+flow (**pacs.004**, `RtrId` prefix `D`, settled through the SPI). Since Resolução
+147, infraction reports may also be opened for transactions **settled in the
+participant's own books**, but a **refund request** can only be opened for
+transactions **settled in the SPI**. When a refund is partial or is rejected for
+insufficient balance in the receiving account, the Recebedor PSP must **monitor the
+account and refund up to the requested amount for 90 days**, counted from the
+original transaction. **MED 2.0** (2025) extends these procedures.
+
 ## DICT key resolution
 
 ```mermaid
