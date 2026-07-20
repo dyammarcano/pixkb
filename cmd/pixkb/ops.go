@@ -246,6 +246,11 @@ func newServeCmd() *cobra.Command {
 				mux.HandleFunc("/inbox/ingest", inbox.handleIngest)
 				mux.HandleFunc("/inbox", inbox.handleList)
 
+				// Feedback capture: thumbs up/down on answers, appended to a JSONL
+				// log for later quality analysis.
+				fb := &feedbackServer{path: filepath.Join(cfg.IngestDir, "feedback.jsonl")}
+				mux.HandleFunc("/feedback", fb.handle)
+
 				mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 					if r.URL.Path != "/" {
 						http.NotFound(w, r)

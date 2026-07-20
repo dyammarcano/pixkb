@@ -53,6 +53,12 @@
   .cites ul, .staged ul { margin: 0; padding-left: 0; list-style: none; }
   .cites li { padding: 6px 10px; background: var(--panel2); border-radius: 8px; margin-bottom: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
   .cites li .src { color: var(--muted); }
+  .feedback { margin-top: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .feedback button.fb { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 14px; }
+  .feedback button.fb:hover { border-color: var(--accent); }
+  .feedback button.fb.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .feedback input.fbnote { flex: 1; min-width: 140px; padding: 6px 10px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+  .feedback .fbstatus.ok { color: var(--ok); }
   .hint { color: var(--muted); }
   .err { color: var(--refuse); background: var(--panel); border: 1px solid var(--refuse); border-radius: 12px; padding: 14px 18px; }
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
@@ -157,7 +163,32 @@
       for (const c of data.citations) html += "<li>" + esc(c.id) + (c.source ? ' <span class="src">— ' + esc(c.source) + "</span>" : "") + "</li>";
       html += "</ul></div>";
     }
+    html += '<div class="feedback" id="fbbar">' +
+      '<span>Esta resposta foi útil?</span>' +
+      '<button class="fb" data-v="up" title="Útil">👍</button>' +
+      '<button class="fb" data-v="down" title="Não útil">👎</button>' +
+      '<input class="fbnote" placeholder="observação (opcional)">' +
+      '<span class="fbstatus"></span></div>';
     resultEl.innerHTML = html;
+    wireFeedback(q, data);
+  }
+  function wireFeedback(q, data) {
+    const bar = $("fbbar"); if (!bar) return;
+    const status = bar.querySelector(".fbstatus"), note = bar.querySelector(".fbnote");
+    bar.querySelectorAll("button.fb").forEach(b => {
+      b.addEventListener("click", async () => {
+        bar.querySelectorAll("button.fb").forEach(x => x.classList.toggle("sel", x === b));
+        status.textContent = "enviando…"; status.className = "fbstatus";
+        try {
+          const res = await fetch("/feedback", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: q, answer: data.answer, refused: !!data.refused, citations: data.citations || [], verdict: b.dataset.v, note: note.value.trim() })
+          });
+          if (!res.ok) throw new Error(await res.text());
+          status.textContent = "obrigado!"; status.className = "fbstatus ok";
+        } catch (e) { status.textContent = "erro: " + esc(e.message); status.className = "fbstatus"; }
+      });
+    });
   }
   async function ask() {
     const q = qEl.value.trim(); if (!q) return;
