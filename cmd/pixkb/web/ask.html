@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pixkb · ask</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
+    --fg: #e6e9ef; --muted: #97a0b0; --accent: #5b8cff; --accent2: #3a63c0;
+    --warn: #f0b040; --refuse: #e0645a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --border: #d8dce3;
+      --fg: #1a1d24; --muted: #5a6472; --accent: #2f5fd8; --accent2: #244aa8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--bg); color: var(--fg);
+  }
+  aside {
+    width: 280px; min-width: 280px; border-right: 1px solid var(--border);
+    background: var(--panel); display: flex; flex-direction: column; overflow: hidden;
+  }
+  aside header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  aside header h2 { margin: 0; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  #clear { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+  #clear:hover { color: var(--fg); border-color: var(--muted); }
+  #history { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
+  #history li { padding: 9px 10px; border-radius: 8px; cursor: pointer; color: var(--fg); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #history li:hover { background: var(--panel2); }
+  #history li.empty { color: var(--muted); cursor: default; font-style: italic; white-space: normal; }
+  #history li .ts { display: block; font-size: 11px; color: var(--muted); }
+  main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  main header { padding: 16px 24px 0; }
+  main header h1 { margin: 0; font-size: 18px; }
+  main header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .composer { padding: 16px 24px; display: flex; gap: 10px; align-items: flex-end; }
+  textarea {
+    flex: 1; resize: vertical; min-height: 54px; max-height: 220px; padding: 11px 13px;
+    background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; font: inherit;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  button.primary {
+    background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px 20px;
+    font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button.primary:hover { background: var(--accent2); }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .result { flex: 1; overflow-y: auto; padding: 4px 24px 28px; }
+  .q { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .q b { color: var(--fg); }
+  .answer { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; white-space: pre-wrap; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 999px; margin-bottom: 10px; }
+  .badge.refused { background: var(--refuse); color: #fff; }
+  .cites { margin-top: 16px; }
+  .cites h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+  .cites ul { margin: 0; padding-left: 0; list-style: none; }
+  .cites li { padding: 6px 10px; background: var(--panel2); border-radius: 8px; margin-bottom: 4px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+  .cites li .src { color: var(--muted); }
+  .hint { color: var(--muted); }
+  .err { color: var(--refuse); background: var(--panel); border: 1px solid var(--refuse); border-radius: 12px; padding: 14px 18px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<aside>
+  <header><h2>Histórico</h2><button id="clear" title="Limpar histórico">limpar</button></header>
+  <ul id="history"></ul>
+</aside>
+<main>
+  <header>
+    <h1>pixkb · ask</h1>
+    <p>Pergunte à base de conhecimento — resposta fundamentada e com citações.</p>
+  </header>
+  <div class="composer">
+    <textarea id="q" placeholder="Ex.: o que é o MED no Pix?" autofocus></textarea>
+    <button class="primary" id="send">Perguntar</button>
+  </div>
+  <div class="result" id="result">
+    <p class="hint">Digite uma pergunta e pressione <b>Perguntar</b> (ou Ctrl/⌘+Enter).</p>
+  </div>
+</main>
+<script>
+(() => {
+  "use strict";
+  const KEY = "pixkb.ask.history";
+  const CAP = 100;
+  const qEl = document.getElementById("q");
+  const sendEl = document.getElementById("send");
+  const resultEl = document.getElementById("result");
+  const historyEl = document.getElementById("history");
+
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
+  const save = (h) => { try { localStorage.setItem(KEY, JSON.stringify(h.slice(0, CAP))); } catch {} };
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function renderHistory() {
+    const h = load();
+    historyEl.innerHTML = "";
+    if (!h.length) {
+      const li = document.createElement("li");
+      li.className = "empty"; li.textContent = "Nenhuma pergunta ainda.";
+      historyEl.appendChild(li);
+      return;
+    }
+    h.forEach((item, i) => {
+      const li = document.createElement("li");
+      li.title = item.q;
+      const when = new Date(item.ts).toLocaleString();
+      li.innerHTML = esc(item.q) + '<span class="ts">' + esc(when) + "</span>";
+      li.addEventListener("click", () => { qEl.value = item.q; renderAnswer(item.q, item); });
+      historyEl.appendChild(li);
+    });
+  }
+
+  function renderAnswer(q, data) {
+    let html = '<p class="q">Pergunta: <b>' + esc(q) + "</b></p>";
+    if (data.refused) html += '<div class="badge refused">recusado</div>';
+    html += '<div class="answer">' + esc(data.answer || "") + "</div>";
+    if (data.citations && data.citations.length) {
+      html += '<div class="cites"><h3>Citações</h3><ul>';
+      for (const c of data.citations) {
+        html += "<li>" + esc(c.id) + (c.source ? ' <span class="src">— ' + esc(c.source) + "</span>" : "") + "</li>";
+      }
+      html += "</ul></div>";
+    }
+    resultEl.innerHTML = html;
+  }
+
+  async function ask() {
+    const q = qEl.value.trim();
+    if (!q) return;
+    sendEl.disabled = true;
+    resultEl.innerHTML = '<p class="hint"><span class="spinner"></span>Consultando a base…</p>';
+    try {
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q })
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        resultEl.innerHTML = '<div class="err">Erro ' + res.status + ": " + esc(txt.trim() || res.statusText) + "</div>";
+        return;
+      }
+      const data = await res.json();
+      renderAnswer(q, data);
+      const h = load();
+      h.unshift({ q, answer: data.answer, refused: data.refused, citations: data.citations || [], ts: Date.now() });
+      save(h);
+      renderHistory();
+    } catch (e) {
+      resultEl.innerHTML = '<div class="err">Falha de rede: ' + esc(e.message) + "</div>";
+    } finally {
+      sendEl.disabled = false;
+    }
+  }
+
+  sendEl.addEventListener("click", ask);
+  qEl.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ask(); }
+  });
+  document.getElementById("clear").addEventListener("click", () => {
+    if (confirm("Limpar todo o histórico?")) { save([]); renderHistory(); }
+  });
+
+  renderHistory();
+})();
+</script>
+</body>
+</html>

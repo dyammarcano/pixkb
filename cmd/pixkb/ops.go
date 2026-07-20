@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,15 +16,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/inovacc/corral"
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/embed"
 	"pixkb/internal/ingest"
 	"pixkb/internal/output"
 	"pixkb/internal/query"
+	"pixkb/internal/rag"
 	"pixkb/internal/store/postgres"
 	"pixkb/internal/watch"
 )
+
+// askPage is the self-contained ask UI served at GET / when `serve --ask` is set.
+//
+//go:embed web/ask.html
+var askPage []byte
 
 // attachOps wires the operational subcommands (watch/serve/doctor/export).
 func attachOps(root *cobra.Command) {
@@ -175,7 +183,8 @@ func (zeroReader) Read(p []byte) (int, error) {
 }
 
 func newServeCmd() *cobra.Command {
-	var dsn, addr string
+	var dsn, addr, provider string
+	var withAsk bool
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Read-only HTTP JSON search API over the KB (GET /search?q=...&type=...&format=...&explain=true)",
@@ -197,9 +206,54 @@ func newServeCmd() *cobra.Command {
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("/search", newSearchHandler(st, emb, cfg.BundleDir))
+
+			// --ask adds the RAG ask UI + endpoint. It invokes the agent fleet
+			// (generation), so it is not part of the default read-only contract
+			// and is opt-in. The agency is created once here and closed on
+			// shutdown — never per request.
+			if withAsk {
+				dir, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				ag, err := corral.NewAgency(provider, dir)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = ag.Close() }()
+
+				stats, err := st.Stats(ctx)
+				if err != nil {
+					return err
+				}
+				cache := rag.NewLRUCache(128)
+				ask := func(ctx context.Context, q, typ string) (rag.Answer, rag.Grounding, error) {
+					return rag.Ask(ctx,
+						rag.HybridRetriever{Store: st, Emb: emb, Filter: postgres.Filter{Type: typ}, BundleDir: cfg.BundleDir},
+						rag.BundleSource{Dir: cfg.BundleDir},
+						rag.AgentGenerator{Agency: ag},
+						q,
+						rag.Options{Cache: cache, Epoch: stats.LatestEpoch},
+					)
+				}
+				mux.HandleFunc("/ask", newAskHandler(ask))
+				mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+					if r.URL.Path != "/" {
+						http.NotFound(w, r)
+						return
+					}
+					w.Header().Set("Content-Type", "text/html; charset=utf-8")
+					_, _ = w.Write(askPage)
+				})
+			}
+
 			srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 			go func() { <-ctx.Done(); _ = srv.Close() }()
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "serving read-only search on %s (GET /search?q=...)\n", addr)
+			if withAsk {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "serving search + ask UI on %s (open http://localhost%s/)\n", addr, addr)
+			} else {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "serving read-only search on %s (GET /search?q=...)\n", addr)
+			}
 			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				return err
 			}
@@ -208,7 +262,51 @@ func newServeCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dsn, "dsn", "", "Postgres DSN")
 	cmd.Flags().StringVar(&addr, "addr", ":8080", "listen address")
+	cmd.Flags().BoolVar(&withAsk, "ask", false, "also serve the RAG ask UI (GET /) and POST /ask endpoint (invokes the agent fleet)")
+	cmd.Flags().StringVar(&provider, "provider", "claude", "ask answerer backend: claude|codex|agy (only with --ask)")
 	return cmd
+}
+
+// askRequest is the POST /ask JSON body: the question and an optional concept-type filter.
+type askRequest struct {
+	Q    string `json:"q"`
+	Type string `json:"type"`
+}
+
+// newAskHandler is `serve --ask`'s POST /ask handler, taking the ask closure as a
+// parameter so it can be exercised with httptest and a stub — no live DB or agent
+// fleet. It mirrors `pixkb ask --json`'s response shape (askJSON) exactly.
+func newAskHandler(ask func(ctx context.Context, q, typ string) (rag.Answer, rag.Grounding, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var body askRequest
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid JSON body", http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(body.Q) == "" {
+			http.Error(w, "missing q", http.StatusBadRequest)
+			return
+		}
+		ans, g, err := ask(req.Context(), body.Q, body.Type)
+		if err != nil {
+			if errors.Is(err, rag.ErrRateLimited) {
+				http.Error(w, "the agent fleet is rate-limited; try again later", http.StatusTooManyRequests)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		cites := make([]askCitation, 0, len(ans.Citations))
+		for _, id := range ans.Citations {
+			cites = append(cites, askCitation{ID: id, Source: g.SourceFor(id)})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(askJSON{Answer: ans.Text, Refused: ans.Refused, Citations: cites})
+	}
 }
 
 // newSearchHandler is `pixkb serve`'s /search handler, extracted as its own
