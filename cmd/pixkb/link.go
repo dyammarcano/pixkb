@@ -37,29 +37,27 @@ func newLinkCmd() *cobra.Command {
 				return err
 			}
 
-			// Index concepts by their norm_ref so a citation resolves to the
-			// concept that IS that normative source.
+			// Index concepts by the BASE key of their norm_ref (type+number,
+			// date-independent) so a citation resolves to the concept that IS
+			// that normative source regardless of whether either side carries a
+			// year. See link.BaseRef.
 			byNormRef := make(map[string]string)
 			for _, c := range concepts {
 				if c.NormRef != "" {
-					byNormRef[c.NormRef] = c.ID
+					byNormRef[link.BaseRef(c.NormRef)] = c.ID
 				}
 			}
 
 			out := cmd.OutOrStdout()
 			var matched, wrote int
 			for _, c := range concepts {
-				for _, e := range link.Edges(c.ID, c.Body) {
-					dstID, ok := byNormRef[e.Dst]
-					if !ok {
-						continue // citation to a norm_ref not present in the KB
-					}
+				for _, e := range link.ResolveEdges(c.ID, c.Body, byNormRef) {
 					matched++
 					if !apply {
-						_, _ = fmt.Fprintf(out, "cites  %s -> %s (%s)\n", e.Src, dstID, e.Dst)
+						_, _ = fmt.Fprintf(out, "cites  %s -> %s (%s)\n", e.Src, e.Dst, e.NormRef)
 						continue
 					}
-					inserted, err := st.UpsertEdge(ctx, e.Src, dstID, "cites")
+					inserted, err := st.UpsertEdge(ctx, e.Src, e.Dst, "cites")
 					if err != nil {
 						return err
 					}
