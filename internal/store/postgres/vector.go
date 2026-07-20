@@ -66,7 +66,7 @@ func (s *Store) Vector(ctx context.Context, vec []float32, f Filter) ([]Hit, err
 	args = append(args, limit)
 
 	query := fmt.Sprintf(`
-SELECT c.id, coalesce(c.title,''), c.type, 1 - (e.vec <=> $1) AS score
+SELECT c.id, coalesce(c.title,''), c.type, c.domain, 1 - (e.vec <=> $1) AS score
 FROM (SELECT DISTINCT ON (id) id AS eid, vec FROM embedding ORDER BY id, epoch DESC) e
 JOIN concept c ON c.id = e.eid
 %s
@@ -83,7 +83,7 @@ LIMIT $%d`, where, len(args))
 	rank := 0
 	for rows.Next() {
 		var h Hit
-		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Score); err != nil {
+		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Domain, &h.Score); err != nil {
 			return nil, fmt.Errorf("scan vector hit: %w", err)
 		}
 		// MinVecScore is applied here rather than in SQL: score is a computed

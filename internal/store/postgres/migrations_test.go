@@ -187,3 +187,30 @@ func TestMigration0008ConceptNormRef(t *testing.T) {
 	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_norm_ref_idx")
 	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS norm_ref")
 }
+
+func TestMigration0009EdgeUnique(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0009_edge_unique.up.sql"], "missing 0009 up migration")
+	require.True(t, names["0009_edge_unique.down.sql"], "missing 0009 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0009_edge_unique.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"CREATE UNIQUE INDEX IF NOT EXISTS edge_cites_uniq ON edge(src, dst, kind)", // partial unique index
+		"WHERE kind = 'cites'",                                                       // scoped to citation edges only
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0009 up missing %q", want)
+	}
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0009_edge_unique.down.sql")
+	require.NoError(t, err)
+	assert.Contains(t, string(down), "DROP INDEX IF EXISTS edge_cites_uniq")
+}

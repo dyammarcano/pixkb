@@ -61,8 +61,8 @@ type Hit struct {
 	// FTS()/Vector() results before fusion.
 	Arm string
 	// Domain is the concept's domain (e.g. "pix", "bacen-normative"). Populated
-	// by the FTS arm's SELECT; may be empty on hits sourced solely from the
-	// vector arm, which does not project it.
+	// by both the FTS and vector arms' SELECT, so provenance is shown regardless
+	// of which arm surfaced the hit.
 	Domain string
 }
 
