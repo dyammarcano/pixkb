@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,6 +79,32 @@ func TestInboxServer_URLRejectsNonHTTP(t *testing.T) {
 	// no body -> decode error -> 400
 	s.handleURL(rec, req)
 	assert.Equal(t, 400, rec.Code)
+}
+
+func TestClassifyFetched(t *testing.T) {
+	t.Parallel()
+
+	// A PDF (by content-type) is kept as raw bytes in a .pdf file, never mangled.
+	pdfBytes := []byte("%PDF-1.7\n\xe2\xe3\xcf\xd3 binary")
+	name, content := classifyFetched("https://x/informe.pdf", "", "application/pdf", pdfBytes)
+	assert.Equal(t, ".pdf", filepath.Ext(name))
+	assert.Equal(t, pdfBytes, content, "PDF bytes must be preserved verbatim")
+
+	// A PDF by URL extension even when the server sends octet-stream.
+	name, _ = classifyFetched("https://x/doc.pdf", "", "application/octet-stream", pdfBytes)
+	assert.Equal(t, ".pdf", filepath.Ext(name))
+
+	// HTML is converted to text and any invalid UTF-8 is stripped.
+	html := []byte("<html><body><h1>Ol\xe1</h1><p>t\xe3xto</p></body></html>")
+	name, content = classifyFetched("https://x/page", "T", "text/html; charset=utf-8", html)
+	assert.Equal(t, ".md", filepath.Ext(name))
+	assert.True(t, utf8.Valid(content), "html->md output must be valid UTF-8")
+	assert.NotContains(t, string(content), "<h1>")
+
+	// An unknown binary keeps its bytes as an attachment (not a .md).
+	name, content = classifyFetched("https://x/pic.png", "", "image/png", []byte{0x89, 'P', 'N', 'G'})
+	assert.Equal(t, ".png", filepath.Ext(name))
+	assert.Equal(t, []byte{0x89, 'P', 'N', 'G'}, content)
 }
 
 func TestHTMLToText(t *testing.T) {

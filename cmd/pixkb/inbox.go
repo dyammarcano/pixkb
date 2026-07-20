@@ -164,9 +164,8 @@ func (s *inboxServer) handleURL(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	md, fetched := fetchAsMarkdown(req.Context(), u, body.Title)
-	name := ingest.Slugify(u) + ".md"
-	if err := os.WriteFile(filepath.Join(s.dir(), name), []byte(md), 0o644); err != nil {
+	name, content, fetched := fetchURL(req.Context(), u, body.Title)
+	if err := os.WriteFile(filepath.Join(s.dir(), name), content, 0o644); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -205,42 +204,77 @@ func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// fetchAsMarkdown GETs u and converts an HTML/text response to a markdown
-// concept body. On any failure it falls back to a link-only stub, so a URL is
+// fetchURL GETs u and returns (filename, file-bytes, fetched). It routes by
+// content type so binary responses are never mangled into a text/markdown file:
+// a PDF is saved as a real .pdf (parsed by the inbox PDF source), HTML/text is
+// converted to UTF-8-sanitized markdown, and any other binary is kept as-is (an
+// attachment). On any failure it returns a link-only markdown stub, so a URL is
 // always staged (the operator's "fetch when online, else store link" choice).
-// The bool reports whether the fetch succeeded.
-func fetchAsMarkdown(ctx context.Context, u, title string) (string, bool) {
-	link := func(note string) string {
+func fetchURL(ctx context.Context, u, title string) (string, []byte, bool) {
+	linkOnly := func(note string) (string, []byte, bool) {
 		t := title
 		if t == "" {
 			t = u
 		}
-		return fmt.Sprintf("# %s\n\nSource: %s\n\n%s\n", t, u, note)
+		return ingest.Slugify(u) + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, note), false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	reqh, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return link("(link only — request could not be built)"), false
+		return linkOnly("(link only — request could not be built)")
 	}
 	resp, err := http.DefaultClient.Do(reqh)
 	if err != nil {
-		return link("(link only — fetch failed offline or blocked)"), false
+		return linkOnly("(link only — fetch failed offline or blocked)")
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
-		return link(fmt.Sprintf("(link only — server returned %d)", resp.StatusCode)), false
+		return linkOnly(fmt.Sprintf("(link only — server returned %d)", resp.StatusCode))
 	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
 	if err != nil {
-		return link("(link only — response could not be read)"), false
+		return linkOnly("(link only — response could not be read)")
 	}
-	text := htmlToText(string(raw))
-	t := title
-	if t == "" {
-		t = u
+	name, content := classifyFetched(u, title, resp.Header.Get("Content-Type"), raw)
+	return name, content, true
+}
+
+// classifyFetched decides how to stage a successfully-fetched URL body, keyed by
+// content type (falling back to the URL's extension). PDFs stay binary as .pdf;
+// HTML/text becomes UTF-8-sanitized markdown (invalid bytes stripped so the
+// Postgres UTF8 upsert never fails); anything else is kept raw as an attachment.
+// Pure (no I/O) so it is unit-testable.
+func classifyFetched(u, title, contentType string, raw []byte) (string, []byte) {
+	slug := ingest.Slugify(u)
+	ct := strings.ToLower(contentType)
+	clean := u
+	if i := strings.IndexAny(clean, "?#"); i >= 0 {
+		clean = clean[:i]
 	}
-	return fmt.Sprintf("# %s\n\nSource: %s\n\n%s\n", t, u, text), true
+	ext := strings.ToLower(filepath.Ext(clean))
+
+	switch {
+	case strings.Contains(ct, "pdf") || ext == ".pdf":
+		return slug + ".pdf", raw
+	case strings.Contains(ct, "html") || strings.Contains(ct, "xml") || strings.HasPrefix(ct, "text/") ||
+		(ct == "" && (ext == "" || ext == ".html" || ext == ".htm" || ext == ".txt" || ext == ".md")):
+		t := title
+		if t == "" {
+			t = u
+		}
+		text := string(raw)
+		if strings.Contains(ct, "html") || strings.Contains(ct, "xml") || ext == ".html" || ext == ".htm" {
+			text = htmlToText(text)
+		}
+		text = strings.ToValidUTF8(text, "") // drop invalid bytes — Postgres upsert requires valid UTF-8
+		return slug + ".md", fmt.Appendf(nil, "# %s\n\nSource: %s\n\n%s\n", t, u, strings.TrimSpace(text))
+	default:
+		if ext == "" {
+			ext = ".bin"
+		}
+		return slug + ext, raw
+	}
 }
 
 var (

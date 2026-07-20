@@ -129,6 +129,9 @@ func inboxText(f string) (okf.Concept, error) {
 	if !strings.HasPrefix(strings.TrimSpace(body), "#") {
 		body = "# " + title + "\n\n" + content
 	}
+	// Drop any invalid UTF-8 — the Postgres upsert requires it, and a single bad
+	// dropped file must never fail the whole ingest run.
+	body = strings.ToValidUTF8(body, "")
 	return okf.Concept{
 		ID:          "inbox/" + slugify(strings.TrimSuffix(base, filepath.Ext(base))) + ".md",
 		Type:        "Reference",
