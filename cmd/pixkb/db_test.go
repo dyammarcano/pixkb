@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,7 @@ func TestResolveDSN(t *testing.T) {
 		name      string
 		flagVal   string
 		envVal    string
+		configDSN string // written to the isolated config file when non-empty
 		wantDSN   string
 		wantError bool
 	}{
@@ -57,10 +59,37 @@ func TestResolveDSN(t *testing.T) {
 			envVal:  "postgres://envuser:envpass@localhost/envdb",
 			wantDSN: "postgres://flaguser:flagpass@localhost/flagdb",
 		},
+		{
+			name:      "config file supplies DSN (flag+env empty)",
+			configDSN: "postgres://cfguser:cfgpass@localhost/cfgdb",
+			wantDSN:   "postgres://cfguser:cfgpass@localhost/cfgdb",
+		},
+		{
+			name:      "env overrides config file",
+			envVal:    "postgres://envuser:envpass@localhost/envdb",
+			configDSN: "postgres://cfguser:cfgpass@localhost/cfgdb",
+			wantDSN:   "postgres://envuser:envpass@localhost/envdb",
+		},
+		{
+			name:      "flag overrides config file",
+			flagVal:   "postgres://flaguser:flagpass@localhost/flagdb",
+			configDSN: "postgres://cfguser:cfgpass@localhost/cfgdb",
+			wantDSN:   "postgres://flaguser:flagpass@localhost/flagdb",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate from the machine's real global config (PIXKB_CONFIG_DIR
+			// override; see globalConfigPath), then seed a config file only when
+			// the case exercises the config-file path.
+			dir := t.TempDir()
+			t.Setenv("PIXKB_CONFIG_DIR", dir)
+			if tt.configDSN != "" {
+				require.NoError(t, os.WriteFile(
+					filepath.Join(dir, "config.yaml"),
+					[]byte("dsn: \""+tt.configDSN+"\"\n"), 0o644))
+			}
 			t.Setenv("PIXKB_DSN", tt.envVal)
 			dsn, err := resolveDSN(tt.flagVal)
 			if tt.wantError {
