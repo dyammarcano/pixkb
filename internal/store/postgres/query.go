@@ -13,7 +13,7 @@ import (
 // conceptColumns is the full concept-row column list, in scan order, shared
 // by QueryConcepts. Kept in one place so the SELECT list and scanConcept
 // stay in lockstep.
-const conceptColumns = "id, type, coalesce(title,''), coalesce(description,''), resource, tags, language, body, " +
+const conceptColumns = "id, type, coalesce(title,''), coalesce(description,''), coalesce(resource,''), tags, language, body, " +
 	"content_sha, coalesce(source_uri,''), first_epoch, last_epoch, updated_at, coalesce(intent_terms,''), domain, coalesce(norm_ref,'')"
 
 // scanConcept scans one concept row selected via conceptColumns into an
