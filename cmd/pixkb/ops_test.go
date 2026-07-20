@@ -4,7 +4,9 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -16,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"pixkb/internal/okf"
+	"pixkb/internal/rag"
 )
 
 // readTar opens a tar.gz and returns the set of entry names it contains.
@@ -202,6 +205,110 @@ func TestTarDir_SkipsGitDir(t *testing.T) {
 	assert.True(t, names["keep.md"])
 	assert.False(t, names[".git/HEAD"], ".git contents must be skipped")
 	assert.Len(t, names, 1)
+}
+
+// TestAskHandler exercises `serve --ask`'s POST /ask handler directly via
+// httptest with a stubbed ask closure — no live DB, no agent fleet — so it runs
+// under -short. The stub lets each subtest choose the answer or error returned.
+func TestAskHandler(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success returns askJSON with resolved citations", func(t *testing.T) {
+		t.Parallel()
+		ask := func(_ context.Context, q, _ string) (rag.Answer, rag.Grounding, error) {
+			assert.Equal(t, "o que é o MED?", q)
+			g := rag.Grounding{Chunks: []rag.Chunk{{ID: "reference/med.md", SourceURI: "markdown:med"}}}
+			return rag.Answer{Text: "O MED é...", Citations: []string{"reference/med.md"}}, g, nil
+		}
+		req := httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(`{"q":"o que é o MED?"}`))
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+
+		require.Equal(t, 200, rec.Code, rec.Body.String())
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+		var got askJSON
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+		assert.Equal(t, "O MED é...", got.Answer)
+		assert.False(t, got.Refused)
+		require.Len(t, got.Citations, 1)
+		assert.Equal(t, "reference/med.md", got.Citations[0].ID)
+		assert.Equal(t, "markdown:med", got.Citations[0].Source)
+	})
+
+	t.Run("empty q is a 400", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		ask := func(context.Context, string, string) (rag.Answer, rag.Grounding, error) {
+			called = true
+			return rag.Answer{}, rag.Grounding{}, nil
+		}
+		req := httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(`{"q":"  "}`))
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+		assert.Equal(t, 400, rec.Code)
+		assert.False(t, called, "ask must not run for an empty question")
+	})
+
+	t.Run("invalid JSON is a 400", func(t *testing.T) {
+		t.Parallel()
+		ask := func(context.Context, string, string) (rag.Answer, rag.Grounding, error) {
+			return rag.Answer{}, rag.Grounding{}, nil
+		}
+		req := httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(`{not json`))
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+		assert.Equal(t, 400, rec.Code)
+	})
+
+	t.Run("rate-limited maps to 429", func(t *testing.T) {
+		t.Parallel()
+		ask := func(context.Context, string, string) (rag.Answer, rag.Grounding, error) {
+			return rag.Answer{}, rag.Grounding{}, rag.ErrRateLimited
+		}
+		req := httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(`{"q":"x"}`))
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+		assert.Equal(t, 429, rec.Code)
+	})
+
+	t.Run("generic error maps to 500", func(t *testing.T) {
+		t.Parallel()
+		ask := func(context.Context, string, string) (rag.Answer, rag.Grounding, error) {
+			return rag.Answer{}, rag.Grounding{}, fmt.Errorf("boom")
+		}
+		req := httptest.NewRequest(http.MethodPost, "/ask", strings.NewReader(`{"q":"x"}`))
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+		assert.Equal(t, 500, rec.Code)
+	})
+
+	t.Run("GET is method not allowed", func(t *testing.T) {
+		t.Parallel()
+		ask := func(context.Context, string, string) (rag.Answer, rag.Grounding, error) {
+			return rag.Answer{}, rag.Grounding{}, nil
+		}
+		req := httptest.NewRequest(http.MethodGet, "/ask", nil)
+		rec := httptest.NewRecorder()
+		newAskHandler(ask)(rec, req)
+		assert.Equal(t, 405, rec.Code)
+	})
+}
+
+// TestServeAskFlags verifies the --ask and --provider flags are wired onto serve.
+func TestServeAskFlags(t *testing.T) {
+	t.Parallel()
+	root := NewRootCmd()
+	serve, _, err := root.Find([]string{"serve"})
+	require.NoError(t, err)
+	require.NotNil(t, serve.Flags().Lookup("ask"))
+	require.NotNil(t, serve.Flags().Lookup("provider"))
+}
+
+// TestAskPageEmbedded verifies the ask UI page is embedded and looks like the app.
+func TestAskPageEmbedded(t *testing.T) {
+	t.Parallel()
+	assert.Contains(t, string(askPage), "pixkb.ask.history", "embedded page should carry the history localStorage key")
+	assert.Contains(t, string(askPage), "/ask", "embedded page should POST to /ask")
 }
 
 func TestDoctorCmdWiring(t *testing.T) {

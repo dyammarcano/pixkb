@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pixkb · ask</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --border: #2a2f3a;
+    --fg: #e6e9ef; --muted: #97a0b0; --accent: #5b8cff; --accent2: #3a63c0;
+    --warn: #f0b040; --refuse: #e0645a; --ok: #4caf7d;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f7f9; --panel: #ffffff; --panel2: #f0f2f5; --border: #d8dce3;
+      --fg: #1a1d24; --muted: #5a6472; --accent: #2f5fd8; --accent2: #244aa8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; font: 15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
+  aside { width: 280px; min-width: 280px; border-right: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+  body.tab-dump aside { display: none; }
+  aside header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  aside header h2 { margin: 0; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  #clear { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+  #clear:hover { color: var(--fg); border-color: var(--muted); }
+  #history { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
+  #history li { padding: 9px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #history li:hover { background: var(--panel2); }
+  #history li.empty { color: var(--muted); cursor: default; font-style: italic; white-space: normal; }
+  #history li .ts { display: block; font-size: 11px; color: var(--muted); }
+  main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .tabs { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); }
+  .tabs button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font: inherit; font-weight: 600; padding: 10px 14px; cursor: pointer; }
+  .tabs button.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .tabs h1 { margin: 0 8px 0 auto; font-size: 15px; color: var(--muted); font-weight: 600; align-self: center; }
+  .tabpanel { flex: 1; display: none; flex-direction: column; overflow: hidden; }
+  .tabpanel.active { display: flex; }
+  .composer { padding: 16px 24px; display: flex; gap: 10px; align-items: flex-end; }
+  textarea { flex: 1; resize: vertical; min-height: 54px; max-height: 220px; padding: 11px 13px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+  textarea:focus, input[type=url]:focus { outline: none; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 12px 20px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary:hover { background: var(--accent2); }
+  button.primary:disabled { opacity: .5; cursor: default; }
+  .result, .dumpbody { flex: 1; overflow-y: auto; padding: 4px 24px 28px; }
+  .q { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+  .q b { color: var(--fg); }
+  .answer { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; white-space: pre-wrap; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 2px 8px; border-radius: 999px; margin-bottom: 10px; }
+  .badge.refused { background: var(--refuse); color: #fff; }
+  .cites { margin-top: 16px; }
+  .cites h3, .staged h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+  .cites ul, .staged ul { margin: 0; padding-left: 0; list-style: none; }
+  .cites li { padding: 6px 10px; background: var(--panel2); border-radius: 8px; margin-bottom: 4px; font-family: ui-monospace, Menlo, monospace; font-size: 13px; }
+  .cites li .src { color: var(--muted); }
+  .feedback { margin-top: 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  .feedback button.fb { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 14px; }
+  .feedback button.fb:hover { border-color: var(--accent); }
+  .feedback button.fb.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .feedback input.fbnote { flex: 1; min-width: 140px; padding: 6px 10px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+  .feedback .fbstatus.ok { color: var(--ok); }
+  .hint { color: var(--muted); }
+  .err { color: var(--refuse); background: var(--panel); border: 1px solid var(--refuse); border-radius: 12px; padding: 14px 18px; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .dropzone { margin: 16px 24px 8px; border: 2px dashed var(--border); border-radius: 14px; padding: 34px 20px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
+  .dropzone.over { border-color: var(--accent); background: var(--panel2); color: var(--fg); }
+  .urlrow { padding: 4px 24px 8px; display: flex; gap: 10px; }
+  input[type=url] { flex: 1; padding: 11px 13px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+  .staged { padding: 8px 24px; }
+  .staged li { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--panel2); border-radius: 8px; margin-bottom: 4px; font-size: 14px; }
+  .staged li.empty { background: none; color: var(--muted); font-style: italic; }
+  .staged li .meta { color: var(--muted); font-size: 12px; margin-left: 8px; }
+  .staged li button { background: none; border: none; color: var(--refuse); cursor: pointer; font-size: 16px; }
+  .actionbar { padding: 10px 24px 20px; display: flex; gap: 12px; align-items: center; }
+  .ok { color: var(--ok); }
+</style>
+</head>
+<body>
+<aside>
+  <header><h2>Histórico</h2><button id="clear" title="Limpar histórico">limpar</button></header>
+  <ul id="history"></ul>
+</aside>
+<main>
+  <div class="tabs">
+    <button id="tab-ask" class="active" data-tab="ask">Perguntar</button>
+    <button id="tab-dump" data-tab="dump">Adicionar conteúdo</button>
+    <h1>pixkb</h1>
+  </div>
+
+  <section id="panel-ask" class="tabpanel active">
+    <div class="composer">
+      <textarea id="q" placeholder="Ex.: o que é o MED no Pix?" autofocus></textarea>
+      <button class="primary" id="send">Perguntar</button>
+    </div>
+    <div class="result" id="result">
+      <p class="hint">Digite uma pergunta e pressione <b>Perguntar</b> (ou Ctrl/⌘+Enter).</p>
+    </div>
+  </section>
+
+  <section id="panel-dump" class="tabpanel">
+    <div class="dumpbody">
+      <div class="dropzone" id="dropzone">
+        <b>Arraste arquivos aqui</b> ou clique para selecionar<br>
+        <span class="hint">PDF, DOCX, XLSX, Markdown/TXT, OpenAPI — outros tipos viram anexos pesquisáveis.</span>
+        <input type="file" id="fileinput" multiple hidden>
+      </div>
+      <div class="urlrow">
+        <input type="url" id="urlinput" placeholder="https://… (colar um link para buscar e indexar)">
+        <button class="primary" id="addurl">Adicionar link</button>
+      </div>
+      <div class="staged">
+        <h3>Na fila para ingestão</h3>
+        <ul id="staged"></ul>
+      </div>
+      <div class="actionbar">
+        <button class="primary" id="ingest">Ingerir agora</button>
+        <span id="ingeststatus" class="hint"></span>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const KEY = "pixkb.ask.history", CAP = 100;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  /* ---------- tabs ---------- */
+  document.querySelectorAll(".tabs button[data-tab]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll(".tabs button[data-tab]").forEach(b => b.classList.toggle("active", b === btn));
+      $("panel-ask").classList.toggle("active", tab === "ask");
+      $("panel-dump").classList.toggle("active", tab === "dump");
+      document.body.classList.toggle("tab-dump", tab === "dump");
+      if (tab === "dump") refreshStaged();
+    });
+  });
+
+  /* ---------- ask ---------- */
+  const qEl = $("q"), sendEl = $("send"), resultEl = $("result"), historyEl = $("history");
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } };
+  const save = (h) => { try { localStorage.setItem(KEY, JSON.stringify(h.slice(0, CAP))); } catch {} };
+
+  function renderHistory() {
+    const h = load(); historyEl.innerHTML = "";
+    if (!h.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Nenhuma pergunta ainda."; historyEl.appendChild(li); return; }
+    h.forEach(item => {
+      const li = document.createElement("li"); li.title = item.q;
+      li.innerHTML = esc(item.q) + '<span class="ts">' + esc(new Date(item.ts).toLocaleString()) + "</span>";
+      li.addEventListener("click", () => { qEl.value = item.q; renderAnswer(item.q, item); });
+      historyEl.appendChild(li);
+    });
+  }
+  function renderAnswer(q, data) {
+    let html = '<p class="q">Pergunta: <b>' + esc(q) + "</b></p>";
+    if (data.refused) html += '<div class="badge refused">recusado</div>';
+    html += '<div class="answer">' + esc(data.answer || "") + "</div>";
+    if (data.citations && data.citations.length) {
+      html += '<div class="cites"><h3>Citações</h3><ul>';
+      for (const c of data.citations) html += "<li>" + esc(c.id) + (c.source ? ' <span class="src">— ' + esc(c.source) + "</span>" : "") + "</li>";
+      html += "</ul></div>";
+    }
+    html += '<div class="feedback" id="fbbar">' +
+      '<span>Esta resposta foi útil?</span>' +
+      '<button class="fb" data-v="up" title="Útil">👍</button>' +
+      '<button class="fb" data-v="down" title="Não útil">👎</button>' +
+      '<input class="fbnote" placeholder="observação (opcional)">' +
+      '<span class="fbstatus"></span></div>';
+    resultEl.innerHTML = html;
+    wireFeedback(q, data);
+  }
+  function wireFeedback(q, data) {
+    const bar = $("fbbar"); if (!bar) return;
+    const status = bar.querySelector(".fbstatus"), note = bar.querySelector(".fbnote");
+    bar.querySelectorAll("button.fb").forEach(b => {
+      b.addEventListener("click", async () => {
+        bar.querySelectorAll("button.fb").forEach(x => x.classList.toggle("sel", x === b));
+        status.textContent = "enviando…"; status.className = "fbstatus";
+        try {
+          const res = await fetch("/feedback", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question: q, answer: data.answer, refused: !!data.refused, citations: data.citations || [], verdict: b.dataset.v, note: note.value.trim() })
+          });
+          if (!res.ok) throw new Error(await res.text());
+          status.textContent = "obrigado!"; status.className = "fbstatus ok";
+        } catch (e) { status.textContent = "erro: " + esc(e.message); status.className = "fbstatus"; }
+      });
+    });
+  }
+  async function ask() {
+    const q = qEl.value.trim(); if (!q) return;
+    sendEl.disabled = true;
+    resultEl.innerHTML = '<p class="hint"><span class="spinner"></span>Consultando a base…</p>';
+    try {
+      const res = await fetch("/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q }) });
+      if (!res.ok) { const t = await res.text(); resultEl.innerHTML = '<div class="err">Erro ' + res.status + ": " + esc(t.trim() || res.statusText) + "</div>"; return; }
+      const data = await res.json();
+      renderAnswer(q, data);
+      const h = load(); h.unshift({ q, answer: data.answer, refused: data.refused, citations: data.citations || [], ts: Date.now() }); save(h); renderHistory();
+    } catch (e) { resultEl.innerHTML = '<div class="err">Falha de rede: ' + esc(e.message) + "</div>"; }
+    finally { sendEl.disabled = false; }
+  }
+  sendEl.addEventListener("click", ask);
+  qEl.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ask(); } });
+  $("clear").addEventListener("click", () => { if (confirm("Limpar todo o histórico?")) { save([]); renderHistory(); } });
+
+  /* ---------- dump / ingest ---------- */
+  const dz = $("dropzone"), fileInput = $("fileinput"), stagedEl = $("staged"), statusEl = $("ingeststatus");
+
+  async function refreshStaged() {
+    try {
+      const res = await fetch("/inbox");
+      const items = await res.json();
+      stagedEl.innerHTML = "";
+      if (!items.length) { const li = document.createElement("li"); li.className = "empty"; li.textContent = "Nada na fila. Arraste arquivos ou cole um link."; stagedEl.appendChild(li); return; }
+      items.forEach(it => {
+        const li = document.createElement("li");
+        li.innerHTML = '<span>' + esc(it.name) + '<span class="meta">' + it.size + ' B</span></span>';
+        const del = document.createElement("button"); del.textContent = "×"; del.title = "Remover";
+        del.addEventListener("click", async () => { await fetch("/inbox?name=" + encodeURIComponent(it.name), { method: "DELETE" }); refreshStaged(); });
+        li.appendChild(del); stagedEl.appendChild(li);
+      });
+    } catch (e) { stagedEl.innerHTML = '<li class="empty">' + esc(e.message) + "</li>"; }
+  }
+  async function upload(files) {
+    if (!files || !files.length) return;
+    const fd = new FormData(); for (const f of files) fd.append("files", f, f.name);
+    statusEl.textContent = "Enviando…";
+    try { const res = await fetch("/inbox/upload", { method: "POST", body: fd }); if (!res.ok) throw new Error(await res.text()); statusEl.textContent = ""; refreshStaged(); }
+    catch (e) { statusEl.innerHTML = '<span class="err">' + esc(e.message) + "</span>"; }
+  }
+  dz.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => upload(fileInput.files));
+  ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("over"); }));
+  dz.addEventListener("drop", e => upload(e.dataTransfer.files));
+
+  $("addurl").addEventListener("click", async () => {
+    const url = $("urlinput").value.trim(); if (!url) return;
+    statusEl.textContent = "Buscando link…";
+    try {
+      const res = await fetch("/inbox/url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+      if (!res.ok) throw new Error(await res.text());
+      const j = await res.json();
+      statusEl.innerHTML = j.duplicate ? '<span class="hint">Este link já está na fila (ignorado).</span>'
+        : j.fetched ? '<span class="ok">Link buscado e indexado.</span>'
+        : '<span class="hint">Link salvo (não foi possível buscar — offline?).</span>';
+      $("urlinput").value = ""; refreshStaged();
+    } catch (e) { statusEl.innerHTML = '<span class="err">' + esc(e.message) + "</span>"; }
+  });
+
+  $("ingest").addEventListener("click", async () => {
+    const btn = $("ingest"); btn.disabled = true;
+    statusEl.innerHTML = '<span class="spinner"></span>Ingerindo — pode levar um tempo…';
+    try {
+      const res = await fetch("/inbox/ingest", { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const r = await res.json();
+      statusEl.innerHTML = '<span class="ok">Epoch ' + r.epoch + ': +' + r.added + ' ~' + r.changed + ' -' + r.removed +
+        ' (commit ' + esc(r.commit) + ') — ' + (r.archived || 0) + ' item(ns) arquivado(s)</span>';
+      refreshStaged();
+    } catch (e) { statusEl.innerHTML = '<span class="err">' + esc(e.message) + "</span>"; }
+    finally { btn.disabled = false; }
+  });
+
+  renderHistory();
+})();
+</script>
+</body>
+</html>

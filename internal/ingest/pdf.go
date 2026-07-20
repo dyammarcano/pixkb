@@ -301,6 +301,10 @@ func splitSections(text string) []section {
 	return secs
 }
 
+// Slugify exposes the package's filesystem/id-safe slug helper for callers that
+// stage files by a derived name (e.g. the Dump/Ingest URL handler).
+func Slugify(s string) string { return slugify(s) }
+
 func slugify(s string) string {
 	s = strings.ToLower(s)
 	var b strings.Builder
