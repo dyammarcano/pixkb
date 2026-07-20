@@ -23,6 +23,12 @@ var brandAliases = map[string]string{
 	"iti":           "itau unibanco", // iti is Itaú's digital wallet
 	"c6":            "c6 bank",
 	"recargapay":    "recarga",
+	// Rebrands and state-bank trade names (verified against the live registry:
+	// institution_name abbreviates, but legal_name carries the full form).
+	"modal":   "genial", // Banco Modal became Banco Genial
+	"bancoob": "sicoob", // Bancoob rebranded to Sicoob
+	"banese":  "estado de sergipe",
+	"banpara": "estado do para",
 }
 
 // AliasFragments returns additional official-name fragments to search for the
