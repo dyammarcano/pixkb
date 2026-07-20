@@ -1,5 +1,15 @@
 # pixkb — Project Maturity Rating
 
+> **⚠ SUPERSEDED — 2026-07-20 (stale-claim correction by `/project:align fix`).**
+> This is a 2026-07-18 snapshot predating the v0.2 multi-domain cycle (merge
+> `ec07a5a`, ~16 commits). Two findings below are now **factually stale**: the
+> "no git remote" and "no tags" claims (Confidence note + CI/CD row 3) are wrong —
+> `origin` (`github.com/dyammarcano/pixkb`) and tag `v0.1.0` both exist as of
+> 2026-07-19. The "CI never executed" clause still holds, but for a *different*
+> reason: a GitHub account **billing lock** (workflow runs startup_failure at ~3s),
+> not missing infrastructure. Current state: see `COMPLETION.md` (2026-07-19) and
+> `ALIGNMENT.md` (2026-07-20); re-run `/project:rating` for a fresh scorecard.
+
 **Type:** Go (single-language, task-runner: Taskfile.yml) · **Stage: 3 — Release-candidate** · **Weighted score: 77.3 / 100** · **Confidence: Medium** · **Date: 2026-07-18**
 
 Air-gapped OKF knowledge base (Postgres + pgvector, hybrid FTS+vector search via RRF, bitemporal epoch engine, corral agent fleet) for the Brazilian Pix/SPB + Receita Federal tax domain. 27 packages, 14,457 prod LOC / 10,307 test LOC (test:prod 0.71), 220 commits (all within 30 days).
