@@ -14,7 +14,7 @@ const maxSubqueries = 5
 // (diacritics folded, stopwords stripped, via the same foldTokens used for
 // title-boost matching), and one subquery per recognized domain entity the
 // query mentions. Domain-entity subqueries come from the versioned,
-// auditable table in domain_vocabulary.yaml (Feature 7 of
+// auditable per-domain tables in domains/<domain>/vocabulary.yaml (Feature 7 of
 // docs/SEARCH-CAPABILITY-SPEC.md — see vocab.go); only `enabled: true`
 // entries are matched. Duplicate subqueries (case-insensitive) are dropped.
 // The original query is always present and always first, so MultiHybrid
