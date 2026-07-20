@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"pixkb/internal/hql"
-	"pixkb/internal/ingest"
 	"pixkb/internal/okf"
 	"pixkb/internal/output"
 	"pixkb/internal/query"
@@ -42,11 +41,10 @@ func newIngestCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			concepts, err := ingest.GatherAll(ctx, buildSources(cfg))
+			concepts, err := gatherConcepts(ctx, cfg)
 			if err != nil {
 				return err
 			}
-			concepts = ingest.CrossLink(concepts)
 			res, err := r.Run(ctx, concepts, "ingest")
 			if err != nil {
 				return err

@@ -35,6 +35,17 @@ type Config struct {
 	ScoutCrawlBaseURL string            `yaml:"scout_crawl_base_url"` // origin for scout-crawl source_uri; defaults to https://www.bcb.gov.br (set e.g. https://www.gov.br for gov.br crawls)
 	OpenAPISpecs      []OpenAPISpecConf `yaml:"openapi_specs"`        // standalone OpenAPI specs (e.g. the tax calculator), each with a domain tag
 	Legislation       []LegislationConf `yaml:"legislation"`          // offline statute PDFs (e.g. LC 214/2025), each with a lei slug + domain
+	Official          OfficialSources   `yaml:"official_sources"`     // trusted BACEN sources: provenance-tagged and periodically re-gathered
+}
+
+// OfficialSources declares the authoritative sources whose concepts are tagged
+// trusted:official and periodically re-gathered. Hosts are match roots (a
+// concept whose SourceURI/Resource contains one is tagged); GatherEvery is the
+// serve daemon's refresh interval (empty/0 disables it — the air-gap default).
+type OfficialSources struct {
+	Hosts       []string `yaml:"hosts"`
+	GatherEvery string   `yaml:"gather_every"`
+	Issues      []string `yaml:"issues"` // "owner/repo" whose issues to gather (increment 2)
 }
 
 // defaultScoutCrawlBaseURL is the origin a scout-crawl's page paths resolve
@@ -164,6 +175,15 @@ func applyConfigFile(cfg *Config, path string) {
 	}
 	if len(fromFile.Legislation) > 0 {
 		cfg.Legislation = fromFile.Legislation
+	}
+	if len(fromFile.Official.Hosts) > 0 {
+		cfg.Official.Hosts = fromFile.Official.Hosts
+	}
+	if fromFile.Official.GatherEvery != "" {
+		cfg.Official.GatherEvery = fromFile.Official.GatherEvery
+	}
+	if len(fromFile.Official.Issues) > 0 {
+		cfg.Official.Issues = fromFile.Official.Issues
 	}
 }
 

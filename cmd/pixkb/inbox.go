@@ -15,7 +15,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"pixkb/internal/ingest"
@@ -27,7 +26,6 @@ import (
 // mounted by `serve --ask`.
 type inboxServer struct {
 	cfg Config
-	mu  sync.Mutex // serialize ingest runs (one epoch cut at a time)
 }
 
 func (s *inboxServer) dir() string { return filepath.Join(s.cfg.IngestDir, "inbox") }
@@ -289,8 +287,8 @@ func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	serveIngestMu.Lock()
+	defer serveIngestMu.Unlock()
 
 	ctx := req.Context()
 	r, st, err := newRunner(ctx, s.cfg)
@@ -299,12 +297,11 @@ func (s *inboxServer) handleIngest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer st.Close()
-	concepts, err := ingest.GatherAll(ctx, buildSources(s.cfg))
+	concepts, err := gatherConcepts(ctx, s.cfg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	concepts = ingest.CrossLink(concepts)
 	res, err := r.Run(ctx, concepts, "inbox")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

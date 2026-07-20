@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/inovacc/corral"
@@ -182,8 +183,13 @@ func (zeroReader) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// serveIngestMu serializes every epoch-cutting run inside a serve process — the
+// inbox "Ingest now" endpoint and the periodic gather daemon — so two ingests
+// never race on the bundle git repo or the epoch sequence.
+var serveIngestMu sync.Mutex
+
 func newServeCmd() *cobra.Command {
-	var dsn, addr, provider string
+	var dsn, addr, provider, gatherEvery string
 	var withAsk bool
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -202,6 +208,25 @@ func newServeCmd() *cobra.Command {
 			emb, err := newEmbedder(cfg)
 			if err != nil {
 				return err
+			}
+
+			// Optional periodic gather daemon: re-gather every source on an
+			// interval so official sources stay fresh. It hits the network, so it
+			// is off unless an interval is set (flag overrides config) — the
+			// sealed air-gap default holds otherwise.
+			interval := gatherEvery
+			if interval == "" {
+				interval = cfg.Official.GatherEvery
+			}
+			if interval != "" {
+				every, err := time.ParseDuration(interval)
+				if err != nil {
+					return fmt.Errorf("invalid --gather-every %q: %w", interval, err)
+				}
+				if every > 0 {
+					go gatherDaemon(ctx, cfg, every, cmd.OutOrStdout())
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "periodic gather every %s\n", every)
+				}
 			}
 
 			mux := http.NewServeMux()
@@ -278,7 +303,49 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().StringVar(&addr, "addr", ":8080", "listen address")
 	cmd.Flags().BoolVar(&withAsk, "ask", false, "also serve the RAG ask UI (GET /) and POST /ask endpoint (invokes the agent fleet)")
 	cmd.Flags().StringVar(&provider, "provider", "claude", "ask answerer backend: claude|codex|agy (only with --ask)")
+	cmd.Flags().StringVar(&gatherEvery, "gather-every", "", "periodically re-gather all sources on this interval (e.g. 24h); empty = off (overrides official_sources.gather_every)")
 	return cmd
+}
+
+// gatherDaemon re-gathers all sources on an interval until ctx is cancelled. It
+// waits one full interval before the first run (so serve starts fast) and never
+// overlaps runs (serveIngestMu). Failures are logged, not fatal — a transient
+// network error must not kill the server.
+func gatherDaemon(ctx context.Context, cfg Config, every time.Duration, out io.Writer) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := runGather(ctx, cfg); err != nil {
+				slog.Warn("scheduled gather failed", "err", err)
+				_, _ = fmt.Fprintf(out, "gather: %v\n", err)
+			}
+		}
+	}
+}
+
+// runGather runs one full gather+ingest, serialized against inbox ingests.
+func runGather(ctx context.Context, cfg Config) error {
+	serveIngestMu.Lock()
+	defer serveIngestMu.Unlock()
+	r, st, err := newRunner(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	concepts, err := gatherConcepts(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	res, err := r.Run(ctx, concepts, "scheduled-gather")
+	if err != nil {
+		return err
+	}
+	slog.Info("scheduled gather", "epoch", res.Epoch, "added", res.Added, "changed", res.Changed, "removed", res.Removed)
+	return nil
 }
 
 // askRequest is the POST /ask JSON body: the question and an optional concept-type filter.

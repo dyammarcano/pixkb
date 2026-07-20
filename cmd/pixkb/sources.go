@@ -1,11 +1,27 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"path/filepath"
 
 	"pixkb/internal/ingest"
+	"pixkb/internal/okf"
 )
+
+// gatherConcepts runs the full read side of an ingest: gather every configured
+// source, cross-link, and tag concepts from official hosts. Shared by the
+// `ingest` command, the inbox "Ingest now" endpoint, and the serve gather
+// daemon so all three apply the same steps (including official provenance).
+func gatherConcepts(ctx context.Context, cfg Config) ([]okf.Concept, error) {
+	concepts, err := ingest.GatherAll(ctx, buildSources(cfg))
+	if err != nil {
+		return nil, err
+	}
+	concepts = ingest.CrossLink(concepts)
+	concepts = ingest.TagOfficial(concepts, cfg.Official.Hosts)
+	return concepts, nil
+}
 
 // knownDomains are the valid KB domain values. A configured domain outside this
 // set (e.g. the typo "taxx") silently produces a domain:<typo> tag that is
