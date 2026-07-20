@@ -1,14 +1,22 @@
 package query
 
 import (
-	_ "embed"
+	"embed"
 	"fmt"
+	"io/fs"
+	"path"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed domain_vocabulary.yaml
-var vocabularyYAML []byte
+// vocabularyFS embeds every per-domain vocabulary file. Each domain lives in
+// its own directory under domains/, so a new domain is added by dropping a
+// domains/<domain>/vocabulary.yaml file — no loader change required. The
+// directory name is the domain key.
+//
+//go:embed domains/*/vocabulary.yaml
+var vocabularyFS embed.FS
 
 // VocabEntry is one domain-vocabulary mapping: a set of word-stems (folded,
 // the same prefix-matching convention ExpandQuery already used for
@@ -25,7 +33,7 @@ type VocabEntry struct {
 	Reason   string   `yaml:"reason"`
 }
 
-// vocabFile is domain_vocabulary.yaml's top-level shape.
+// vocabFile is a per-domain vocabulary.yaml's top-level shape.
 type vocabFile struct {
 	Entries []VocabEntry `yaml:"entries"`
 }
@@ -39,27 +47,79 @@ func parseVocabulary(data []byte) ([]VocabEntry, error) {
 	return f.Entries, nil
 }
 
-// vocabulary is the full table (enabled and disabled entries) loaded once
-// from the embedded domain_vocabulary.yaml at package init.
-var vocabulary = mustParseVocabulary(vocabularyYAML)
+// vocabularies is the per-domain registry, keyed by directory name, loaded
+// once from the embedded domains/*/vocabulary.yaml files at package init.
+var vocabularies = mustLoadVocabularies(vocabularyFS)
 
-// mustParseVocabulary panics on a parse failure — the embedded file is
-// committed source, so a parse failure here is a build-time bug, not a
-// runtime condition to recover from.
-func mustParseVocabulary(data []byte) []VocabEntry {
-	entries, err := parseVocabulary(data)
+// mustLoadVocabularies walks the embedded domains/ tree and parses each
+// domain's vocabulary.yaml, keyed by directory name. It panics on any parse
+// failure — the embedded files are committed source, so a failure here is a
+// build-time bug, not a runtime condition to recover from.
+func mustLoadVocabularies(fsys fs.FS) map[string][]VocabEntry {
+	reg := map[string][]VocabEntry{}
+	entries, err := fs.ReadDir(fsys, "domains")
 	if err != nil {
 		panic(err)
 	}
-	return entries
+	for _, d := range entries {
+		if !d.IsDir() {
+			continue
+		}
+		domain := d.Name()
+		data, err := fs.ReadFile(fsys, path.Join("domains", domain, "vocabulary.yaml"))
+		if err != nil {
+			panic(err)
+		}
+		parsed, err := parseVocabulary(data)
+		if err != nil {
+			panic(fmt.Errorf("domain %q: %w", domain, err))
+		}
+		reg[domain] = parsed
+	}
+	return reg
 }
 
-// Vocabulary returns the full domain-vocabulary table (enabled AND disabled
-// entries), in file order — exported for `pixkb vocab list`'s inspection
-// surface (spec acceptance criterion: "Users can inspect... domain
-// expansion when debugging").
+// selectVocabulary merges the registry's entries for the active domain set,
+// in deterministic (domain-sorted, then file) order. An empty set merges ALL
+// domains — preserving single-domain (pix-only) behavior verbatim. A
+// non-empty set merges only those domains' vocabularies; unknown domains
+// contribute nothing.
+func selectVocabulary(reg map[string][]VocabEntry, domains []string) []VocabEntry {
+	var keys []string
+	if len(domains) == 0 {
+		for k := range reg {
+			keys = append(keys, k)
+		}
+	} else {
+		seen := map[string]bool{}
+		for _, d := range domains {
+			if _, ok := reg[d]; ok && !seen[d] {
+				seen[d] = true
+				keys = append(keys, d)
+			}
+		}
+	}
+	sort.Strings(keys)
+	var out []VocabEntry
+	for _, k := range keys {
+		out = append(out, reg[k]...)
+	}
+	return out
+}
+
+// Vocabulary returns the full domain-vocabulary table across ALL domains
+// (enabled AND disabled entries), in deterministic domain-then-file order —
+// exported for `pixkb vocab list`'s inspection surface (spec acceptance
+// criterion: "Users can inspect... domain expansion when debugging").
 func Vocabulary() []VocabEntry {
-	return vocabulary
+	return selectVocabulary(vocabularies, nil)
+}
+
+// VocabularyFor returns the domain-vocabulary table for the active domain set
+// (empty = all domains merged). Pix behavior is identical for nil/empty and
+// for exactly ["pix"] while pix is the only real domain.
+func VocabularyFor(domains []string) []VocabEntry {
+	return selectVocabulary(vocabularies, domains)
 }
 
 // activeVocabulary returns only the enabled entries, in file order — what

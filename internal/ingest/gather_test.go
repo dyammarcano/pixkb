@@ -69,7 +69,13 @@ func TestTagDomain(t *testing.T) {
 	assert.NotContains(t, out[1].Tags, "domain:pix", "must not double-tag an already-domained concept")
 	assert.Contains(t, out[2].Tags, "domain:pix")
 
-	// Idempotent: a second pass adds nothing.
+	// The column must agree with the tag: derived from domain:* (prefix stripped),
+	// defaulting to "pix" when a source tagged no domain.
+	assert.Equal(t, "pix", out[0].Domain, "untagged concept -> pix column")
+	assert.Equal(t, "tax", out[1].Domain, "domain:tax concept -> tax column")
+	assert.Equal(t, "pix", out[2].Domain, "nil-tag concept -> pix column")
+
+	// Idempotent: a second pass adds nothing and leaves the column stable.
 	again := tagDomain(out)
 	for i := range again {
 		n := 0
@@ -80,4 +86,7 @@ func TestTagDomain(t *testing.T) {
 		}
 		assert.Equalf(t, 1, n, "concept %s must have exactly one domain tag", again[i].ID)
 	}
+	assert.Equal(t, "pix", again[0].Domain)
+	assert.Equal(t, "tax", again[1].Domain)
+	assert.Equal(t, "pix", again[2].Domain)
 }

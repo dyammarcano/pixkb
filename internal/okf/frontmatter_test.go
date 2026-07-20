@@ -39,6 +39,44 @@ func TestMarshalFrontmatter(t *testing.T) {
 	assert.NotContains(t, s, "ignored by marshalFrontmatter")
 }
 
+func TestMarshalUnmarshalDomainNormRef(t *testing.T) {
+	ts := time.Date(2026, 7, 19, 10, 30, 0, 0, time.UTC)
+	c := Concept{
+		Type:       "NormativeConcept",
+		Title:      "Resolução BCB",
+		Timestamp:  ts,
+		Epoch:      1,
+		ContentSHA: "cafe",
+		Domain:     "bacen-normative",
+		NormRef:    "RES-BCB-1-2020",
+		EmbeddedAt: ts,
+		EmbedModel: "hashing",
+	}
+	out, err := marshalFrontmatter(c)
+	require.NoError(t, err)
+	s := string(out)
+	assert.Contains(t, s, "domain: bacen-normative")
+	assert.Contains(t, s, "norm_ref: RES-BCB-1-2020")
+
+	fm, err := unmarshalFrontmatter(out)
+	require.NoError(t, err)
+	assert.Equal(t, "bacen-normative", fm.Domain)
+	assert.Equal(t, "RES-BCB-1-2020", fm.NormRef)
+}
+
+func TestUnmarshalFrontmatterDomainOmittedDefaultsEmpty(t *testing.T) {
+	fm, err := unmarshalFrontmatter([]byte("type: Repo\ntitle: pix-api\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "", fm.Domain)
+	assert.Equal(t, "", fm.NormRef)
+
+	// omitempty: absent fields must not be serialized.
+	out, err := marshalFrontmatter(Concept{Type: "Repo"})
+	require.NoError(t, err)
+	assert.NotContains(t, string(out), "domain:")
+	assert.NotContains(t, string(out), "norm_ref:")
+}
+
 func TestSplitDocument(t *testing.T) {
 	raw := []byte("---\ntype: Repo\ntitle: pix-api\n---\n# pix-api\n\nbody line\n")
 	front, body, err := splitDocument(raw)

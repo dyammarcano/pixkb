@@ -1,5 +1,5 @@
 # pixkb Roadmap
-<!-- rev:014 -->
+<!-- rev:015 -->
 
 Air-gap OKF (Open Knowledge Format) knowledge base for Brazil BCB Pix/SPB.
 The OKF markdown bundle is the canonical source of truth; the Postgres+pgvector
@@ -162,3 +162,29 @@ and remaining follow-ups.
   guarded by provider-on-PATH + `-short`); paired with the MCP
   concept_upsert→search round-trip, this covers agent → structured output →
   write-back → retrieve. Verified live on codex (21s).
+
+## Phase 10 — Cross-Domain Regulatory Graph (v0.2) [~]
+IN PROGRESS. Generalize pixkb from a single-domain KB into a cross-domain
+regulatory graph. Design: `docs/superpowers/specs/2026-07-19-multi-domain-kb-design.md`.
+**Part 1 — foundation DELIVERED on `feat/multidomain-foundation`** (13 commits;
+plan `docs/superpowers/plans/2026-07-19-multi-domain-foundation.md`):
+- [x] First-class `domain` field: OKF model + front-matter → `concept.domain`
+  column (migration 0007, `DEFAULT 'pix'`) → store persist. Reconciled as the
+  **source of truth** with the pre-existing `domain:*` tag convention: `tagDomain`
+  now sets the column from the tag and migration 0010 backfills existing rows
+  (the `domain:tax` Receita corpus lands as `domain='tax'`); the tag remains a
+  compatibility alias.
+- [x] `norm_ref` field + `concept.norm_ref` column (migration 0008) — the stable
+  citation-edge target.
+- [x] Optional `--domain` search facet (empty = all-domain, byte-for-byte v0.1
+  behaviour); filters both FTS and vector arms.
+- [x] BACEN citation-edge parser (`internal/link`) + `pixkb link` — deterministic,
+  date-independent base-key matching materialises cross-domain `cites` edges
+  (`edge` unique index, migration 0009). Proven end-to-end: a Pix concept citing
+  “Resolução BCB nº 1…” links to the normative concept.
+- [x] Per-domain vocabulary registry (`internal/query/domains/<name>/vocabulary.yaml`)
+  and per-domain agent-charter registry (`roster.CharterFor`).
+- **Part 2 (not yet started):** ingest the real BACEN-normative corpus (offline
+  files under `mirrors/bcb/normatives/`), cross-domain RAG citation-provenance +
+  edge traversal in grounding, MCP `domain` array on `kb_ask`/search, and the
+  physical `bundle/<domain>/` subtree move. See BACKLOG.

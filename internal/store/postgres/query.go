@@ -13,8 +13,8 @@ import (
 // conceptColumns is the full concept-row column list, in scan order, shared
 // by QueryConcepts. Kept in one place so the SELECT list and scanConcept
 // stay in lockstep.
-const conceptColumns = "id, type, coalesce(title,''), coalesce(description,''), resource, tags, language, body, " +
-	"content_sha, coalesce(source_uri,''), first_epoch, last_epoch, updated_at, coalesce(intent_terms,'')"
+const conceptColumns = "id, type, coalesce(title,''), coalesce(description,''), coalesce(resource,''), tags, language, body, " +
+	"content_sha, coalesce(source_uri,''), first_epoch, last_epoch, updated_at, coalesce(intent_terms,''), domain, coalesce(norm_ref,'')"
 
 // scanConcept scans one concept row selected via conceptColumns into an
 // okf.Concept. first_epoch is read but discarded onto Epoch alongside
@@ -25,7 +25,7 @@ func scanConcept(rows pgx.Rows) (okf.Concept, error) {
 	var firstEpoch int
 	if err := rows.Scan(
 		&c.ID, &c.Type, &c.Title, &c.Description, &c.Resource, &c.Tags, &c.Language, &c.Body,
-		&c.ContentSHA, &c.SourceURI, &firstEpoch, &c.Epoch, &c.Timestamp, &c.IntentTerms,
+		&c.ContentSHA, &c.SourceURI, &firstEpoch, &c.Epoch, &c.Timestamp, &c.IntentTerms, &c.Domain, &c.NormRef,
 	); err != nil {
 		return okf.Concept{}, fmt.Errorf("scan concept row: %w", err)
 	}

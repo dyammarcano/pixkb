@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:078 -->
+<!-- rev:079 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -19,6 +19,26 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   re-implemented.
 
 ## P2
+- **Phase 10 part-2 — cross-domain graph (follow-ups to the foundation on
+  `feat/multidomain-foundation`).** The `domain` column + citation-edge machinery
+  shipped; remaining: (a) ingest the real BACEN-normative corpus (offline files
+  under `mirrors/bcb/normatives/` → `domain:bacen-normative`, `type:Normative`,
+  `norm_ref` from the header); (b) cross-domain RAG — carry `domain` provenance in
+  citations and traverse `cites` edges in grounding expansion; (c) MCP `domain`
+  array on `kb_ask`/search (server-gated, clamped); (d) physical `bundle/<domain>/`
+  subtree move of existing concepts (gated behind a reindex round-trip on the live
+  bundle). Design: `docs/superpowers/specs/2026-07-19-multi-domain-kb-design.md`.
+- **Domain-scoped query expansion (review M6).** `ExpandQuery` currently uses the
+  all-domain vocabulary and ignores the `--domain` facet; `query.VocabularyFor([]string)`
+  exists to wire it. Harmless while `pix` is the only vocab domain — do it when a
+  second domain vocabulary lands.
+
+## P3
+- **Duplicate `norm_ref` last-wins in `pixkb link` (review M5).** When two concepts
+  share a `norm_ref`, `byNormRef` silently keeps the last. Rare; decide precedence
+  (or warn) if real duplicates appear.
+
+## P2 (pre-existing)
 - **SCOPE EXPANSION — grow the KB from BACEN/Pix-SPB to BACEN + Receita Federal
   (tax).** **Phase A SHIPPED (2026-07-17, merge `bffae5b`):** unified domain
   model (`domain:pix` / `domain:tax` tag on every concept, backfilled by a

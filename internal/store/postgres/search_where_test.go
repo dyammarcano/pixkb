@@ -51,4 +51,41 @@ func TestBuildFTSWhere_PlaceholderNumbering(t *testing.T) {
 		_, _, err := buildFTSWhere("pix", Filter{HQLWhere: hql})
 		require.Error(t, err)
 	})
+
+	t.Run("empty domains reproduces v0.1 WHERE byte-for-byte", func(t *testing.T) {
+		// Regression guard: an all-domain search (no --domain) must emit the
+		// exact WHERE + args a v0.1 filter produced — no domain predicate.
+		where, args, err := buildFTSWhere("pix", Filter{Domains: nil})
+		require.NoError(t, err)
+		require.Equal(t, "WHERE fts @@ websearch_to_tsquery('pixpt', $1)", where)
+		require.Equal(t, []any{"pix"}, args)
+		require.NotContains(t, where, "domain")
+	})
+
+	t.Run("domains append domain = ANY at the next free placeholder", func(t *testing.T) {
+		doms := []string{"pix", "bacen-normative"}
+		where, args, err := buildFTSWhere("pix", Filter{Domains: doms})
+		require.NoError(t, err)
+		require.Contains(t, where, "AND domain = ANY($2)")
+		require.Len(t, args, 2)          // q($1) + domains($2)
+		require.Equal(t, doms, args[1])  // the slice itself, bound as one arg
+		require.Equal(t, 1, strings.Count(where, "$2"))
+	})
+
+	t.Run("domains number after type/tag/exclude", func(t *testing.T) {
+		doms := []string{"tax"}
+		where, args, err := buildFTSWhere("pix", Filter{
+			Type:       "ApiEndpoint",
+			Tag:        "domain:tax",
+			ExcludeIDs: []string{"x.md"},
+			Domains:    doms,
+		})
+		require.NoError(t, err)
+		require.Contains(t, where, "type = ANY($2)")
+		require.Contains(t, where, "tags @> ARRAY[$3]::text[]")
+		require.Contains(t, where, "id != ALL($4)")
+		require.Contains(t, where, "AND domain = ANY($5)")
+		require.Len(t, args, 5)
+		require.Equal(t, doms, args[4])
+	})
 }

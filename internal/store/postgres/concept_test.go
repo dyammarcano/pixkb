@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 	"time"
 
@@ -77,4 +78,127 @@ func TestUpsertConcept_InsertThenUpdate(t *testing.T) {
 	var cnt int
 	require.NoError(t, s.pool.QueryRow(ctx, "SELECT count(*) FROM concept").Scan(&cnt))
 	require.Equal(t, 1, cnt)
+}
+
+func TestUpsertConcept_DomainRoundTrip(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	base := okf.Concept{
+		Type:       "message",
+		Resource:   "pacs.008",
+		ContentSHA: "sha1",
+		Epoch:      1,
+		Timestamp:  time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Explicit domain is preserved.
+	withDomain := base
+	withDomain.ID = "concept/with-domain.md"
+	withDomain.Domain = "bacen-normative"
+	require.NoError(t, s.UpsertConcept(ctx, withDomain))
+
+	// Empty domain back-fills to the 'pix' column default.
+	noDomain := base
+	noDomain.ID = "concept/no-domain.md"
+	noDomain.Domain = ""
+	require.NoError(t, s.UpsertConcept(ctx, noDomain))
+
+	got, err := s.QueryConcepts(ctx, "id = $1", []any{withDomain.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "bacen-normative", got[0].Domain)
+
+	got, err = s.QueryConcepts(ctx, "id = $1", []any{noDomain.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "pix", got[0].Domain, "empty domain must read back as the 'pix' default")
+}
+
+// TestMigration0010_BackfillDomainFromTags proves the 0010 backfill makes the
+// domain COLUMN authoritative from the domain:* TAG for pre-backfill rows: a
+// concept seeded with tags {api,domain:tax} but column domain='pix' (the state
+// the ingest path used to leave) must read back domain='tax' after the backfill.
+func TestMigration0010_BackfillDomainFromTags(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	const id = "concept/backfill-tax.md"
+	_, err = s.pool.Exec(ctx, `
+INSERT INTO concept (id, type, title, body, content_sha, tags, domain, first_epoch, last_epoch, updated_at)
+VALUES ($1, 'ManualSection', 'Tax concept', 'body', 'sha-backfill', $2, 'pix', 1, 1, now())`,
+		id, []string{"api", "domain:tax"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = s.pool.Exec(context.Background(), "DELETE FROM concept WHERE id=$1", id) })
+
+	// Sanity: pre-backfill the column is the wrong 'pix'.
+	var before string
+	require.NoError(t, s.pool.QueryRow(ctx, "SELECT domain FROM concept WHERE id=$1", id).Scan(&before))
+	require.Equal(t, "pix", before)
+
+	// Apply the 0010 backfill SQL (the same DDL production runs via `db up`).
+	sqlBytes, err := fs.ReadFile(SchemaFS, "schema/0010_backfill_domain_from_tags.up.sql")
+	require.NoError(t, err)
+	_, err = s.pool.Exec(ctx, string(sqlBytes))
+	require.NoError(t, err)
+
+	var after string
+	require.NoError(t, s.pool.QueryRow(ctx, "SELECT domain FROM concept WHERE id=$1", id).Scan(&after))
+	require.Equal(t, "tax", after, "backfill must set the column from the domain:tax tag")
+}
+
+func TestUpsertConcept_NormRefRoundTrip(t *testing.T) {
+	dsn := testDSN(t)
+	ctx := context.Background()
+	applyTestSchema(t, dsn)
+	s, err := Open(ctx, dsn)
+	require.NoError(t, err)
+	defer s.Close()
+	truncateAll(t, s)
+
+	base := okf.Concept{
+		Type:       "message",
+		Resource:   "pacs.008",
+		ContentSHA: "sha1",
+		Epoch:      1,
+		Timestamp:  time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC),
+	}
+
+	// Explicit norm_ref is preserved.
+	withRef := base
+	withRef.ID = "concept/with-ref.md"
+	withRef.NormRef = "RES-BCB-1-2020"
+	require.NoError(t, s.UpsertConcept(ctx, withRef))
+
+	// Empty norm_ref stores SQL NULL and reads back as "".
+	noRef := base
+	noRef.ID = "concept/no-ref.md"
+	noRef.NormRef = ""
+	require.NoError(t, s.UpsertConcept(ctx, noRef))
+
+	got, err := s.QueryConcepts(ctx, "id = $1", []any{withRef.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "RES-BCB-1-2020", got[0].NormRef)
+
+	got, err = s.QueryConcepts(ctx, "id = $1", []any{noRef.ID}, "", 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, "", got[0].NormRef, "empty norm_ref must read back as \"\"")
+
+	// The column must actually be SQL NULL (not empty string) for empty refs.
+	var isNull bool
+	require.NoError(t, s.pool.QueryRow(ctx,
+		"SELECT norm_ref IS NULL FROM concept WHERE id=$1", noRef.ID).Scan(&isNull))
+	require.True(t, isNull, "empty norm_ref must persist as SQL NULL")
 }

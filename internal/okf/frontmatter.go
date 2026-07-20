@@ -23,6 +23,8 @@ type frontmatter struct {
 	Epoch       int       `yaml:"epoch"`
 	ContentSHA  string    `yaml:"content_sha"`
 	SourceURI   string    `yaml:"source_uri,omitempty"`
+	Domain      string    `yaml:"domain,omitempty"`
+	NormRef     string    `yaml:"norm_ref,omitempty"`
 	IntentTerms string    `yaml:"intent_terms,omitempty"`
 	EmbeddedAt  time.Time `yaml:"embedded_at"`
 	EmbedModel  string    `yaml:"embed_model,omitempty"`
@@ -45,6 +47,8 @@ func marshalFrontmatter(c Concept) ([]byte, error) {
 		Epoch:       c.Epoch,
 		ContentSHA:  c.ContentSHA,
 		SourceURI:   c.SourceURI,
+		Domain:      c.Domain,
+		NormRef:     c.NormRef,
 		IntentTerms: c.IntentTerms,
 		EmbeddedAt:  c.EmbeddedAt,
 		EmbedModel:  c.EmbedModel,

@@ -125,3 +125,117 @@ func TestMigration0003PtStopwords(t *testing.T) {
 	assert.Contains(t, downSQL, "DROP TEXT SEARCH CONFIGURATION IF EXISTS pixpt")
 	assert.Contains(t, downSQL, "DROP TEXT SEARCH DICTIONARY IF EXISTS pt_simple_nostem")
 }
+
+func TestMigration0007ConceptDomain(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0007_concept_domain.up.sql"], "missing 0007 up migration")
+	require.True(t, names["0007_concept_domain.down.sql"], "missing 0007 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0007_concept_domain.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS domain text", // additive domain column
+		"NOT NULL DEFAULT 'pix'",               // back-fills existing concepts as pix
+		"CREATE INDEX IF NOT EXISTS concept_domain_idx ON concept(domain)",
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0007 up missing %q", want)
+	}
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0007_concept_domain.down.sql")
+	require.NoError(t, err)
+	downSQL := string(down)
+	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_domain_idx")
+	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS domain")
+}
+
+func TestMigration0008ConceptNormRef(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0008_concept_norm_ref.up.sql"], "missing 0008 up migration")
+	require.True(t, names["0008_concept_norm_ref.down.sql"], "missing 0008 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0008_concept_norm_ref.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"ADD COLUMN IF NOT EXISTS norm_ref TEXT",                                  // additive, nullable column
+		"CREATE INDEX IF NOT EXISTS concept_norm_ref_idx ON concept(norm_ref)",    // link lookup index
+		"WHERE norm_ref IS NOT NULL",                                              // partial index
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0008 up missing %q", want)
+	}
+	// norm_ref is optional: no NOT NULL / DEFAULT back-fill, unlike domain.
+	assert.NotContains(t, upSQL, "NOT NULL DEFAULT", "norm_ref must be nullable with no default")
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0008_concept_norm_ref.down.sql")
+	require.NoError(t, err)
+	downSQL := string(down)
+	assert.Contains(t, downSQL, "DROP INDEX IF EXISTS concept_norm_ref_idx")
+	assert.Contains(t, downSQL, "DROP COLUMN IF EXISTS norm_ref")
+}
+
+func TestMigration0009EdgeUnique(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0009_edge_unique.up.sql"], "missing 0009 up migration")
+	require.True(t, names["0009_edge_unique.down.sql"], "missing 0009 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0009_edge_unique.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"CREATE UNIQUE INDEX IF NOT EXISTS edge_cites_uniq ON edge(src, dst, kind)", // partial unique index
+		"WHERE kind = 'cites'",                                                       // scoped to citation edges only
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0009 up missing %q", want)
+	}
+
+	down, err := fs.ReadFile(SchemaFS, "schema/0009_edge_unique.down.sql")
+	require.NoError(t, err)
+	assert.Contains(t, string(down), "DROP INDEX IF EXISTS edge_cites_uniq")
+}
+
+func TestMigration0010BackfillDomainFromTags(t *testing.T) {
+	t.Parallel()
+
+	entries, err := fs.ReadDir(SchemaFS, "schema")
+	require.NoError(t, err)
+	names := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		names[e.Name()] = true
+	}
+	require.True(t, names["0010_backfill_domain_from_tags.up.sql"], "missing 0010 up migration")
+	require.True(t, names["0010_backfill_domain_from_tags.down.sql"], "missing 0010 down migration")
+
+	up, err := fs.ReadFile(SchemaFS, "schema/0010_backfill_domain_from_tags.up.sql")
+	require.NoError(t, err)
+	upSQL := string(up)
+	for _, want := range []string{
+		"UPDATE concept c SET domain = replace(t.tag, 'domain:', '')", // column takes the tag's value
+		"unnest(tags) AS tag",                                         // expand the tags array
+		"WHERE tag LIKE 'domain:%'",                                    // only domain:* tags
+		"replace(t.tag,'domain:','') <> ''",                           // skip an empty derived domain
+	} {
+		assert.Truef(t, strings.Contains(upSQL, want), "0010 up missing %q", want)
+	}
+}

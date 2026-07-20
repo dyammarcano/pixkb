@@ -29,6 +29,11 @@ func TestQueryConcepts_FiltersOrdersAndLimits(t *testing.T) {
 	articleID := fmt.Sprintf("query-article-%d.md", suffix)
 	endpointID := fmt.Sprintf("query-endpoint-%d.md", suffix)
 	manualID := fmt.Sprintf("query-manual-%d.md", suffix)
+	// likePat scopes every assertion to THIS run's rows only. The shared,
+	// never-truncated test DB accumulates "query-*" rows across runs, so a
+	// prefix like "query-%" would count prior runs' rows and inflate the
+	// asserted totals ("has 6, want 2"). The nanosecond suffix makes it unique.
+	likePat := fmt.Sprintf("query-%%-%d.md", suffix)
 
 	ts := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, s.UpsertConcept(ctx, okf.Concept{
@@ -57,27 +62,27 @@ func TestQueryConcepts_FiltersOrdersAndLimits(t *testing.T) {
 
 	// tags @> ARRAY[$1]::text[] with "domain:tax" returns exactly the two tax
 	// concepts, in id ASC order.
-	got, err := s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", "query-%"}, "id ASC", 0)
+	got, err := s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", likePat}, "id ASC", 0)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.Equal(t, taxIDs[0], got[0].ID)
 	require.Equal(t, taxIDs[1], got[1].ID)
 
 	// type = $1 with "LegalArticle" returns only the article.
-	got, err = s.QueryConcepts(ctx, "type = $1 AND id LIKE $2", []any{"LegalArticle", "query-%"}, "id ASC", 0)
+	got, err = s.QueryConcepts(ctx, "type = $1 AND id LIKE $2", []any{"LegalArticle", likePat}, "id ASC", 0)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, articleID, got[0].ID)
 
 	// order = "id DESC" reverses the tax-concept ordering.
-	got, err = s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", "query-%"}, "id DESC", 0)
+	got, err = s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", likePat}, "id DESC", 0)
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.Equal(t, taxIDs[1], got[0].ID)
 	require.Equal(t, taxIDs[0], got[1].ID)
 
 	// limit = 1 truncates to a single row.
-	got, err = s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", "query-%"}, "id ASC", 1)
+	got, err = s.QueryConcepts(ctx, "tags @> ARRAY[$1]::text[] AND id LIKE $2", []any{"domain:tax", likePat}, "id ASC", 1)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.Equal(t, taxIDs[0], got[0].ID)
