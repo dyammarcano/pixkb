@@ -1,5 +1,5 @@
 # pixkb Backlog
-<!-- rev:080 -->
+<!-- rev:081 -->
 
 Prioritized future work. P1 = highest. Promote items into the active phase
 (see `docs/ROADMAP.md` Phase 7) as they are scheduled.
@@ -19,15 +19,15 @@ Prioritized future work. P1 = highest. Promote items into the active phase
   re-implemented.
 
 ## P2
-- **Official sources — increments 2–5 (follow-ups to the foundation shipped
-  2026-07-20).** Increment 1 (provenance tag + `serve --gather-every` daemon +
-  config) shipped; remaining: (2) live **GitHub issues** source
-  (`ingest.NewIssuesSource` over `official_sources.issues`) — the first source
-  that actually fetches fresh remote content, so the daemon delivers new data;
-  (3) **rank boost** for `trusted:official` concepts in the hybrid ranker;
-  (4) **change tracking** — per-source content hash/etag, log what changed between
-  gathers; (5) **gate relaxation** — curation/quality gates auto-pass
-  `trusted:official`. Design: `docs/superpowers/specs/2026-07-20-official-sources-design.md`.
+- **Official sources — increments 4–5 (follow-ups to the foundation shipped
+  2026-07-20).** Increments 1–3 shipped: (1) provenance tag + `serve
+  --gather-every` daemon + config; (2) live **GitHub issues** source
+  (`ingest.NewIssuesSource`, `6332898`); (3) **rank boost** for `trusted:official`
+  in the hybrid ranker (`d37b0be`). Remaining: (4) **change tracking** — per-source
+  content hash/etag, log what changed between gathers; (5) **gate relaxation** —
+  curation gates auto-pass `trusted:official` (skip official concept IDs in
+  `internal/curate` route()). Design:
+  `docs/superpowers/specs/2026-07-20-official-sources-design.md`.
 - **Phase 10 part-2 — cross-domain graph (follow-ups to the foundation on
   `feat/multidomain-foundation`).** The `domain` column + citation-edge machinery
   shipped; remaining: (a) ingest the real BACEN-normative corpus (offline files
