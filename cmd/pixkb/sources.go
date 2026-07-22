@@ -59,6 +59,11 @@ func buildSources(cfg Config) []ingest.Source {
 	// <ingest_dir>/inbox; a missing dir yields no concepts, so this is safe to
 	// include unconditionally.
 	srcs = append(srcs, ingest.NewInboxSource(filepath.Join(cfg.IngestDir, "inbox")))
+	// Official GitHub issues (live fetch, tolerant of offline/rate-limit). Off
+	// unless official_sources.issues lists repos.
+	if len(cfg.Official.Issues) > 0 {
+		srcs = append(srcs, ingest.NewIssuesSource(cfg.Official.Issues))
+	}
 	if len(cfg.PDFs) > 0 {
 		srcs = append(srcs, ingest.NewPDFSource(cfg.PDFs))
 	}
