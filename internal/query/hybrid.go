@@ -142,14 +142,21 @@ const vecScoreFloor = 0.05
 // the "not present in this arm" sentinel; FinalScore always equals the
 // corresponding Hit's Score field.
 type Explain struct {
-	FTSRank    int
-	VecRank    int
-	VecScore   float64
-	TypeWeight float64
-	TitleBoost float64
-	FinalScore float64
-	Arm        string
+	FTSRank       int
+	VecRank       int
+	VecScore      float64
+	TypeWeight    float64
+	TitleBoost    float64
+	OfficialBoost float64
+	FinalScore    float64
+	Arm           string
 }
+
+// officialBoost multiplies a hit's fused score when its concept carries the
+// trusted:official tag, so authoritative BACEN sources win ties and near-ties
+// against community/secondary content. Deliberately modest — it nudges ordering,
+// it does not let a weak-matching official concept outrank a strong match.
+const officialBoost = 1.15
 
 // Hybrid runs full-text and vector search for q and fuses the two result sets
 // with reciprocal-rank fusion (RRF), returning hits ordered by fused score. The
@@ -210,6 +217,7 @@ func hybridCore(ctx context.Context, s Searcher, emb embed.Embedder, q string, f
 	firstSeen := make(map[string]int)
 	fromFTS := make(map[string]bool)
 	fromVec := make(map[string]bool)
+	officialByID := make(map[string]bool)
 	// 1-based per-arm rank and per-arm vector score, tracked alongside
 	// fromFTS/fromVec purely for Explain — never read by the fusion math below.
 	ftsRank := make(map[string]int)
@@ -233,24 +241,36 @@ func hybridCore(ctx context.Context, s Searcher, emb embed.Embedder, q string, f
 		note(h, i, ftsArmWeight)
 		fromFTS[h.ID] = true
 		ftsRank[h.ID] = i + 1
+		if h.Official {
+			officialByID[h.ID] = true
+		}
 	}
 	for i, h := range vecHits {
 		note(h, i, vecArmWeight)
 		fromVec[h.ID] = true
 		vecRank[h.ID] = i + 1
 		vecScoreByID[h.ID] = h.Score
+		if h.Official {
+			officialByID[h.ID] = true
+		}
 	}
 
 	// Apply the type-authority weight, then sort (score desc, first-seen, id).
 	typeWeightByID := make(map[string]float64, len(scores))
 	titleBoostByID := make(map[string]float64, len(scores))
+	officialBoostByID := make(map[string]float64, len(scores))
 	ids := make([]string, 0, len(scores))
 	for id := range scores {
 		tw := typeWeight(types[id])
 		tb := titleBoost(q, titles[id])
+		ob := 1.0
+		if officialByID[id] {
+			ob = officialBoost
+		}
 		typeWeightByID[id] = tw
 		titleBoostByID[id] = tb
-		scores[id] *= tw * tb
+		officialBoostByID[id] = ob
+		scores[id] *= tw * tb * ob
 		ids = append(ids, id)
 	}
 	sort.SliceStable(ids, func(a, b int) bool {
@@ -276,17 +296,19 @@ func hybridCore(ctx context.Context, s Searcher, emb embed.Embedder, q string, f
 		arm := armLabel(fromFTS[id], fromVec[id])
 		out = append(out, postgres.Hit{
 			ID: id, Title: titles[id], Type: types[id], Rank: i + 1,
-			Score: scores[id],
-			Arm:   arm,
+			Score:    scores[id],
+			Arm:      arm,
+			Official: officialByID[id],
 		})
 		explains = append(explains, Explain{
-			FTSRank:    ftsRank[id],
-			VecRank:    vecRank[id],
-			VecScore:   vecScoreByID[id],
-			TypeWeight: typeWeightByID[id],
-			TitleBoost: titleBoostByID[id],
-			FinalScore: scores[id],
-			Arm:        arm,
+			FTSRank:       ftsRank[id],
+			VecRank:       vecRank[id],
+			VecScore:      vecScoreByID[id],
+			TypeWeight:    typeWeightByID[id],
+			TitleBoost:    titleBoostByID[id],
+			OfficialBoost: officialBoostByID[id],
+			FinalScore:    scores[id],
+			Arm:           arm,
 		})
 	}
 	return out, explains, nil

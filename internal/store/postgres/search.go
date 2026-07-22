@@ -64,6 +64,10 @@ type Hit struct {
 	// by both the FTS and vector arms' SELECT, so provenance is shown regardless
 	// of which arm surfaced the hit.
 	Domain string
+	// Official is true when the concept carries the trusted:official tag (an
+	// authoritative source). Populated by both arms' SELECT; the hybrid fuser
+	// applies a rank boost to official hits.
+	Official bool
 }
 
 const defaultLimit = 20
@@ -129,6 +133,7 @@ func (s *Store) FTS(ctx context.Context, q string, f Filter) ([]Hit, error) {
 	// "consultar cobrança por txid". Length normalization fixes that bias.
 	query := fmt.Sprintf(`
 SELECT id, coalesce(title,''), type, domain,
+       ('trusted:official' = ANY(tags)) AS official,
        ts_rank_cd(
          setweight(to_tsvector(
            (CASE WHEN language = 'en' THEN 'english' ELSE 'portuguese' END)::regconfig,
@@ -158,7 +163,7 @@ LIMIT $%d`, where, len(args))
 	rank := 0
 	for rows.Next() {
 		var h Hit
-		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Domain, &h.Score); err != nil {
+		if err := rows.Scan(&h.ID, &h.Title, &h.Type, &h.Domain, &h.Official, &h.Score); err != nil {
 			return nil, fmt.Errorf("scan fts hit: %w", err)
 		}
 		rank++
