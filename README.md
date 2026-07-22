@@ -1,5 +1,5 @@
 # pixkb — Air-Gap OKF Knowledge Base for Pix / SPB
-<!-- rev:004 -->
+<!-- rev:005 (RFC 3339) 2026-07-22T01:20:00Z -->
 
 `pixkb` ingests Brazilian instant-payment (Pix / SPB / SPI) and consumption-tax
 (Receita Federal / Reforma Tributária) knowledge — ISO 20022 PACS/CAMT message
@@ -71,13 +71,38 @@ go run ./cmd/pixkb search --mode vector "cancel payment"
 | `reindex` | Rebuild the Postgres index from the canonical bundle |
 | `diff <n> <m>` | Concept-level diff between two epochs (bitemporal) |
 | `watch [--debounce-ms]` | Offline daemon: re-ingest when artifacts land in the drop-dir |
-| `serve [--addr]` | Read-only HTTP JSON search API (`GET /search?q=...`) |
+| `serve [--addr] [--ask] [--gather-every 24h]` | HTTP search API; `--ask` adds the RAG **web UI** + `POST /ask`; `--gather-every` runs the official-source gather daemon |
+| `ask <q> [--provider] [--top-k] [--min-score] [--multi]` | Grounded, cited answer (RAG) over the KB |
+| `ispb str\|pix sync\|fetch\|load` · `ispb lookup <code>` · `ispb search <name>` | BACEN ISPB participant registry (brand/trade-name aware search) |
 | `export-bundle [--out]` | Package the OKF bundle as a portable tar.gz |
 | `doctor` | Air-gap readiness checks (db, pgvector, embedder, bundle) |
 | `hygiene [--json] [--check C] [--errors]` | Deterministic KB health scan (deviations + mechanical issues) |
 | `curate [--plan\|--apply] [--limit N] [--provider P]` | Curation loop: scan → route to fix agents → gate → upsert+reindex |
 | `concept get\|upsert\|rm <id>` | Read / write-back / remove a single concept |
 | `qr read <brcode>\|--image f` / `qr write --key --name --city [--amount --txid --png f]` | Pix BR Code (EMV MPM / "Copia e Cola") parse (string or QR image) / build |
+
+## Web UI (`serve --ask`)
+
+`pixkb serve --ask` serves a self-contained browser UI (no external assets —
+air-gap clean) at `GET /`, alongside the JSON `/search` API. Two tabs:
+
+- **Perguntar** — ask the KB questions; grounded, cited answers with a per-browser
+  question history (`localStorage`). Each answer carries a **feedback** bar
+  (👍/👎 + note) appended to `<ingest_dir>/feedback.jsonl` for later analysis
+  (`GET /feedback`).
+- **Adicionar conteúdo** (Dump/Ingest) — drag-drop any files or paste URLs into a
+  staging inbox, then **Ingerir agora** to fold them into the KB. Files route by
+  type (PDF/DOCX/XLSX/OpenAPI parsed; others kept as searchable attachments); URLs
+  fetch by content-type (PDF stays binary, HTML→sanitized markdown, else link);
+  pasted URLs are normalized + hashed so re-adds dedup; ingested items are archived
+  out of the queue. `/ask` and the inbox mount only under `--ask` (they invoke the
+  agent fleet / ingest, not the read-only contract).
+
+**Official sources.** `official_sources.hosts` marks concepts from authoritative
+BACEN sources (`github.com/bacen`, `bacen.github.io`, `bcb.gov.br`) with a
+`trusted:official` tag; `serve --gather-every <dur>` (or `official_sources.gather_every`)
+periodically re-gathers them. The gather daemon needs network, so it is off by
+default — the sealed air-gap default holds unless an interval is set.
 
 ## Configuration
 

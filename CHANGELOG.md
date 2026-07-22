@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — web UI, dump/ingest, and official sources
+
+- **Ask web UI** (`serve --ask`): a self-contained browser page (`GET /`) with a
+  grounded/cited ask tab (`POST /ask`, reusing the `pixkb ask` pipeline) and a
+  per-browser question history in `localStorage`.
+- **Answer feedback**: 👍/👎 + optional note per answer, appended to
+  `<ingest_dir>/feedback.jsonl` (`POST`/`GET /feedback`) for later quality analysis.
+- **Dump/Ingest UI + inbox**: drag-drop files and paste URLs into a staging inbox
+  (`ingest.NewInboxSource`, wired into `buildSources`), review the queue, and
+  **Ingest now** (`POST /inbox/ingest`). Files route by extension to the existing
+  extractors or become searchable `Attachment` concepts; ingested items are
+  archived out of the visible queue but still gathered (Run is a full-corpus
+  snapshot).
+- **URL handling**: fetched URLs route by Content-Type (PDF stays binary and is
+  PDF-parsed; HTML→UTF-8-sanitized markdown; other binary kept as attachment) —
+  fixes an invalid-UTF-8 upsert crash on PDF links. Pasted URLs are normalized and
+  hashed so re-adds dedup without re-fetching.
+- **Official sources**: `official_sources` config (hosts/gather_every/issues);
+  `ingest.TagOfficial` stamps `trusted:official` on concepts from BACEN hosts;
+  `serve --gather-every <dur>` runs a periodic gather daemon (off by default —
+  needs network). Foundation of a 5-increment subsystem (issues source, rank boost,
+  change tracking, gate relaxation to follow).
+- **ISPB brand/trade-name search**: `ispb search` resolves brand names the BACEN
+  registry lists under legal names (Nubank→NU PAGAMENTOS, banco→BCO rewrite,
+  modal→Genial, bancoob→Sicoob, banese/banpara). Accent-insensitive matching
+  already existed (`unaccent`).
+
+### Fixed — config-driven DSN
+
+- `db` subcommands (`db up`/`down`) now resolve the DSN from the config file, not
+  only `--dsn`/`PIXKB_DSN`, matching the rest of the CLI.
+
 ### Added — cross-domain regulatory graph foundation (Phase 10 part 1)
 
 - First-class `domain` on concepts: OKF model + front-matter → `concept.domain`
